@@ -2165,6 +2165,21 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 		}
 	}
 
+	// XXX Scan all scripts for TADD/TSPEND. This must execute regardless
+	// of runScripts being disabled. We run this last so that we do not
+	// have to deal with unwinding treasury state.
+	//treasuryFeaturesActive, err := b.isTreasuryAgendaActive(node.parent)
+	//if err != nil {
+	//	return err
+	//}
+	//if treasuryFeaturesActive {
+	//	err = b.updateTreasury(block)
+	//	if err != nil {
+	//		log.Tracef("updateTreasury failed: %v", err)
+	//		return err
+	//	}
+	//}
+
 	// -------------------------------------------------------------------
 	// Decred general transaction testing (and a few stake exceptions).
 	// -------------------------------------------------------------------
@@ -2280,6 +2295,27 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 			return 0, ruleError(ErrDiscordantTxTree, errStr)
 		}
 
+		// OP_TADD and OP_TSPEND tagged outputs can only be spent after
+		// coinbase maturity many blocks.
+		scriptClass := txscript.GetScriptClass(
+			utxoEntry.ScriptVersionByIndex(originTxIndex),
+			utxoEntry.PkScriptByIndex(originTxIndex))
+		if scriptClass == txscript.TreasuryAddTy ||
+			scriptClass == txscript.TreasurySpendTy {
+			originHeight := utxoEntry.BlockHeight()
+			blocksSincePrev := txHeight - originHeight
+			if blocksSincePrev <
+				int64(chainParams.SStxChangeMaturity) {
+				str := fmt.Sprintf("tried to spend OP_TADD or "+
+					"OP_SPEND output from tx %v from "+
+					"height %v at height %v before "+
+					"required maturity of %v blocks",
+					txInHash, originHeight, txHeight,
+					coinbaseMaturity)
+				return 0, ruleError(ErrImmatureSpend, str)
+			}
+		}
+
 		// The only transaction types that are allowed to spend from OP_SSTX
 		// tagged outputs are votes and revocations.  So, check all the inputs
 		// from non votes and revocations and make sure that they spend no
@@ -2304,9 +2340,6 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 
 		// OP_SSGEN and OP_SSRTX tagged outputs can only be spent after
 		// coinbase maturity many blocks.
-		scriptClass := txscript.GetScriptClass(
-			utxoEntry.ScriptVersionByIndex(originTxIndex),
-			utxoEntry.PkScriptByIndex(originTxIndex))
 		if scriptClass == txscript.StakeGenTy ||
 			scriptClass == txscript.StakeRevocationTy {
 			originHeight := utxoEntry.BlockHeight()
@@ -2869,6 +2902,16 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 		scriptFlags |= txscript.ScriptVerifyCheckSequenceVerify
 		scriptFlags |= txscript.ScriptVerifySHA256
 	}
+
+	// Enable OP_TADD/OP_TSPEND if treasury opcodes are active.
+	treasuryFeaturesActive, err := b.isTreasuryAgendaActive(node.parent)
+	if err != nil {
+		return 0, err
+	}
+	if treasuryFeaturesActive {
+		scriptFlags |= txscript.ScriptVerifyTreasury
+	}
+
 	return scriptFlags, err
 }
 

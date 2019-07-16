@@ -148,6 +148,44 @@ func hasP2SHScriptSigStakeOpCodes(version uint16, scriptSig, scriptPubKey []byte
 	return nil
 }
 
+// HasTreasuryOpCodes returns an error if the script contains treasury opcodes.
+func HasTreasuryOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
+	class := GetScriptClass(version, scriptPubKey)
+	switch class {
+	case TreasuryAddTy:
+		// XXX verify if there are illegal opcodes
+	case TreasurySpendTy:
+		// XXX verify if there are illegal opcodes
+
+		//// Obtain the embedded pkScript from the scriptSig of the
+		//// current transaction. Then, ensure that it does not use
+		//// any stake tagging OP codes.
+		//pData, err := PushedData(scriptSig)
+		//if err != nil {
+		//	return err
+		//}
+		//if len(pData) == 0 {
+		//	str := "script has no pushed data"
+		//	return scriptError(ErrNotPushOnly, str)
+		//}
+
+		//// The pay-to-hash-script is the final data push of the
+		//// signature script.
+		//shScript := pData[len(pData)-1]
+
+		//hasStakeOpCodes, err := ContainsStakeOpCodes(shScript)
+		//if err != nil {
+		//	return err
+		//}
+		//if hasStakeOpCodes {
+		//	str := "stake opcodes were found in a p2sh script"
+		//	return scriptError(ErrP2SHStakeOpCodes, str)
+		//}
+	}
+
+	return nil
+}
+
 // DisasmString formats a disassembled script for one line printing.  When the
 // script fails to parse, the returned string will contain the disassembled
 // script up to the point the failure occurred along with the string '[error]'

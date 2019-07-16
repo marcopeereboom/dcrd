@@ -15,6 +15,8 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/blockchain/v2/internal/dbnamespace"
+	"github.com/decred/dcrd/blockchain/v2/internal/progresslog"
 	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
@@ -1023,6 +1025,28 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 	return nil
 }
 
+// upgradeToVersion7 upgrades a version 6 blockchain database to version 7.
+func upgradeToVersion7(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
+	log.Info("Adding treasury database...")
+	start := time.Now()
+
+	// Add database
+	err := db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(dbnamespace.TreasuryBucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// XXX Rescan blocks for TADD/TSPEND
+	log.Errorf("XXX treasury database not migrated")
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // upgradeDB upgrades old database versions to the newest version by applying
 // all possible upgrades iteratively.
 //
@@ -1065,6 +1089,14 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	// filters for all blocks in the main chain.
 	if dbInfo.version == 5 {
 		err := upgradeToVersion6(ctx, db, chainParams, dbInfo)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Add treasury database.
+	if dbInfo.version == 6 {
+		err := upgradeToVersion7(db, chainParams, dbInfo, interrupt)
 		if err != nil {
 			return err
 		}

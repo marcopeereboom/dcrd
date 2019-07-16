@@ -242,8 +242,8 @@ const (
 	OP_CHECKSIGALT         = 0xbe // 190 DECRED
 	OP_CHECKSIGALTVERIFY   = 0xbf // 191 DECRED
 	OP_SHA256              = 0xc0 // 192
-	OP_UNKNOWN193          = 0xc1 // 193
-	OP_UNKNOWN194          = 0xc2 // 194
+	OP_TADD                = 0xc1 // 193
+	OP_TSPEND              = 0xc2 // 194
 	OP_UNKNOWN195          = 0xc3 // 195
 	OP_UNKNOWN196          = 0xc4 // 196
 	OP_UNKNOWN197          = 0xc5 // 197
@@ -535,9 +535,11 @@ var opcodeArray = [256]opcode{
 	OP_CHECKSIGALT:       {OP_CHECKSIGALT, "OP_CHECKSIGALT", 1, opcodeCheckSigAlt},
 	OP_CHECKSIGALTVERIFY: {OP_CHECKSIGALTVERIFY, "OP_CHECKSIGALTVERIFY", 1, opcodeCheckSigAltVerify},
 
+	// treasury opcodes.
+	OP_TADD:   {OP_TADD, "OP_TADD", 1, opcodeTAdd},
+	OP_TSPEND: {OP_TSPEND, "OP_TSPEND", 1, opcodeTSpend},
+
 	// Undefined opcodes.
-	OP_UNKNOWN193: {OP_UNKNOWN193, "OP_UNKNOWN193", 1, opcodeNop},
-	OP_UNKNOWN194: {OP_UNKNOWN194, "OP_UNKNOWN194", 1, opcodeNop},
 	OP_UNKNOWN195: {OP_UNKNOWN195, "OP_UNKNOWN195", 1, opcodeNop},
 	OP_UNKNOWN196: {OP_UNKNOWN196, "OP_UNKNOWN196", 1, opcodeNop},
 	OP_UNKNOWN197: {OP_UNKNOWN197, "OP_UNKNOWN197", 1, opcodeNop},
@@ -744,21 +746,20 @@ func opcodeNop(op *opcode, data []byte, vm *Engine) error {
 	switch op.value {
 	case OP_NOP1, OP_NOP4, OP_NOP5, OP_NOP6,
 		OP_NOP7, OP_NOP8, OP_NOP9, OP_NOP10,
-		OP_UNKNOWN193, OP_UNKNOWN194, OP_UNKNOWN195,
-		OP_UNKNOWN196, OP_UNKNOWN197, OP_UNKNOWN198, OP_UNKNOWN199,
-		OP_UNKNOWN200, OP_UNKNOWN201, OP_UNKNOWN202, OP_UNKNOWN203,
-		OP_UNKNOWN204, OP_UNKNOWN205, OP_UNKNOWN206, OP_UNKNOWN207,
-		OP_UNKNOWN208, OP_UNKNOWN209, OP_UNKNOWN210, OP_UNKNOWN211,
-		OP_UNKNOWN212, OP_UNKNOWN213, OP_UNKNOWN214, OP_UNKNOWN215,
-		OP_UNKNOWN216, OP_UNKNOWN217, OP_UNKNOWN218, OP_UNKNOWN219,
-		OP_UNKNOWN220, OP_UNKNOWN221, OP_UNKNOWN222, OP_UNKNOWN223,
-		OP_UNKNOWN224, OP_UNKNOWN225, OP_UNKNOWN226, OP_UNKNOWN227,
-		OP_UNKNOWN228, OP_UNKNOWN229, OP_UNKNOWN230, OP_UNKNOWN231,
-		OP_UNKNOWN232, OP_UNKNOWN233, OP_UNKNOWN234, OP_UNKNOWN235,
-		OP_UNKNOWN236, OP_UNKNOWN237, OP_UNKNOWN238, OP_UNKNOWN239,
-		OP_UNKNOWN240, OP_UNKNOWN241, OP_UNKNOWN242, OP_UNKNOWN243,
-		OP_UNKNOWN244, OP_UNKNOWN245, OP_UNKNOWN246, OP_UNKNOWN247,
-		OP_UNKNOWN248:
+		OP_UNKNOWN195, OP_UNKNOWN196, OP_UNKNOWN197, OP_UNKNOWN198,
+		OP_UNKNOWN199, OP_UNKNOWN200, OP_UNKNOWN201, OP_UNKNOWN202,
+		OP_UNKNOWN203, OP_UNKNOWN204, OP_UNKNOWN205, OP_UNKNOWN206,
+		OP_UNKNOWN207, OP_UNKNOWN208, OP_UNKNOWN209, OP_UNKNOWN210,
+		OP_UNKNOWN211, OP_UNKNOWN212, OP_UNKNOWN213, OP_UNKNOWN214,
+		OP_UNKNOWN215, OP_UNKNOWN216, OP_UNKNOWN217, OP_UNKNOWN218,
+		OP_UNKNOWN219, OP_UNKNOWN220, OP_UNKNOWN221, OP_UNKNOWN222,
+		OP_UNKNOWN223, OP_UNKNOWN224, OP_UNKNOWN225, OP_UNKNOWN226,
+		OP_UNKNOWN227, OP_UNKNOWN228, OP_UNKNOWN229, OP_UNKNOWN230,
+		OP_UNKNOWN231, OP_UNKNOWN232, OP_UNKNOWN233, OP_UNKNOWN234,
+		OP_UNKNOWN235, OP_UNKNOWN236, OP_UNKNOWN237, OP_UNKNOWN238,
+		OP_UNKNOWN239, OP_UNKNOWN240, OP_UNKNOWN241, OP_UNKNOWN242,
+		OP_UNKNOWN243, OP_UNKNOWN244, OP_UNKNOWN245, OP_UNKNOWN246,
+		OP_UNKNOWN247, OP_UNKNOWN248:
 
 		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
 			str := fmt.Sprintf("%s reserved for upgrades", op.name)
@@ -2891,6 +2892,36 @@ func opcodeCheckSigAltVerify(op *opcode, data []byte, vm *Engine) error {
 		err = abstractVerify(op, vm, ErrCheckSigAltVerify)
 	}
 	return err
+}
+
+// opcodeTAdd adds value to the treasury balance.
+func opcodeTAdd(op *opcode, data []byte, vm *Engine) error {
+	// Treat the opcode as OP_UNKNOWN193 if the flag to interpret it as the
+	// TADD opcode is not set.
+	if !vm.hasFlag(ScriptVerifyTreasury) {
+		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
+			return scriptError(ErrDiscourageUpgradableNOPs,
+				"OP_UNKNOWN193 reserved for upgrades")
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// opcodeTSpend subtracts value from the treasury balance.
+func opcodeTSpend(op *opcode, data []byte, vm *Engine) error {
+	// Treat the opcode as OP_UNKNOWN194 if the flag to interpret it as the
+	// TSPEND opcode is not set.
+	if !vm.hasFlag(ScriptVerifyTreasury) {
+		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
+			return scriptError(ErrDiscourageUpgradableNOPs,
+				"OP_UNKNOWN194 reserved for upgrades")
+		}
+		return nil
+	}
+
+	return nil
 }
 
 // OpcodeByName is a map that can be used to lookup an opcode by its

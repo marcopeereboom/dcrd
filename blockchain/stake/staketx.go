@@ -31,6 +31,8 @@ const (
 	TxTypeSStx
 	TxTypeSSGen
 	TxTypeSSRtx
+	TxTypeTAdd
+	TxTypeTSpend
 )
 
 const (
@@ -953,6 +955,12 @@ func DetermineTxType(tx *wire.MsgTx) TxType {
 	}
 	if IsSSRtx(tx) {
 		return TxTypeSSRtx
+	}
+	if IsTAdd(tx) {
+		return TxTypeTAdd
+	}
+	if IsTSpend(tx) {
+		return TxTypeTSpend
 	}
 	return TxTypeRegular
 }

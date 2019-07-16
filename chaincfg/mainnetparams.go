@@ -287,6 +287,34 @@ func MainNetParams() *Params {
 				StartTime:  1567641600, // Sep 5th, 2019
 				ExpireTime: 1599264000, // Sep 5th, 2020
 			}},
+			8: {{
+				Vote: Vote{
+					Id:          VoteIDTreasury,
+					Description: "Enable TADD/TSUB treasury opcodes",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1577836800, // Jan 1st, 2020
+				ExpireTime: 1580515199, // Jan 31st, 2020 23:59.59
+			}},
 		},
 
 		// Enforce current block version once majority of the network has

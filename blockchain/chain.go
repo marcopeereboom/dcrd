@@ -227,6 +227,9 @@ type BlockChain struct {
 	calcPriorStakeVersionCache    map[[chainhash.HashSize]byte]uint32
 	calcVoterVersionIntervalCache map[[chainhash.HashSize]byte]uint32
 	calcStakeVersionCache         map[[chainhash.HashSize]byte]uint32
+
+	// Treasury cache
+	treasuryBalance int64
 }
 
 const (

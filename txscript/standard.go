@@ -43,6 +43,8 @@ const (
 	StakeSubChangeTy                     // Change for stake submission tx.
 	PubkeyAltTy                          // Alternative signature pubkey.
 	PubkeyHashAltTy                      // Alternative signature pubkey hash.
+	TreasuryAddTy                        // Add value to treasury
+	TreasurySpendTy                      // Spend from treasury
 )
 
 // scriptClassToName houses the human-readable strings which describe each
@@ -60,6 +62,8 @@ var scriptClassToName = []string{
 	StakeGenTy:        "stakegen",
 	StakeRevocationTy: "stakerevoke",
 	StakeSubChangeTy:  "sstxchange",
+	TreasuryAddTy:     "treasuryadd",
+	TreasurySpendTy:   "treasuryspend",
 }
 
 // String implements the Stringer interface by returning the name of
@@ -527,6 +531,44 @@ func isStakeChangeScript(scriptVersion uint16, script []byte) bool {
 		extractStakeScriptHash(script, stakeOpcode) != nil
 }
 
+// isTreasuryAddScript returns whether or not the passed script is a supported
+// add treasury script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	if len(script) != 1 || script[0] != OP_TADD {
+		return false
+	}
+
+	// XXX Should script_tests line 1945 not fail?
+
+	return true
+}
+
+// isTreasurySpendScript returns whether or not the passed script is a
+// supported spend treasury script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	if len(script) != 1 || script[0] != OP_TSPEND {
+		return false
+	}
+
+	return true
+}
+
 // scriptType returns the type of the script being inspected from the known
 // standard types.
 //
@@ -560,6 +602,10 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return StakeRevocationTy
 	case isStakeChangeScript(scriptVersion, script):
 		return StakeSubChangeTy
+	case isTreasuryAddScript(scriptVersion, script):
+		return TreasuryAddTy
+	case isTreasurySpendScript(scriptVersion, script):
+		return TreasurySpendTy
 	}
 
 	return NonStandardTy

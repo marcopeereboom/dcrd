@@ -51,6 +51,12 @@ const (
 	// OP_UNKNOWN192) as the OP_SHA256 opcode which consumes the top item of
 	// the data stack and replaces it with the sha256 of it.
 	ScriptVerifySHA256
+
+	// ScriptVerifyTreasury defines whether to treat opcode 193 (previously
+	// OP_UNKNOWN193) and opcode 194 (previously OP_UNKNOWN194) as the
+	// OP_TADD and OP_TSPEND opcodes which add and spend an amount from the
+	// treasury.
+	ScriptVerifyTreasury
 )
 
 const (
@@ -891,13 +897,19 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 		vm.isP2SH = true
 	}
 
-	// Redeem scripts for pay to script hash outputs are not allowed to use any
-	// stake tag opcodes if the script version is 0.
 	if scriptVersion == 0 {
 		err := hasP2SHScriptSigStakeOpCodes(scriptVersion, scriptSig,
 			scriptPubKey)
 		if err != nil {
 			return nil, err
+		}
+
+		// Treasury scripts are not allowed if the script is version 0.
+		if vm.hasFlag(ScriptVerifyTreasury) {
+			err = HasTreasuryOpCodes(scriptVersion, scriptSig, scriptPubKey)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 

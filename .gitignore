@@ -41,3 +41,6 @@ cmd/dcrctl/dcrctl
 cmd/findcheckpoint/findcheckpoint
 cmd/gencerts/gencerts
 cmd/promptsecret/promptsecret
+
+# Vim
+*.sw*
