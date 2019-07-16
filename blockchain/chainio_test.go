@@ -608,7 +608,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 			name:       "No spends",
 			entry:      nil,
 			blockTxns:  nil,
-			utxoView:   NewUtxoViewpoint(),
+			utxoView:   NewUtxoViewpoint(nil),
 			serialized: nil,
 		},
 		{
@@ -654,7 +654,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				LockTime: 0,
 				Expiry:   0,
 			}},
-			utxoView:   NewUtxoViewpoint(),
+			utxoView:   NewUtxoViewpoint(nil),
 			serialized: hexToBytes("11000511db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c01"),
 		},
 		{
@@ -840,7 +840,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 
 		// Deserialize to a spend journal entry.
 		gotEntry, err := deserializeSpendJournalEntry(test.serialized,
-			test.blockTxns)
+			test.blockTxns, false) // No treasury
 		if err != nil {
 			t.Errorf("deserializeSpendJournalEntry #%d (%s) "+
 				"unexpected error: %v", i, test.name, err)
@@ -914,7 +914,7 @@ func TestSpendJournalErrors(t *testing.T) {
 		// Ensure the expected error type is returned and the returned
 		// slice is nil.
 		stxos, err := deserializeSpendJournalEntry(test.serialized,
-			test.blockTxns)
+			test.blockTxns, false) // No treasury
 		if !errors.As(err, &test.errType) {
 			t.Errorf("deserializeSpendJournalEntry (%s): expected "+
 				"error type does not match - got %T, want %T",

@@ -424,6 +424,15 @@ type GetVoteInfoResult struct {
 	Agendas       []Agenda `json:"agendas,omitempty"`
 }
 
+// GetTreasuryBalanceResult models the data returned from the
+// gettreasurybalance command.
+type GetTreasuryBalanceResult struct {
+	Height  int64   `json:"height"`
+	Hash    string  `json:"hash"`
+	Balance int64   `json:"balance"`
+	Updates []int64 `json:"updates,omitempty"`
+}
+
 // GetWorkResult models the data from the getwork command.
 type GetWorkResult struct {
 	Data   string `json:"data"`

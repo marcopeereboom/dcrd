@@ -2210,12 +2210,19 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()
 	s.donePeers <- sp
 
+	isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive()
+	if err != nil {
+		txmpLog.Error("Could not obtain treasury agenda status: %v",
+			err)
+	}
+
 	// Only tell block manager we are gone if we ever told it we existed.
 	if sp.VersionKnown() {
 		s.blockManager.DonePeer(sp.Peer)
 
 		// Evict any remaining orphans that were sent by the peer.
-		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
+		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()),
+			isTreasuryEnabled)
 		if numEvicted > 0 {
 			txmpLog.Debugf("Evicted %d %s from peer %v (id %d)", numEvicted,
 				pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())
@@ -2519,13 +2526,21 @@ out:
 					break
 				}
 
+				isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive()
+				if err != nil {
+					srvrLog.Error("Could not obtain treasury agenda status: %v",
+						err)
+					break
+				}
+
 				for iv, data := range pendingInvs {
 					tx, ok := data.(*dcrutil.Tx)
 					if !ok {
 						continue
 					}
 
-					txType := stake.DetermineTxType(tx.MsgTx())
+					txType := stake.DetermineTxType(tx.MsgTx(),
+						isTreasuryEnabled)
 
 					// Remove the ticket rebroadcast if the amount not equal to
 					// the current stake difficulty.
@@ -2833,6 +2848,17 @@ func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFla
 	if isActive {
 		scriptFlags |= txscript.ScriptVerifySHA256
 	}
+
+	// Enable validation of OP_TADD/OP_TSUB if the treasury agenda is
+	// active.
+	isActive, err = chain.IsTreasuryAgendaActive()
+	if err != nil {
+		return 0, err
+	}
+	if isActive {
+		scriptFlags |= txscript.ScriptVerifyTreasury
+	}
+
 	return scriptFlags, nil
 }
 
@@ -3079,6 +3105,12 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			if s.bg != nil {
 				s.bg.VoteReceived(voteTx)
 			}
+		},
+		IsTreasuryAgendaActive: func() (bool, error) {
+			return s.chain.IsTreasuryAgendaActive()
+		},
+		FetchTSpend: func(hash chainhash.Hash) ([]chainhash.Hash, error) {
+			return s.chain.DbFetchTSpend(hash)
 		},
 	}
 	s.txMemPool = mempool.New(&txC)

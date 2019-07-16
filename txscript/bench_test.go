@@ -280,7 +280,7 @@ func BenchmarkGetScriptClass(b *testing.B) {
 	const scriptVersion = 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = GetScriptClass(scriptVersion, script)
+		_ = GetScriptClass(scriptVersion, script, false) // No treasury
 	}
 }
 
@@ -550,7 +550,8 @@ func BenchmarkExtractPkScriptAddrsLarge(b *testing.B) {
 	params := mainNetParams
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script, params)
+		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script,
+			params, false) // No treasury
 		if err != nil {
 			b.Fatalf("unexpected err: %v", err)
 		}
@@ -568,7 +569,8 @@ func BenchmarkExtractPkScriptAddrs(b *testing.B) {
 	params := mainNetParams
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script, params)
+		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script,
+			params, false) // No treasury
 		if err != nil {
 			b.Fatalf("unexpected err: %v", err)
 		}

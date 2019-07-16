@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -216,7 +217,7 @@ func IsFinalizedTransaction(tx *dcrutil.Tx, blockHeight int64, blockTime time.Ti
 
 // CheckTransactionSanity performs some preliminary checks on a transaction to
 // ensure it is sane.  These checks are context free.
-func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
+func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
 	// A transaction must have at least one input.
 	if len(tx.TxIn) == 0 {
 		return ruleError(ErrNoTxInputs, "transaction has no inputs")
@@ -237,8 +238,20 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	}
 
 	// Coinbase script length must be between min and max length.
-	isVote := stake.IsSSGen(tx)
-	if standalone.IsCoinBaseTx(tx) {
+	isVote := stake.IsSSGen(tx, isTreasuryEnabled)
+	isTicket := !isVote && stake.IsSStx(tx)
+	isRevocation := !isVote && !isTicket && stake.IsSSRtx(tx)
+	var isTAdd, isTSpend bool
+	if isTreasuryEnabled {
+		isTAdd = !isRevocation && stake.IsTAdd(tx)
+		isTSpend = !isTAdd && stake.IsTSpend(tx)
+	}
+	// XXX do we need to check treasury base here?
+	if isTSpend {
+		// XXX Do checks
+	} else if isTAdd {
+		// XXX Do checks
+	} else if standalone.IsCoinBaseTx(tx, isTreasuryEnabled) {
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
 			str := fmt.Sprintf("coinbase transaction did not use " +
@@ -311,9 +324,7 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	//
 	// Also ensure that non-stake transaction output scripts do not contain any
 	// stake opcodes.
-	isTicket := !isVote && stake.IsSStx(tx)
-	isRevocation := !isVote && !isTicket && stake.IsSSRtx(tx)
-	isStakeTx := isVote || isTicket || isRevocation
+	isStakeTx := isVote || isTicket || isRevocation || isTAdd || isTSpend
 	var totalAtom int64
 	for txOutIdx, txOut := range tx.TxOut {
 		atom := txOut.Value
@@ -344,8 +355,12 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 			return ruleError(ErrBadTxOutValue, str)
 		}
 
-		// Ensure that non-stake transactions have no outputs with opcodes
-		// OP_SSTX, OP_SSRTX, OP_SSGEN, or OP_SSTX_CHANGE.
+		// Ensure that non-stake transactions have no outputs with
+		// opcodes OP_SSTX, OP_SSRTX, OP_SSGEN, OP_SSTX_CHANGE,
+		// OP_TADD, or OP_TGEN.
+		//
+		// Note that OP_TADD is a valid output for a regular
+		// transaction.
 		if !isStakeTx {
 			hasOp, err := txscript.ContainsStakeOpCodes(txOut.PkScript)
 			if err != nil {
@@ -581,7 +596,7 @@ func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSourc
 //
 // The flags do not modify the behavior of this function directly, however they
 // are needed to pass along to checkBlockHeaderSanity.
-func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params) error {
+func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
 	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
 	err := checkBlockHeaderSanity(header, timeSource, flags, chainParams)
@@ -629,17 +644,28 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 
 	// The first transaction in a block's regular tree must be a coinbase.
 	transactions := block.Transactions()
-	if !standalone.IsCoinBaseTx(transactions[0].MsgTx()) {
+	if !standalone.IsCoinBaseTx(transactions[0].MsgTx(), isTreasuryEnabled) {
 		return ruleError(ErrFirstTxNotCoinbase, "first transaction in "+
 			"block is not a coinbase")
 	}
 
 	// A block must not have more than one coinbase.
 	for i, tx := range transactions[1:] {
-		if standalone.IsCoinBaseTx(tx.MsgTx()) {
+		if standalone.IsCoinBaseTx(tx.MsgTx(), isTreasuryEnabled) {
 			str := fmt.Sprintf("block contains second coinbase at "+
 				"index %d", i+1)
 			return ruleError(ErrMultipleCoinbases, str)
+		}
+	}
+
+	if isTreasuryEnabled {
+		// A block must not have more than one treasury base.
+		for i, tx := range transactions[1:] {
+			if standalone.IsTreasuryBase(tx.MsgTx()) {
+				str := fmt.Sprintf("block contains second "+
+					"treasury base at index %d", i+1)
+				return ruleError(ErrMultipleTreasuryBases, str)
+			}
 		}
 	}
 
@@ -649,7 +675,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		// A block must not have stake transactions in the regular
 		// transaction tree.
 		msgTx := tx.MsgTx()
-		txType := stake.DetermineTxType(msgTx)
+		txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
 		if txType != stake.TxTypeRegular {
 			errStr := fmt.Sprintf("block contains a stake "+
 				"transaction in the regular transaction tree at "+
@@ -657,7 +683,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 			return ruleError(ErrStakeTxInRegularTree, errStr)
 		}
 
-		err := CheckTransactionSanity(msgTx, chainParams)
+		err := CheckTransactionSanity(msgTx, chainParams,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -666,17 +693,18 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// Do some preliminary checks on each stake transaction to ensure they
 	// are sane while tallying each type before continuing.
 	stakeValidationHeight := uint32(chainParams.StakeValidationHeight)
-	var totalTickets, totalVotes, totalRevocations int64
+	var totalTickets, totalVotes, totalRevocations, totalTreasury int64
 	var totalYesVotes int64
 	for txIdx, stx := range msgBlock.STransactions {
-		err := CheckTransactionSanity(stx, chainParams)
+		err := CheckTransactionSanity(stx, chainParams,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
 
 		// A block must not have regular transactions in the stake
 		// transaction tree.
-		txType := stake.DetermineTxType(stx)
+		txType := stake.DetermineTxType(stx, isTreasuryEnabled)
 		if txType == stake.TxTypeRegular {
 			errStr := fmt.Sprintf("block contains regular "+
 				"transaction in stake transaction tree at "+
@@ -717,6 +745,22 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		case stake.TxTypeSSRtx:
 			totalRevocations++
 		}
+
+		// If treasury agenda is enabled do the same type of math as
+		// above.
+		if isTreasuryEnabled {
+			switch txType {
+
+			case stake.TxTypeTAdd:
+				totalTreasury++
+
+			case stake.TxTypeTSpend:
+				totalTreasury++
+
+			case stake.TxTypeTreasuryBase:
+				totalTreasury++
+			}
+		}
 	}
 
 	// A block must not contain more than the maximum allowed number of
@@ -738,7 +782,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// transaction type is added, that implicit condition would no longer
 	// hold and therefore an explicit check is performed here.
 	numStakeTx := int64(len(msgBlock.STransactions))
-	calcStakeTx := totalTickets + totalVotes + totalRevocations
+	calcStakeTx := totalTickets + totalVotes + totalRevocations +
+		totalTreasury
 	if numStakeTx != calcStakeTx {
 		errStr := fmt.Sprintf("block contains an unexpected number "+
 			"of stake transactions (contains %d, expected %d)",
@@ -791,14 +836,10 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// A block must not contain anything other than ticket purchases prior to
 	// stake validation height.
 	//
-	// NOTE: This case is impossible to hit at this point at the time this
-	// comment was written since the votes and revocations have already been
-	// proven to be zero before stake validation height and the only other
-	// type at the current time is ticket purchases, however, if another
-	// stake type is ever added, consensus would break without this check.
-	// It's better to be safe and it's a cheap check.
+	// Note that we allow treasury operationsbefore stakeValidationHeight.
 	if header.Height < stakeValidationHeight {
-		if int64(len(msgBlock.STransactions)) != totalTickets {
+		if int64(len(msgBlock.STransactions)) != totalTickets &&
+			int64(len(msgBlock.STransactions)) != totalTreasury {
 			errStr := fmt.Sprintf("block contains stake "+
 				"transactions other than ticket purchases before "+
 				"stake validation height %d (total: %d, expected %d)",
@@ -834,9 +875,10 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		lastSigOps := totalSigOps
 
 		msgTx := tx.MsgTx()
-		isCoinBase := standalone.IsCoinBaseTx(msgTx)
-		isSSGen := stake.IsSSGen(msgTx)
-		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen)
+		isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
+		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen,
+			isTreasuryEnabled)
 		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
 			str := fmt.Sprintf("block contains too many signature "+
 				"operations - got %v, max %v", totalSigOps,
@@ -851,8 +893,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 // CheckBlockSanity performs some preliminary checks on a block to ensure it is
 // sane before continuing with block processing.  These checks are context
 // free.
-func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainParams *chaincfg.Params) error {
-	return checkBlockSanity(block, timeSource, BFNone, chainParams)
+func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
+	return checkBlockSanity(block, timeSource, BFNone, chainParams, isTreasuryEnabled)
 }
 
 // checkBlockHeaderPositional performs several validation checks on the block
@@ -1024,38 +1066,79 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 	}
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
-	if !fastAdd {
-		// The height of this block is one more than the referenced
-		// previous block.
-		blockHeight := prevNode.height + 1
+	if fastAdd {
+		return nil
+	}
 
-		// Ensure all transactions in the block are not expired.
-		for _, tx := range block.Transactions() {
-			if IsExpired(tx, blockHeight) {
-				errStr := fmt.Sprintf("block contains expired regular "+
-					"transaction %v (expiration height %d)", tx.Hash(),
-					tx.MsgTx().Expiry)
-				return ruleError(ErrExpiredTx, errStr)
-			}
-		}
-		for _, stx := range block.STransactions() {
-			if IsExpired(stx, blockHeight) {
-				errStr := fmt.Sprintf("block contains expired stake "+
-					"transaction %v (expiration height %d)", stx.Hash(),
-					stx.MsgTx().Expiry)
-				return ruleError(ErrExpiredTx, errStr)
-			}
-		}
+	// The height of this block is one more than the referenced
+	// previous block.
+	blockHeight := prevNode.height + 1
 
-		// Check that the coinbase contains at minimum the block
-		// height in output 1.
-		if blockHeight > 1 {
-			err := checkCoinbaseUniqueHeight(blockHeight, block)
-			if err != nil {
-				return err
-			}
+	// Ensure all transactions in the block are not expired.
+	for _, tx := range block.Transactions() {
+		if IsExpired(tx, blockHeight) {
+			errStr := fmt.Sprintf("block contains expired regular "+
+				"transaction %v (expiration height %d)", tx.Hash(),
+				tx.MsgTx().Expiry)
+			return ruleError(ErrExpiredTx, errStr)
 		}
 	}
+	for _, stx := range block.STransactions() {
+		if IsExpired(stx, blockHeight) {
+			errStr := fmt.Sprintf("block contains expired stake "+
+				"transaction %v (expiration height %d)", stx.Hash(),
+				stx.MsgTx().Expiry)
+			return ruleError(ErrExpiredTx, errStr)
+		}
+	}
+
+	// Block 0 and 1 are special and don't need the coinbase height checks.
+	if blockHeight < 2 {
+		return nil
+	}
+
+	// Check that the coinbase contains at minimum the block height in
+	// output 1.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+	err = checkCoinbaseUniqueHeight(blockHeight, block, isTreasuryEnabled)
+	if err != nil {
+		return err
+	}
+	if !isTreasuryEnabled {
+		return nil
+	}
+
+	// From this point forward it is assumed that Treasury Agenda is active.
+
+	// If there is a TSpend transaction in this block we need to tally all
+	// votes and ensure we are on a TVI (Treasury Vote Interval) height. If
+	// either of those cases is not true a TSpend is not valid in this
+	// block.
+	tvi := standalone.IsTreasuryVoteInterval(uint64(blockHeight),
+		b.chainParams.TreasuryVoteInterval)
+
+	tspends := 0
+	for _, stx := range block.STransactions() {
+		if !stake.IsTSpend(stx.MsgTx()) {
+			continue
+		}
+		tspends++
+
+		if tvi {
+			continue
+		}
+
+		// We are not in a TVI, error out.
+		errStr := fmt.Sprintf("block contains a TSpend transaction "+
+			"while not on a TVI: height %v TVI %v", blockHeight,
+			b.chainParams.TreasuryVoteInterval)
+		return ruleError(ErrNotTVI, errStr)
+	}
+	log.Tracef("checkBlockPositional tspends while on TVI: %v %v %v",
+		tspends, blockHeight, b.chainParams.TreasuryVoteInterval)
 
 	return nil
 }
@@ -1142,13 +1225,17 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 	return nil
 }
 
-// checkCoinbaseUniqueHeight checks to ensure that for all blocks height > 1 the
-// coinbase contains the height encoding to make coinbase hash collisions
-// impossible.
-func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block) error {
-	// Coinbase output 0 is the project subsidy, and output 1 is height +
-	// extranonce, so at least two outputs must exist.
-	const minReqOutputs = 2
+// checkCoinbaseUniqueHeightWithAddress checks to ensure that for all blocks
+// height > 1 the coinbase contains the height encoding to make coinbase hash
+// collisions impossible. This is the old function that assumes a treasury
+// address.
+func checkCoinbaseUniqueHeightWithAddress(blockHeight int64, minReqOutputs, index int, block *dcrutil.Block) error {
+	// When treasury is disabled, Coinbase output 0 is the project subsidy,
+	// and output 1 is height + extranonce, so at least two outputs must
+	// exist. When the treasury is enabled the coinbase treasury payout has
+	// been moved to the stake tree and therefore we only need one output
+	// which encodes the height + extranonce in output 0.
+
 	coinbaseTx := block.MsgBlock().Transactions[0]
 	if len(coinbaseTx.TxOut) < minReqOutputs {
 		str := fmt.Sprintf("block %s is missing required coinbase outputs ("+
@@ -1159,7 +1246,7 @@ func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block) error {
 
 	// Only version 0 scripts are currently valid.
 	const scriptVersion = 0
-	nullDataOut := coinbaseTx.TxOut[1]
+	nullDataOut := coinbaseTx.TxOut[index]
 	if nullDataOut.Version != scriptVersion {
 		str := fmt.Sprintf("block %s coinbase output 1 script version %d is "+
 			"not the required version %d", block.Hash(), nullDataOut.Version,
@@ -1218,11 +1305,128 @@ func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block) error {
 	return nil
 }
 
+// checkCoinbaseUniqueHeightWithTreasuryBase checks to ensure that for all
+// blocks height > 1 the treasurybase contains the height encoding to make
+// treasurybase hash collisions impossible. This is the new function that
+// assumes that there is no treasury address.
+func checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight int64, block *dcrutil.Block) error {
+	if len(block.MsgBlock().STransactions) == 0 {
+		return AssertError(fmt.Sprintf(
+			"checkCoinbaseUniqueHeightWithStakebase: %v",
+			spew.Sdump(block)))
+	}
+
+	// Coinbase output 0 is height + extranonce, so at least one outputs
+	// must exist.
+	const minReqOutputs = 1
+	stakebaseTx := block.MsgBlock().STransactions[0]
+	if len(stakebaseTx.TxOut) < minReqOutputs {
+		str := fmt.Sprintf("block %s is missing required OP_RETURN "+
+			"output (num outputs: %d, min required: %d) ",
+			block.Hash(), len(stakebaseTx.TxOut), minReqOutputs)
+		return ruleError(ErrFirstTxNotOpReturn, str)
+	}
+
+	// Only version 0 scripts are currently valid.
+	const scriptVersion = 0
+	nullDataOut := stakebaseTx.TxOut[1]
+	if nullDataOut.Version != scriptVersion {
+		str := fmt.Sprintf("block %s treasurybase output 0 script "+
+			"version %d is not the required version %d",
+			block.Hash(), nullDataOut.Version, scriptVersion)
+		return ruleError(ErrFirstTxNotOpReturn, str)
+	}
+
+	// The nulldata in the treasurybase must be a single OP_RETURN followed
+	// by a data push up to maxUniqueCoinbaseNullDataSize bytes and the
+	// first 4 bytes of that data must be the encoded height of the block
+	// so that every treasurybase created has a unique transaction hash.
+	//
+	// NOTE: This is intentionally not using GetScriptClass and the related
+	// functions because those are specifically for standardness checks
+	// which can change over time and this function is enforces consensus
+	// rules.
+	//
+	// Also of note is that technically normal nulldata scripts support
+	// encoding numbers via small opcodes, however, for legacy reasons, the
+	// consensus rules require the block height to be encoded as a 4-byte
+	// little-endian uint32 pushed via a normal data push, as opposed to
+	// using the normal number handling semantics of scripts, so this is
+	// specialized to accommodate that.
+	var nullData []byte
+	pkScript := nullDataOut.PkScript
+	if len(pkScript) > 1 && pkScript[0] == txscript.OP_RETURN {
+		tokenizer := txscript.MakeScriptTokenizer(scriptVersion,
+			pkScript[1:])
+		if tokenizer.Next() && tokenizer.Done() &&
+			tokenizer.Opcode() <=
+				txscript.OP_PUSHDATA4 {
+			nullData = tokenizer.Data()
+		}
+	}
+	if len(nullData) > maxUniqueCoinbaseNullDataSize {
+		str := fmt.Sprintf("block %s treasurybase output 0 pushes %d "+
+			"bytes which is more than allowed value of %d",
+			block.Hash(), len(nullData),
+			maxUniqueCoinbaseNullDataSize)
+		return ruleError(ErrFirstTxNotOpReturn, str)
+	}
+	if len(nullData) < 4 {
+		str := fmt.Sprintf("block %s treasurybase output 0 pushes %d "+
+			"bytes which is too short to encode height",
+			block.Hash(), len(nullData))
+		return ruleError(ErrFirstTxNotOpReturn, str)
+	}
+
+	// Check the height and ensure it is correct.
+	cbHeight := binary.LittleEndian.Uint32(nullData[0:4])
+	if cbHeight != uint32(blockHeight) {
+		header := &block.MsgBlock().Header
+		str := fmt.Sprintf("block %s treasurybase output 0 encodes "+
+			"height %d instead of expected height %d (prev block: "+
+			"%s, header height %d)", block.Hash(), cbHeight,
+			uint32(blockHeight), header.PrevBlock, header.Height)
+		return ruleError(ErrCoinbaseHeight, str)
+	}
+
+	return nil
+}
+
+// checkCoinbaseUniqueHeightchecks to ensure that for all blocks height > 1 the
+// coinbase contains the height encoding to make coinbase hash collisions
+// impossible.
+func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasuryEnabled bool) error {
+	if treasuryEnabled {
+		// First check coinbase in Transactions.
+		// minReqOutputs = 1
+		// index into TxOut=0
+		if err := checkCoinbaseUniqueHeightWithAddress(blockHeight, 1,
+			0, block); err != nil {
+			return err
+		}
+
+		// Secondly, check treasurybase in STransactions.
+		return checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight, block)
+	} else {
+		// minReqOutputs = 2
+		// index into TxOut=1
+		return checkCoinbaseUniqueHeightWithAddress(blockHeight, 2, 1,
+			block)
+	}
+}
+
 // checkAllowedVotes performs validation of all votes in the block to ensure
 // they spend tickets that are actually allowed to vote per the lottery.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) checkAllowedVotes(parentStakeNode *stake.Node, block *wire.MsgBlock) error {
+	// See if the treasury agenda was active at the parent.
+	pHash := &block.Header.PrevBlock
+	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(pHash)
+	if err != nil {
+		return err
+	}
+
 	// Determine the winning ticket hashes and create a map for faster lookup.
 	ticketsPerBlock := int(b.chainParams.TicketsPerBlock)
 	winningHashes := make(map[chainhash.Hash]struct{}, ticketsPerBlock)
@@ -1232,7 +1436,7 @@ func (b *BlockChain) checkAllowedVotes(parentStakeNode *stake.Node, block *wire.
 
 	for _, stx := range block.STransactions {
 		// Ignore non-vote stake transactions.
-		if !stake.IsSSGen(stx) {
+		if !stake.IsSSGen(stx, isTreasuryEnabled) {
 			continue
 		}
 
@@ -1370,79 +1574,160 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	}
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
-	if !fastAdd {
-		// A block must not exceed the maximum allowed size as defined
-		// by the network parameters and the current status of any hard
-		// fork votes to change it when serialized.
-		maxBlockSize, err := b.maxBlockSize(prevNode)
+	if fastAdd {
+		return nil
+	}
+
+	// A block must not exceed the maximum allowed size as defined by the
+	// network parameters and the current status of any hard fork votes to
+	// change it when serialized.
+	maxBlockSize, err := b.maxBlockSize(prevNode)
+	if err != nil {
+		return err
+	}
+	serializedSize := int64(block.MsgBlock().Header.Size)
+	if serializedSize > maxBlockSize {
+		str := fmt.Sprintf("serialized block is too big - "+
+			"got %d, max %d", serializedSize,
+			maxBlockSize)
+		return ruleError(ErrBlockTooBig, str)
+	}
+
+	// The calculated merkle root(s) of the transaction trees must match
+	// the associated entries in the header.
+	err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
+	if err != nil {
+		return err
+	}
+
+	// Switch to using the past median time of the block prior to the block
+	// being checked for all checks related to lock times once the stake
+	// vote for the agenda is active.
+	blockTime := header.Timestamp
+	lnFeaturesActive, err := b.isLNFeaturesAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+	if lnFeaturesActive {
+		blockTime = prevNode.CalcPastMedianTime()
+	}
+
+	// Record if we are on a TVI.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+	var isTVI bool
+	if isTreasuryEnabled {
+		isTVI = standalone.IsTreasuryVoteInterval(uint64(block.Height()),
+			b.chainParams.TreasuryVoteInterval)
+	}
+
+	// The height of this block is one more than the referenced
+	// previous block.
+	blockHeight := prevNode.height + 1
+
+	// Ensure all transactions in the block are finalized.
+	for _, tx := range block.Transactions() {
+		if !IsFinalizedTransaction(tx, blockHeight, blockTime) {
+			str := fmt.Sprintf("block contains unfinalized regular "+
+				"transaction %v", tx.Hash())
+			return ruleError(ErrUnfinalizedTx, str)
+		}
+	}
+	tspends := make([]*dcrutil.Tx, 0, len(block.STransactions()))
+	for _, stx := range block.STransactions() {
+		if !IsFinalizedTransaction(stx, blockHeight, blockTime) {
+			str := fmt.Sprintf("block contains unfinalized stake "+
+				"transaction %v", stx.Hash())
+			return ruleError(ErrUnfinalizedTx, str)
+
+		}
+
+		// While iterating STransactions collect TSpend data.
+		if isTreasuryEnabled && stake.IsTSpend(stx.MsgTx()) {
+			// If block is not TVI error out since it is not
+			// allowed to contain a TSpend. This check is also
+			// performed in checkBlockPositional.
+			if !isTVI {
+				str := fmt.Sprintf("block contains TSpend "+
+					"transaction (%v) while block is not "+
+					"at a TVI height (%v)", stx.Hash(),
+					block.Height())
+				return ruleError(ErrNotTVI, str)
+			}
+
+			// Assert that the tspend is inside the correct window.
+			exp := stx.MsgTx().Expiry
+			if !standalone.InsideTSpendWindow(blockHeight,
+				exp, b.chainParams.TreasuryVoteInterval,
+				b.chainParams.TreasuryVoteIntervalMultiplier) {
+				s, _ := standalone.CalculateTSpendWindowStart(exp,
+					b.chainParams.TreasuryVoteInterval,
+					b.chainParams.TreasuryVoteIntervalMultiplier)
+
+				str := fmt.Sprintf("block contains TSpend "+
+					"transaction (%v) that is outside "+
+					"of the valid window: height %v "+
+					"start %v expiry %v",
+					stx.Hash(), block.Height(), s, exp)
+				return ruleError(ErrInvalidTSpendWindow, str)
+			}
+
+			tspends = append(tspends, stx)
+
+			// Verify this TSpend hash has not been included in a
+			// prior block.
+			err = b.checkTSpendExists(block, prevNode, stx)
+			if err != nil {
+				str := fmt.Sprintf("block contains a TSpend "+
+					"transaction (%v) that has been mined "+
+					"in another block: %v", stx.Hash(), err)
+				return ruleError(ErrTSpendExists, str)
+			}
+
+			// Verify that this TSpend has enough votes to be
+			// included on the blockchain.
+			err = b.checkTSpendHasVotes(block, prevNode, stx)
+			if err != nil {
+				str := fmt.Sprintf("block contains a TSpend "+
+					"transaction (%v) that does not have "+
+					"enough votes: %v", stx.Hash(), err)
+				return ruleError(ErrNotEnoughTSpendVotes, str)
+			}
+		}
+	}
+
+	// Check the aggregate of all TSpend transactions is within bounds of
+	// the treasury account. This function is only called when we are on a
+	// TVI and if we have accumulated expenditures.
+	if isTreasuryEnabled && isTVI && len(tspends) > 0 {
+		// Verify TSpend expenditure is within range.
+		err = b.checkTSpendExpenditure(block, prevNode, tspends)
+		if err != nil {
+			str := fmt.Sprintf("block contains TSpend(s) are have "+
+				"an invalid expenditure: %v", err)
+			return ruleError(ErrInvalidExpenditure, str)
+		}
+	}
+
+	// Ensure that all votes are only for winning tickets and all
+	// revocations are actually eligible to be revoked once stake
+	// validation height has been reached.
+	if blockHeight >= b.chainParams.StakeValidationHeight {
+		parentStakeNode, err := b.fetchStakeNode(prevNode)
 		if err != nil {
 			return err
 		}
-		serializedSize := int64(block.MsgBlock().Header.Size)
-		if serializedSize > maxBlockSize {
-			str := fmt.Sprintf("serialized block is too big - "+
-				"got %d, max %d", serializedSize,
-				maxBlockSize)
-			return ruleError(ErrBlockTooBig, str)
-		}
-
-		// The calculated merkle root(s) of the transaction trees must match
-		// the associated entries in the header.
-		err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
+		err = b.checkAllowedVotes(parentStakeNode, block.MsgBlock())
 		if err != nil {
 			return err
 		}
 
-		// Switch to using the past median time of the block prior to
-		// the block being checked for all checks related to lock times
-		// once the stake vote for the agenda is active.
-		blockTime := header.Timestamp
-		lnFeaturesActive, err := b.isLNFeaturesAgendaActive(prevNode)
+		err = b.checkAllowedRevocations(parentStakeNode,
+			block.MsgBlock())
 		if err != nil {
 			return err
-		}
-		if lnFeaturesActive {
-			blockTime = prevNode.CalcPastMedianTime()
-		}
-
-		// The height of this block is one more than the referenced
-		// previous block.
-		blockHeight := prevNode.height + 1
-
-		// Ensure all transactions in the block are finalized.
-		for _, tx := range block.Transactions() {
-			if !IsFinalizedTransaction(tx, blockHeight, blockTime) {
-				str := fmt.Sprintf("block contains unfinalized regular "+
-					"transaction %v", tx.Hash())
-				return ruleError(ErrUnfinalizedTx, str)
-			}
-		}
-		for _, stx := range block.STransactions() {
-			if !IsFinalizedTransaction(stx, blockHeight, blockTime) {
-				str := fmt.Sprintf("block contains unfinalized stake "+
-					"transaction %v", stx.Hash())
-				return ruleError(ErrUnfinalizedTx, str)
-			}
-		}
-
-		// Ensure that all votes are only for winning tickets and all
-		// revocations are actually eligible to be revoked once stake
-		// validation height has been reached.
-		if blockHeight >= b.chainParams.StakeValidationHeight {
-			parentStakeNode, err := b.fetchStakeNode(prevNode)
-			if err != nil {
-				return err
-			}
-			err = b.checkAllowedVotes(parentStakeNode, block.MsgBlock())
-			if err != nil {
-				return err
-			}
-
-			err = b.checkAllowedRevocations(parentStakeNode,
-				block.MsgBlock())
-			if err != nil {
-				return err
-			}
 		}
 	}
 
@@ -1753,7 +2038,7 @@ func checkTicketSubmissionInput(ticketUtxo *UtxoEntry) error {
 //
 // NOTE: This is only intended to be a helper to refactor out common code from
 // checkVoteInputs and checkRevocationInputs.
-func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*stake.MinimalOutput, msgTx *wire.MsgTx, isVote bool, voteSubsidy int64) error {
+func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*stake.MinimalOutput, msgTx *wire.MsgTx, isVote bool, voteSubsidy int64, isTreasuryEnabled bool) error {
 	// Make an initial pass over the ticket commitments to calculate the overall
 	// contribution sum.  This is necessary because the output amounts are
 	// required to be scaled to maintain the same proportions as the original
@@ -1785,7 +2070,18 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*st
 		feeLimitMask = stake.SStxRevReturnFractionMask
 	}
 	ticketPaidAmt := ticketOuts[submissionOutputIdx].Value
-	for txOutIdx := startIdx; txOutIdx < len(msgTx.TxOut); txOutIdx++ {
+
+	// If treasury is enabled and we have a vote then we need to subtract
+	// one from the length of TxOut slice.
+	var extra int
+	if isTreasuryEnabled {
+		tvt, _ := stake.CheckSSGenVotes(msgTx, isTreasuryEnabled)
+		if tvt != nil {
+			extra = 1
+		}
+	}
+
+	for txOutIdx := startIdx; txOutIdx < len(msgTx.TxOut)-extra; txOutIdx++ {
 		// Ensure the output is paying to the address and type specified by the
 		// original commitment in the ticket and is a version 0 script.
 		//
@@ -1911,7 +2207,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*st
 //
 // NOTE: The caller MUST have already determined that the provided transaction
 // is a vote.
-func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, params *chaincfg.Params) error {
+func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, params *chaincfg.Params, isTreasuryEnabled bool) error {
 	ticketMaturity := int64(params.TicketMaturity)
 	voteHash := tx.Hash()
 	msgTx := tx.MsgTx()
@@ -2000,7 +2296,17 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHe
 	// commitment such that the first one of the pair is a commitment amount and
 	// the second one is the amount of change sent back to the contributor to
 	// the ticket based on their original funding amount.
-	numVotePayments := len(msgTx.TxOut) - 2
+	var extra int
+	if isTreasuryEnabled {
+		// If we have votes we need to subtract them from the next
+		// check.
+		tvt, _ := stake.CheckSSGenVotes(msgTx, isTreasuryEnabled)
+		if tvt != nil {
+			extra = 1
+		}
+	}
+
+	numVotePayments := len(msgTx.TxOut) - 2 - extra
 	if numVotePayments*2 != len(ticketOuts)-1 {
 		str := fmt.Sprintf("vote %s makes %d payments when input ticket %s "+
 			"has %d commitments", voteHash, numVotePayments, ticketHash,
@@ -2009,8 +2315,8 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHe
 	}
 
 	// Ensure the outputs adhere to the ticket commitments.
-	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx, true,
-		voteSubsidy)
+	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx,
+		true, voteSubsidy, isTreasuryEnabled)
 }
 
 // checkRevocationInputs performs a series of checks on the inputs to a
@@ -2020,7 +2326,7 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHe
 //
 // NOTE: The caller MUST have already determined that the provided transaction
 // is a revocation.
-func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, params *chaincfg.Params) error {
+func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, params *chaincfg.Params, isTreasuryEnabled bool) error {
 	ticketMaturity := int64(params.TicketMaturity)
 	revokeHash := tx.Hash()
 	msgTx := tx.MsgTx()
@@ -2101,8 +2407,8 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, 
 
 	// Ensure the outputs adhere to the ticket commitments.  Zero is passed for
 	// the vote subsidy since revocations do not produce any subsidy.
-	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx, false,
-		0)
+	return checkTicketRedeemerCommitments(ticketHash, ticketOuts, msgTx,
+		false, 0, isTreasuryEnabled)
 }
 
 // CheckTransactionInputs performs a series of checks on the inputs to a
@@ -2117,10 +2423,10 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, 
 //
 // NOTE: The transaction MUST have already been sanity checked with the
 // CheckTransactionSanity function prior to calling this function.
-func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool, chainParams *chaincfg.Params) (int64, error) {
+func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool, chainParams *chaincfg.Params, isTreasuryEnabled bool) (int64, error) {
 	// Coinbase transactions have no inputs.
 	msgTx := tx.MsgTx()
-	if standalone.IsCoinBaseTx(msgTx) {
+	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
 		return 0, nil
 	}
 
@@ -2145,9 +2451,10 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 	//
 	// Also keep track of whether or not it is a vote since some inputs need
 	// to be skipped later.
-	isVote := stake.IsSSGen(msgTx)
+	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
 	if isVote {
-		err := checkVoteInputs(subsidyCache, tx, txHeight, view, chainParams)
+		err := checkVoteInputs(subsidyCache, tx, txHeight, view,
+			chainParams, isTreasuryEnabled)
 		if err != nil {
 			return 0, err
 		}
@@ -2161,9 +2468,39 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 	// need to be skipped later.
 	isRevocation := stake.IsSSRtx(msgTx)
 	if isRevocation {
-		err := checkRevocationInputs(tx, txHeight, view, chainParams)
+		err := checkRevocationInputs(tx, txHeight, view, chainParams,
+			isTreasuryEnabled)
 		if err != nil {
 			return 0, err
+		}
+	}
+
+	// Perform additional checks on TSpend transactions.
+	var (
+		isTSpend          bool
+		signature, pubKey []byte
+		err               error
+	)
+	if isTreasuryEnabled {
+		signature, pubKey, err = stake.CheckTSpend(msgTx)
+		isTSpend = err == nil
+	}
+
+	// If we have a TSpend verify the signature.
+	if isTSpend {
+		// Check if this is a sanctioned PI key.
+		if !chainParams.PiKeyExists(pubKey) {
+			str := fmt.Sprintf("Unknown Pi Key: %x", pubKey)
+			return 0, ruleError(ErrUnknownPiKey, str)
+		}
+
+		// Verify that the signature is valid and corresponds to the
+		// provided public key.
+		err = verifyTSpendSignature(msgTx, signature, pubKey)
+		if err != nil {
+			str := fmt.Sprintf("Could not verify TSpend "+
+				"signature: %v", err)
+			return 0, ruleError(ErrInvalidPiSignature, str)
 		}
 	}
 
@@ -2181,6 +2518,12 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 			stakeVoteSubsidy := subsidyCache.CalcStakeVoteSubsidy(
 				int64(heightVotingOn))
 			totalAtomIn += stakeVoteSubsidy
+			continue
+		}
+
+		// idx can only be 0 in this case but check it anyway.
+		if isTSpend && idx == 0 {
+			totalAtomIn += txIn.ValueIn
 			continue
 		}
 
@@ -2282,6 +2625,28 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 			return 0, ruleError(ErrDiscordantTxTree, errStr)
 		}
 
+		// OP_TADD and OP_TSPEND tagged outputs can only be spent after
+		// coinbase maturity many blocks.
+		scriptClass := txscript.GetScriptClass(
+			utxoEntry.ScriptVersionByIndex(originTxIndex),
+			utxoEntry.PkScriptByIndex(originTxIndex),
+			isTreasuryEnabled)
+		if scriptClass == txscript.TreasuryAddTy ||
+			scriptClass == txscript.TreasurySpendTy {
+			originHeight := utxoEntry.BlockHeight()
+			blocksSincePrev := txHeight - originHeight
+			if blocksSincePrev <
+				int64(chainParams.SStxChangeMaturity) {
+				str := fmt.Sprintf("tried to spend OP_TADD or "+
+					"OP_SPEND output from tx %v from "+
+					"height %v at height %v before "+
+					"required maturity of %v blocks",
+					txInHash, originHeight, txHeight,
+					coinbaseMaturity)
+				return 0, ruleError(ErrImmatureSpend, str)
+			}
+		}
+
 		// The only transaction types that are allowed to spend from OP_SSTX
 		// tagged outputs are votes and revocations.  So, check all the inputs
 		// from non votes and revocations and make sure that they spend no
@@ -2290,7 +2655,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 			if stake.IsTicketPurchaseScript(
 				utxoEntry.ScriptVersionByIndex(originTxIndex),
 				utxoEntry.PkScriptByIndex(originTxIndex)) {
-				errSSGen := stake.CheckSSGen(msgTx)
+				errSSGen := stake.CheckSSGen(msgTx,
+					isTreasuryEnabled)
 				errSSRtx := stake.CheckSSRtx(msgTx)
 				errStr := fmt.Sprintf("Tx %v attempted to "+
 					"spend an OP_SSTX tagged output, "+
@@ -2400,29 +2766,46 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 // input and output scripts in the provided transaction.  This uses the
 // quicker, but imprecise, signature operation counting mechanism from
 // txscript.
-func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool) int {
+func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool, isTreasuryEnabled bool) int {
 	msgTx := tx.MsgTx()
 
-	// Accumulate the number of signature operations in all transaction
-	// inputs.
-	totalSigOps := 0
-	for i, txIn := range msgTx.TxIn {
-		// Skip coinbase inputs.
-		if isCoinBaseTx {
-			continue
-		}
-		// Skip stakebase inputs.
-		if isSSGen && i == 0 {
-			continue
-		}
+	var isTreasuryBase, isTSpend, isTAdd bool
+	if isTreasuryEnabled {
+		isTreasuryBase = stake.IsTreasuryBase(msgTx)
+		isTSpend = stake.IsTSpend(msgTx)
+		isTAdd = stake.IsTAdd(msgTx)
+	}
 
-		numSigOps := txscript.GetSigOpCount(txIn.SignatureScript)
-		totalSigOps += numSigOps
+	totalSigOps := 0
+
+	// isTreasuryBase has no sigops in input and output so just return.
+	if isTreasuryBase {
+		return totalSigOps
+	}
+
+	if !(isCoinBaseTx || isTSpend) {
+		// Accumulate the number of signature operations in all
+		// transaction inputs.
+		for i, txIn := range msgTx.TxIn {
+			// Skip stakebase inputs.
+			if isSSGen && i == 0 {
+				continue
+			}
+
+			numSigOps := txscript.GetSigOpCount(txIn.SignatureScript)
+			totalSigOps += numSigOps
+		}
+	}
+
+	// TAdds have not outputs so just return.
+	if isTAdd {
+		return totalSigOps
 	}
 
 	// Accumulate the number of signature operations in all transaction
 	// outputs.
 	for _, txOut := range msgTx.TxOut {
+		// XXX Ensure TSpend works here because of TGen prefix.
 		numSigOps := txscript.GetSigOpCount(txOut.PkScript)
 		totalSigOps += numSigOps
 	}
@@ -2434,7 +2817,7 @@ func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool) int {
 // transactions which are of the pay-to-script-hash type.  This uses the
 // precise, signature operation counting mechanism from the script engine which
 // requires access to the input transaction scripts.
-func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view *UtxoViewpoint) (int, error) {
+func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view *UtxoViewpoint, isTreasuryEnabled bool) (int, error) {
 	// Coinbase transactions have no interesting inputs.
 	if isCoinBaseTx {
 		return 0, nil
@@ -2444,6 +2827,16 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 	// but they will still pass the checks below.
 	if isStakeBaseTx {
 		return 0, nil
+	}
+
+	// Exit in some cases if treasury agenda is enabled.
+	if isTreasuryEnabled {
+		if stake.IsTSpend(tx.MsgTx()) {
+			return 0, nil
+		}
+		if stake.IsTreasuryBase(tx.MsgTx()) {
+			return 0, nil
+		}
 	}
 
 	// Accumulate the number of signature operations in all transaction
@@ -2494,6 +2887,13 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 // for the transactions in the regular tree that preserves the same incorrect
 // semantics that were present in previous versions of the software.
 func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view *UtxoViewpoint) (*UtxoViewpoint, error) {
+	// See if the treasury agenda was active at the parent.
+	pHash := &parent.MsgBlock().Header.PrevBlock
+	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
+	if err != nil {
+		return nil, err
+	}
+
 	// Clone the real view to avoid mutating it.
 	seqLockView := view.clone()
 
@@ -2501,13 +2901,15 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 	// tree of the parent block and the parent block outputs are available in
 	// the legacy view so long as it has not been disapproved.
 	if headerApprovesParent(&block.MsgBlock().Header) {
-		err := seqLockView.fetchRegularInputUtxos(b.db, parent)
+		err := seqLockView.fetchRegularInputUtxos(b.db, parent,
+			isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
 
 		for txInIdx, tx := range parent.Transactions() {
-			seqLockView.AddTxOuts(tx, parent.Height(), uint32(txInIdx))
+			seqLockView.AddTxOuts(tx, parent.Height(),
+				uint32(txInIdx), isTreasuryEnabled)
 		}
 	}
 
@@ -2515,7 +2917,7 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 	// of the current block are available in the legacy view.
 	filteredSet := make(viewFilteredSet)
 	for _, stx := range block.STransactions() {
-		isVote := stake.IsSSGen(stx.MsgTx())
+		isVote := stake.IsSSGen(stx.MsgTx(), isTreasuryEnabled)
 		for txInIdx, txIn := range stx.MsgTx().TxIn {
 			// Ignore stakebase since it has no input.
 			if txInIdx == 0 && isVote {
@@ -2528,7 +2930,7 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 			filteredSet.add(seqLockView, originHash)
 		}
 	}
-	err := seqLockView.fetchUtxosMain(b.db, filteredSet)
+	err = seqLockView.fetchUtxosMain(b.db, filteredSet)
 	if err != nil {
 		return nil, err
 	}
@@ -2536,7 +2938,7 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 	// Connect all of the transactions in the stake tree of the current block.
 	for txIdx, stx := range block.STransactions() {
 		err := seqLockView.connectTransaction(stx, block.Height(),
-			uint32(txIdx), nil)
+			uint32(txIdx), nil, isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -2549,10 +2951,11 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 // sure they don't overflow the limits.  It takes a cumulative number of sig
 // ops as an argument and increments will each call.
 // TxTree true == Regular, false == Stake
-func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool, cumulativeSigOps int) (int, error) {
+func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool, cumulativeSigOps int, isTreasuryEnabled bool) (int, error) {
 	msgTx := tx.MsgTx()
-	isSSGen := stake.IsSSGen(msgTx)
-	numsigOps := CountSigOps(tx, (index == 0) && txTree, isSSGen)
+	isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+	numsigOps := CountSigOps(tx, (index == 0) && txTree, isSSGen,
+		isTreasuryEnabled)
 
 	// Since the first (and only the first) transaction has already been
 	// verified to be a coinbase transaction, use (i == 0) && TxTree as an
@@ -2560,7 +2963,7 @@ func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool,
 	// transaction is a coinbase transaction rather than having to do a
 	// full coinbase check again.
 	numP2SHSigOps, err := CountP2SHSigOps(tx, (index == 0) && txTree,
-		isSSGen, view)
+		isSSGen, view, isTreasuryEnabled)
 	if err != nil {
 		log.Tracef("CountP2SHSigOps failed; error returned %v", err)
 		return 0, err
@@ -2586,10 +2989,10 @@ func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool,
 // checkStakeBaseAmounts calculates the total amount given as subsidy from
 // single stakebase transactions (votes) within a block.  This function skips a
 // ton of checks already performed by CheckTransactionInputs.
-func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64, txs []*dcrutil.Tx, view *UtxoViewpoint) error {
+func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64, txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabled bool) error {
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
-		if stake.IsSSGen(msgTx) {
+		if stake.IsSSGen(msgTx, isTreasuryEnabled) {
 			// Ensure the input is available.
 			txInHash := &msgTx.TxIn[1].PreviousOutPoint.Hash
 			utxoEntry, exists := view.entries[*txInHash]
@@ -2629,12 +3032,12 @@ func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64, 
 // getStakeBaseAmounts calculates the total amount given as subsidy from the
 // collective stakebase transactions (votes) within a block.  This function
 // skips a ton of checks already performed by CheckTransactionInputs.
-func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint) (int64, error) {
+func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabled bool) (int64, error) {
 	totalInputs := int64(0)
 	totalOutputs := int64(0)
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
-		if stake.IsSSGen(msgTx) {
+		if stake.IsSSGen(msgTx, isTreasuryEnabled) {
 			// Ensure the input is available.
 			txInHash := &msgTx.TxIn[1].PreviousOutPoint.Hash
 			utxoEntry, exists := view.entries[*txInHash]
@@ -2661,16 +3064,31 @@ func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint) (int64, error) 
 
 // getStakeTreeFees determines the amount of fees for in the stake tx tree of
 // some node given a transaction store.
-func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs []*dcrutil.Tx, view *UtxoViewpoint) (dcrutil.Amount, error) {
+func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabled bool) (dcrutil.Amount, error) {
 	totalInputs := int64(0)
 	totalOutputs := int64(0)
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
-		isSSGen := stake.IsSSGen(msgTx)
+		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		var isTSpend, isTreasuryBase bool
+		if isTreasuryEnabled {
+			isTSpend = stake.IsTSpend(msgTx)
+			isTreasuryBase = stake.IsTreasuryBase(msgTx)
+		}
 
 		for i, in := range msgTx.TxIn {
 			// Ignore stakebases.
 			if isSSGen && i == 0 {
+				continue
+			}
+
+			// Ignore TSpend.
+			if isTSpend && i == 0 {
+				continue
+			}
+
+			// Ignore treasury base.
+			if isTreasuryBase && i == 0 {
 				continue
 			}
 
@@ -2699,6 +3117,14 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 			// with the height of the current block.
 			totalOutputs -= subsidyCache.CalcStakeVoteSubsidy(height - 1)
 		}
+
+		if isTSpend {
+			totalOutputs -= msgTx.TxIn[0].ValueIn
+		}
+
+		if isTreasuryBase {
+			totalOutputs -= msgTx.TxIn[0].ValueIn
+		}
 	}
 
 	if totalInputs < totalOutputs {
@@ -2715,6 +3141,11 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 // After ensuring the transaction is valid, the transaction is connected to the
 // UTXO viewpoint.  TxTree true == Regular, false == Stake
 func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint, stxos *[]spentTxOut, txTree bool) error {
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+
 	// Perform several checks on the inputs for each transaction.  Also
 	// accumulate the total fees.  This could technically be combined with
 	// the loop above instead of running another loop over the
@@ -2729,7 +3160,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// the consensus limit.
 		var err error
 		cumulativeSigOps, err = checkNumSigOps(tx, view, idx, txTree,
-			cumulativeSigOps)
+			cumulativeSigOps, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -2738,7 +3169,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// spent, so be aware of this.
 		txFee, err := CheckTransactionInputs(b.subsidyCache, tx,
 			node.height, view, true, /* check fraud proofs */
-			b.chainParams)
+			b.chainParams, isTreasuryEnabled)
 		if err != nil {
 			log.Tracef("CheckTransactionInputs failed; error "+
 				"returned: %v", err)
@@ -2757,7 +3188,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// Connect the transaction to the UTXO viewpoint, so that in
 		// flight transactions may correctly validate.
 		err = view.connectTransaction(tx, node.height, uint32(idx),
-			stxos)
+			stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -2789,7 +3220,20 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 				node.voters)
 			subsidyTax := b.subsidyCache.CalcTreasurySubsidy(node.height,
 				node.voters)
-			expAtomOut = subsidyWork + subsidyTax + totalFees
+			if isTreasuryEnabled {
+				// When TreasuryBase is enabled the subsidyTax
+				// lives in STransactions.
+				expAtomOut = subsidyWork + totalFees
+				// XXX verify subsidyTax is correct in
+				// treasuryBase transaction.
+				// XXX not sure how to get to stxos here
+				//if txs[0].MsgTx().TxOut[0].Value != subsidyTax {
+				//	panicf(spew.Sdump(block))
+				//	panicf("subsidyTax %v txout %v", subsidyTax, txs[0].MsgTx().TxOut[0].Value)
+				//}
+			} else {
+				expAtomOut = subsidyWork + subsidyTax + totalFees
+			}
 		}
 
 		// AmountIn for the input should be equal to the subsidy.
@@ -2823,12 +3267,13 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		}
 
 		err := checkStakeBaseAmounts(b.subsidyCache, node.height,
-			txs, view)
+			txs, view, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
 
-		totalAtomOutStake, err := getStakeBaseAmounts(txs, view)
+		totalAtomOutStake, err := getStakeBaseAmounts(txs, view,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -2872,6 +3317,16 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 		scriptFlags |= txscript.ScriptVerifyCheckSequenceVerify
 		scriptFlags |= txscript.ScriptVerifySHA256
 	}
+
+	// Enable OP_TADD/OP_TSPEND if treasury opcodes are active.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
+	if err != nil {
+		return 0, err
+	}
+	if isTreasuryEnabled {
+		scriptFlags |= txscript.ScriptVerifyTreasury
+	}
+
 	return scriptFlags, err
 }
 
@@ -2914,10 +3369,27 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	// Check that the coinbase pays the treasury, if applicable.
-	err := coinbasePaysTreasury(b.subsidyCache, block.Transactions()[0],
-		node.height, node.voters, b.chainParams)
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
+	}
+	if isTreasuryEnabled {
+		if len(block.STransactions()) == 0 {
+			return AssertError("invalid STransactions length")
+		}
+		err = coinbasePaysToTreasuryBase(b.subsidyCache,
+			block.STransactions()[0], node.height, node.voters,
+			b.chainParams)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = coinbasePaysToTreasuryAddress(b.subsidyCache,
+			block.Transactions()[0], node.height, node.voters,
+			b.chainParams)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Don't run scripts if this node is before the latest known good
@@ -2964,7 +3436,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// Disconnect all of the transactions in the regular transaction tree of
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
-		err := view.disconnectDisapprovedBlock(b.db, parent)
+		err = view.disconnectDisapprovedBlock(b.db, parent,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -2983,7 +3456,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	//
 	// These utxo entries are needed for verification of things such as
 	// transaction inputs, counting pay-to-script-hashes, and scripts.
-	err = view.fetchInputUtxos(b.db, block)
+	err = view.fetchInputUtxos(b.db, block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -2997,7 +3470,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	stakeTreeFees, err := getStakeTreeFees(b.subsidyCache, node.height,
-		block.STransactions(), view)
+		block.STransactions(), view, isTreasuryEnabled)
 	if err != nil {
 		log.Tracef("getStakeTreeFees failed for TxTreeStake: %v", err)
 		return err
@@ -3182,7 +3655,12 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	}
 
 	// Perform context-free sanity checks on the block and its transactions.
-	err := checkBlockSanity(block, b.timeSource, flags, b.chainParams)
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+	err = checkBlockSanity(block, b.timeSource, flags, b.chainParams,
+		isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -3214,7 +3692,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 			return ruleError(ErrMissingParent, err.Error())
 		}
 
-		view := NewUtxoViewpoint()
+		view := NewUtxoViewpoint(b)
 		view.SetBestHash(&tip.hash)
 
 		return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
@@ -3224,7 +3702,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// current tip due to the previous checks, so undo the transactions and
 	// spend information for the tip block to reach the point of view of the
 	// block template.
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b)
 	view.SetBestHash(&tip.hash)
 	tipBlock, err := b.fetchMainChainBlockByNode(tip)
 	if err != nil {
@@ -3238,7 +3716,8 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// Load all of the spent txos for the tip block from the spend journal.
 	var stxos []spentTxOut
 	err = b.db.View(func(dbTx database.Tx) error {
-		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock)
+		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock,
+			isTreasuryEnabled)
 		return err
 	})
 	if err != nil {
@@ -3248,7 +3727,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// Update the view to unspend all of the spent txos and remove the utxos
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
-	err = view.disconnectBlock(b.db, tipBlock, parent, stxos)
+	err = view.disconnectBlock(b.db, tipBlock, parent, stxos, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}

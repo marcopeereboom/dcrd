@@ -191,7 +191,8 @@ func TestCheckPkScriptStandard(t *testing.T) {
 				"failed: %v", test.name, err)
 			continue
 		}
-		scriptClass := txscript.GetScriptClass(0, script)
+		scriptClass := txscript.GetScriptClass(0, script,
+			false) // No treasury
 		got := checkPkScriptStandard(0, script, scriptClass)
 		if (test.isStandard && got != nil) ||
 			(!test.isStandard && got == nil) {
@@ -531,9 +532,10 @@ func TestCheckTransactionStandard(t *testing.T) {
 	for _, test := range tests {
 		// Ensure standardness is as expected.
 		tx := dcrutil.NewTx(&test.tx)
-		err := checkTransactionStandard(tx, stake.DetermineTxType(&test.tx),
+		err := checkTransactionStandard(tx, stake.DetermineTxType(&test.tx,
+			false /* No treasury */),
 			test.height, medianTime, DefaultMinRelayTxFee,
-			maxTxVersion)
+			maxTxVersion, false) // No treasury
 		if err == nil && test.isStandard {
 			// Test passes since function returned standard for a
 			// transaction which is intended to be standard.

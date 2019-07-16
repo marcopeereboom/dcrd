@@ -658,11 +658,11 @@ func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64, height 
 // format comments, this function also requires the transactions that spend the
 // txouts and a utxo view that contains any remaining existing utxos in the
 // transactions referenced by the inputs to the passed transactions.
-func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spentTxOut, error) {
+func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx, isTreasuryEnabled bool) ([]spentTxOut, error) {
 	// Calculate the total number of stxos.
 	var numStxos int
 	for _, tx := range txns {
-		if stake.IsSSGen(tx) {
+		if stake.IsSSGen(tx, isTreasuryEnabled) {
 			numStxos++
 			continue
 		}
@@ -690,7 +690,8 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 	stxos := make([]spentTxOut, numStxos)
 	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
 		tx := txns[txIdx]
-		isVote := stake.IsSSGen(tx)
+		isVote := stake.IsSSGen(tx, isTreasuryEnabled)
+		// XXX do we need a check for treasurybase here?
 
 		// Loop backwards through all of the transaction inputs and read
 		// the associated stxo.
@@ -774,7 +775,7 @@ func serializeSpendJournalEntry(stxos []spentTxOut) ([]byte, error) {
 // view MUST have the utxos referenced by all of the transactions available for
 // the passed block since that information is required to reconstruct the spent
 // txouts.
-func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTxOut, error) {
+func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, isTreasuryEnabled bool) ([]spentTxOut, error) {
 	// Exclude the coinbase transaction since it can't spend anything.
 	spendBucket := dbTx.Metadata().Bucket(dbnamespace.SpendJournalBucketName)
 	serialized := spendBucket.Get(block.Hash()[:])
@@ -782,13 +783,19 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 
 	blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
 		len(msgBlock.Transactions[1:]))
-	blockTxns = append(blockTxns, msgBlock.STransactions...)
+	if len(msgBlock.STransactions) > 0 && isTreasuryEnabled {
+		// Skip treasury base.
+		blockTxns = append(blockTxns, msgBlock.STransactions[1:]...)
+	} else {
+		blockTxns = append(blockTxns, msgBlock.STransactions...)
+	}
 	blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
 	if len(blockTxns) > 0 && len(serialized) == 0 {
 		panicf("missing spend journal data for %s", block.Hash())
 	}
 
-	stxos, err := deserializeSpendJournalEntry(serialized, blockTxns)
+	stxos, err := deserializeSpendJournalEntry(serialized, blockTxns,
+		isTreasuryEnabled)
 	if err != nil {
 		// Ensure any deserialization errors are returned as database
 		// corruption errors.
@@ -803,7 +810,6 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 
 		return nil, err
 	}
-
 	return stxos, nil
 }
 
@@ -1643,6 +1649,13 @@ func (b *BlockChain) createChainState() error {
 
 		// Store the current best chain state into the database.
 		err = dbPutBestState(dbTx, stateSnapshot, node.workSum)
+		if err != nil {
+			return err
+		}
+
+		// Create the bucket that houses the treasury account
+		// information.
+		_, err = meta.CreateBucket(dbnamespace.TreasuryBucketName)
 		if err != nil {
 			return err
 		}

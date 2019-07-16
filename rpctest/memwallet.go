@@ -247,7 +247,7 @@ func (m *memWallet) chainSyncer() {
 		}
 		for _, tx := range update.filteredTxns {
 			mtx := tx.MsgTx()
-			isCoinbase := standalone.IsCoinBaseTx(mtx)
+			isCoinbase := standalone.IsCoinBaseTx(mtx, false) // No treasury
 			txHash := mtx.TxHash()
 			m.evalOutputs(mtx.TxOut, &txHash, isCoinbase, undo)
 			m.evalInputs(mtx.TxIn, undo)

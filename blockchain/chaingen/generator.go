@@ -6,7 +6,9 @@ package chaingen
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"math/big"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
@@ -520,6 +523,133 @@ func (g *Generator) CreateTicketPurchaseTx(spend *SpendableOut, ticketPrice, fee
 	return tx
 }
 
+// CreateTreasuryTAdd creates a new transaction that spends the provided output
+// to the treasury. If the amount minus fee is zero the returned transaction
+// does not have a change output.
+//
+// The transaction consists of the following outputs:
+// - First output is an OP_TADD
+// - Second output is optional and but when used it is an OP_SSTXCHANGE.
+func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.Amount) *wire.MsgTx {
+	// Calculate change and generate script to deliver it.
+	var (
+		changeScript []byte
+		err          error
+	)
+	change := spend.amount - amount - fee
+	if change != 0 {
+		changeScript, err = txscript.PayToSStxChange(g.p2shOpTrueAddr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// Generate and return the transaction spending from the provided
+	// spendable output with the previously described outputs.
+	tx := wire.NewMsgTx()
+	tx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: spend.prevOut,
+		Sequence:         wire.MaxTxInSequenceNum,
+		ValueIn:          int64(spend.amount),
+		BlockHeight:      spend.blockHeight,
+		BlockIndex:       spend.blockIndex,
+		SignatureScript:  opTrueRedeemScript,
+	})
+	tx.AddTxOut(wire.NewTxOut(int64(amount),
+		[]byte{txscript.OP_TADD}))
+	if change != 0 {
+		tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+	}
+	return tx
+}
+
+// AddressAmountTuple wraps address+amount in a tuple for easy parameter
+// passing.
+type AddressAmountTuple struct {
+	Address dcrutil.Address
+	Amount  dcrutil.Amount
+}
+
+// CreateTreasuryTSpend creates a new transaction that spends treasury funds to
+// outputs.
+//
+// The transaction consists of the following outputs:
+// - First input is <signature> <pi pubkey> OP_TSPEND
+// - First output is an OP_RETURN <32 byte randome data>
+// - Second and other outputs are OP_TGEN P2PH/P2SH
+// accounting.
+func (g *Generator) CreateTreasuryTSpend(payouts []AddressAmountTuple, fee dcrutil.Amount, expiry uint32) *wire.MsgTx {
+	// Calculate total payout.
+	totalPayout := int64(0)
+	for _, v := range payouts {
+		totalPayout += int64(v.Amount)
+	}
+
+	// OP_RETURN <32 byte random>
+	payload := make([]byte, chainhash.HashSize)
+	_, err := rand.Read(payload)
+	if err != nil {
+		panic(err)
+	}
+	builder := txscript.NewScriptBuilder()
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddData(payload)
+	opretScript, err := builder.Script()
+	if err != nil {
+		panic(err)
+	}
+	msgTx := wire.NewMsgTx()
+	msgTx.Expiry = expiry
+	msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
+
+	// OP_TGEN
+	for _, v := range payouts {
+		p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE},
+			chaincfg.RegNetParams())
+		if err != nil {
+			panic(err)
+		}
+		p2shOpTrueScript, err := txscript.PayToAddrScript(p2shOpTrueAddr)
+		if err != nil {
+			panic(err)
+		}
+		script := make([]byte, len(p2shOpTrueScript)+1)
+		script[0] = txscript.OP_TGEN
+		copy(script[1:], p2shOpTrueScript)
+		msgTx.AddTxOut(wire.NewTxOut(int64(v.Amount), script))
+	}
+
+	// Placeholder TxIn
+	msgTx.AddTxIn(&wire.TxIn{
+		// Stakebase transactions have no
+		// inputs, so previous outpoint is zero
+		// hash and max index.
+		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+			wire.MaxPrevOutIndex, wire.TxTreeRegular),
+		Sequence:        wire.MaxTxInSequenceNum,
+		ValueIn:         int64(fee) + totalPayout,
+		BlockHeight:     wire.NullBlockHeight,
+		BlockIndex:      wire.NullBlockIndex,
+		SignatureScript: []byte{},
+	})
+
+	// This key comes from chaincfg/regnetparams.go
+	privKey, err := hex.DecodeString("68ab7efdac0eb99b1edf83b23374cc7a9c8d0a4183a2627afc8ea0437b20589e")
+	if err != nil {
+		panic(err)
+	}
+
+	sigscript, err := txscript.SignatureScript(msgTx, 0, nil,
+		txscript.SigHashAll, privKey,
+		dcrec.STEcdsaSecp256k1, true)
+	if err != nil {
+		panic(err)
+	}
+	msgTx.TxIn[0].SignatureScript = append(sigscript, txscript.OP_TSPEND)
+
+	return msgTx
+}
+
 // isTicketPurchaseTx returns whether or not the passed transaction is a stake
 // ticket purchase.
 //
@@ -534,7 +664,9 @@ func isTicketPurchaseTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[0]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+	// XXX ok to call with treasury disabled?
+	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
+		false)
 	return scriptClass == txscript.StakeSubmissionTy
 }
 
@@ -551,7 +683,9 @@ func isVoteTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[2]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+	// XXX ok to call with treasury disabled?
+	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
+		false)
 	return scriptClass == txscript.StakeGenTy
 }
 
@@ -569,7 +703,9 @@ func isRevocationTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[0]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+	// XXX ok to call with treasury disabled?
+	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
+		false)
 	return scriptClass == txscript.StakeRevocationTy
 }
 
@@ -2368,13 +2504,18 @@ func (g *Generator) NumSpendableCoinbaseOuts() int {
 // saveCoinbaseOuts adds the proof-of-work outputs of the coinbase tx in the
 // passed block to the list of spendable outputs.
 func (g *Generator) saveCoinbaseOuts(b *wire.MsgBlock) {
+	x := uint32(0)
+	if len(b.Transactions[0].TxOut) == 7 {
+		// Treasury enabled
+		x = 1
+	}
 	g.spendableOuts = append(g.spendableOuts, []SpendableOut{
-		MakeSpendableOut(b, 0, 2),
-		MakeSpendableOut(b, 0, 3),
-		MakeSpendableOut(b, 0, 4),
-		MakeSpendableOut(b, 0, 5),
-		MakeSpendableOut(b, 0, 6),
-		MakeSpendableOut(b, 0, 7),
+		MakeSpendableOut(b, 0, 2-x),
+		MakeSpendableOut(b, 0, 3-x),
+		MakeSpendableOut(b, 0, 4-x),
+		MakeSpendableOut(b, 0, 5-x),
+		MakeSpendableOut(b, 0, 6-x),
+		MakeSpendableOut(b, 0, 7-x),
 	})
 	g.prevCollectedHash = b.BlockHash()
 }

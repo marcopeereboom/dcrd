@@ -119,7 +119,7 @@ func TestBlockchainFunctions(t *testing.T) {
 	}
 
 	a, _ := dcrutil.DecodeAddress("SsbKpMkPnadDcZFFZqRPY8nvdFagrktKuzB", params)
-	hs, err := chain.TicketsWithAddress(a)
+	hs, err := chain.TicketsWithAddress(a, false) // No treasury
 	if err != nil {
 		t.Errorf("Failed to do TicketsWithAddress: %v", err)
 	}

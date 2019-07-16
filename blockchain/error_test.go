@@ -49,6 +49,7 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrBadFees, "ErrBadFees"},
 		{ErrTooManySigOps, "ErrTooManySigOps"},
 		{ErrFirstTxNotCoinbase, "ErrFirstTxNotCoinbase"},
+		{ErrFirstTxNotOpReturn, "ErrFirstTxNotOpReturn"},
 		{ErrCoinbaseHeight, "ErrCoinbaseHeight"},
 		{ErrMultipleCoinbases, "ErrMultipleCoinbases"},
 		{ErrStakeTxInRegularTree, "ErrStakeTxInRegularTree"},
@@ -116,6 +117,14 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrKnownInvalidBlock, "ErrKnownInvalidBlock"},
 		{ErrInvalidAncestorBlock, "ErrInvalidAncestorBlock"},
 		{ErrInvalidTemplateParent, "ErrInvalidTemplateParent"},
+		{ErrMultipleTreasuryBases, "ErrMultipleTreasuryBases"},
+		{ErrUnknownPiKey, "ErrUnknownPiKey"},
+		{ErrInvalidPiSignature, "ErrInvalidPiSignature"},
+		{ErrNotTVI, "ErrNotTVI"},
+		{ErrInvalidTSpendWindow, "ErrInvalidTSpendWindow"},
+		{ErrNotEnoughTSpendVotes, "ErrNotEnoughTSpendVotes"},
+		{ErrTSpendExists, "ErrTSpendExists"},
+		{ErrInvalidExpenditure, "ErrInvalidExpenditure"},
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 

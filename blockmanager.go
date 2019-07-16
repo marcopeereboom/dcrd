@@ -1940,6 +1940,13 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		block := blockSlice[0]
 		parentBlock := blockSlice[1]
 
+		isTreasuryEnabled, err := b.cfg.Chain.IsTreasuryAgendaActiveByHash(block.Hash())
+		if err != nil {
+			bmgrLog.Warnf("Block connected notification treasury error: %v",
+				err)
+			break
+		}
+
 		// Account for transactions mined in the newly connected block for fee
 		// estimation. This must be done before attempting to remove
 		// transactions from the mempool because the mempool will alert the
@@ -1987,7 +1994,12 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			}
 		}
 		handleConnectedBlockTxns(block.Transactions()[1:])
-		handleConnectedBlockTxns(block.STransactions())
+		if isTreasuryEnabled {
+			// Skip treasurybase
+			handleConnectedBlockTxns(block.STransactions()[1:])
+		} else {
+			handleConnectedBlockTxns(block.STransactions())
+		}
 
 		// In the case the regular tree of the previous block was disapproved,
 		// add all of the its transactions, with the exception of the coinbase,

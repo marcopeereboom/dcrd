@@ -800,6 +800,13 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 	// Reusable backing array for a slice of a single address.
 	var scratchAddress [1]dcrutil.Address
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(m.server)
+	if err != nil {
+		rpcsLog.Errorf("Could not obtain treasury agenda status: %v",
+			err)
+		return nil
+	}
+
 	msgTx := tx.MsgTx()
 	var isTicket bool // lazily set
 	for q, c := range clients {
@@ -820,14 +827,16 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 		for i, output := range msgTx.TxOut {
 			watchOutput := true
 			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, m.server.cfg.ChainParams)
+				output.PkScript, m.server.cfg.ChainParams,
+				isTreasuryEnabled)
 			if err != nil {
 				// Clients are not able to subscribe to
 				// nonstandard or non-address outputs.
 				continue
 			}
 			if sc == txscript.NullDataTy && i&1 == 1 &&
-				(isTicket || stake.DetermineTxType(msgTx) == stake.TxTypeSStx) {
+				(isTicket || stake.DetermineTxType(msgTx,
+					isTreasuryEnabled) == stake.TxTypeSStx) {
 				isTicket = true
 				// OP_RETURN ticket commitments may contain relevant
 				// P2PKH or P2SH HASH160s.
@@ -1243,6 +1252,13 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		return
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(m.server)
+	if err != nil {
+		rpcsLog.Errorf("Could not obtain treasury agenda status: %v",
+			err)
+		return
+	}
+
 	var verboseNtfn *types.TxAcceptedVerboseNtfn
 	var marshalledJSONVerbose []byte
 	for _, wsc := range clients {
@@ -1254,7 +1270,8 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 
 			net := m.server.cfg.ChainParams
 			rawTx, err := createTxRawResult(net, mtx, txHashStr,
-				wire.NullBlockIndex, nil, "", 0, 0)
+				wire.NullBlockIndex, nil, "", 0, 0,
+				isTreasuryEnabled)
 			if err != nil {
 				return
 			}
@@ -1292,6 +1309,13 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 
 	var clientsToNotify map[chan struct{}]*wsClient
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(m.server)
+	if err != nil {
+		rpcsLog.Errorf("Could not obtain treasury agenda status: %v",
+			err)
+		return
+	}
+
 	msgTx := tx.MsgTx()
 	for q, c := range clients {
 		c.Lock()
@@ -1313,7 +1337,8 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 
 		for i, output := range msgTx.TxOut {
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, m.server.cfg.ChainParams)
+				output.PkScript, m.server.cfg.ChainParams,
+				isTreasuryEnabled)
 			if err != nil {
 				continue
 			}
@@ -2397,7 +2422,7 @@ func handleStopNotifyNewTransactions(wsc *wsClient, icmd interface{}) (interface
 // rescanBlock rescans a block for any relevant transactions for the passed
 // lookup keys.  Any discovered transactions are returned hex encoded as a
 // string slice.
-func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.Params) []string {
+func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.Params, isTreasuryEnabled bool) []string {
 	var transactions []string
 
 	// Need to iterate over both the stake and regular transactions in a
@@ -2416,11 +2441,11 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 		if tree == wire.TxTreeRegular {
 			// Skip previous output checks for coinbase inputs.  These do
 			// not reference a previous output.
-			if standalone.IsCoinBaseTx(tx) {
+			if standalone.IsCoinBaseTx(tx, isTreasuryEnabled) {
 				goto LoopOutputs
 			}
 		} else {
-			if stake.DetermineTxType(tx) == stake.TxTypeSSGen {
+			if stake.DetermineTxType(tx, isTreasuryEnabled) == stake.TxTypeSSGen {
 				// Skip the first stakebase input.  These do not
 				// reference a previous output.
 				inputs = inputs[1:]
@@ -2439,7 +2464,8 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 	LoopOutputs:
 		for i, output := range tx.TxOut {
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				output.Version, output.PkScript, params)
+				output.Version, output.PkScript, params,
+				isTreasuryEnabled)
 			if err != nil {
 				continue
 			}
@@ -2502,6 +2528,11 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 	discoveredData := make([]types.RescannedBlock, 0, len(blockHashes))
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(wsc.rpcServer)
+	if err != nil {
+		return nil, err
+	}
+
 	// Iterate over each block in the request and rescan.  When a block
 	// contains relevant transactions, add it to the response.
 	cfg := wsc.rpcServer.cfg
@@ -2524,7 +2555,8 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 		}
 		lastBlockHash = &blockHashes[i]
 
-		transactions := rescanBlock(filter, block, cfg.ChainParams)
+		transactions := rescanBlock(filter, block, cfg.ChainParams,
+			isTreasuryEnabled)
 		if len(transactions) != 0 {
 			discoveredData = append(discoveredData, types.RescannedBlock{
 				Hash:         blockHashes[i].String(),

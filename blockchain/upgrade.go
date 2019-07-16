@@ -81,10 +81,10 @@ func deserializeDatabaseInfoV2(dbInfoBytes []byte) (*databaseInfo, error) {
 
 // ticketsVotedInBlock fetches a list of tickets that were voted in the
 // block.
-func ticketsVotedInBlock(bl *dcrutil.Block) []chainhash.Hash {
+func ticketsVotedInBlock(bl *dcrutil.Block, isTreasuryEnabled bool) []chainhash.Hash {
 	var tickets []chainhash.Hash
 	for _, stx := range bl.MsgBlock().STransactions {
-		if stake.IsSSGen(stx) {
+		if stake.IsSSGen(stx, isTreasuryEnabled) {
 			tickets = append(tickets, stx.TxIn[1].PreviousOutPoint.Hash)
 		}
 	}
@@ -94,10 +94,10 @@ func ticketsVotedInBlock(bl *dcrutil.Block) []chainhash.Hash {
 
 // ticketsRevokedInBlock fetches a list of tickets that were revoked in the
 // block.
-func ticketsRevokedInBlock(bl *dcrutil.Block) []chainhash.Hash {
+func ticketsRevokedInBlock(bl *dcrutil.Block, isTreasuryEnabled bool) []chainhash.Hash {
 	var tickets []chainhash.Hash
 	for _, stx := range bl.MsgBlock().STransactions {
-		if stake.DetermineTxType(stx) == stake.TxTypeSSRtx {
+		if stake.DetermineTxType(stx, isTreasuryEnabled) == stake.TxTypeSSRtx {
 			tickets = append(tickets, stx.TxIn[0].PreviousOutPoint.Hash)
 		}
 	}
@@ -207,9 +207,14 @@ func upgradeToVersion2(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 			if errLocal != nil {
 				return errLocal
 			}
+
+			// Assume v2 does NOT support treasury agenda.
+			isTreasuryEnabled := false
 			bestStakeNode, errLocal = bestStakeNode.ConnectNode(
-				stake.CalcHash256PRNGIV(hB), ticketsVotedInBlock(block),
-				ticketsRevokedInBlock(block), newTickets)
+				stake.CalcHash256PRNGIV(hB), ticketsVotedInBlock(block,
+					isTreasuryEnabled),
+				ticketsRevokedInBlock(block, isTreasuryEnabled),
+				newTickets)
 			if errLocal != nil {
 				return errLocal
 			}
@@ -745,7 +750,7 @@ func (s scriptSource) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, bool) 
 // stxosToScriptSource uses the provided block and spent txo information to
 // create a source of previous transaction scripts and versions spent by the
 // block.
-func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVersion uint32) scriptSource {
+func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVersion uint32, isTreasuryEnabled bool) scriptSource {
 	source := make(scriptSource)
 
 	// Loop through all of the transaction inputs in the stake transaction tree
@@ -757,7 +762,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVe
 	// the spent txous need to be processed in the same order.
 	var stxoIdx int
 	for _, tx := range block.MsgBlock().STransactions {
-		isVote := stake.IsSSGen(tx)
+		isVote := stake.IsSSGen(tx, isTreasuryEnabled)
 		for txInIdx, txIn := range tx.TxIn {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {
@@ -825,7 +830,7 @@ func clearFailedBlockFlags(index *blockIndex) error {
 //
 // The database is  guaranteed to have a filter entry for every block in the
 // main chain if this returns without failure.
-func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView) error {
+func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView, isTreasuryEnabled bool) error {
 	// Hardcoded values so updates to the global values do not affect old
 	// upgrades.
 	gcsBucketName := []byte("gcsfilters")
@@ -853,7 +858,8 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 		}
 
 		// Load all of the spent transaction output data from the database.
-		stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+		stxos, err := dbFetchSpendJournalEntry(dbTx, block,
+			isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -861,7 +867,8 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 		// Use the combination of the block and the stxos to create a source
 		// of previous scripts spent by the block needed to create the
 		// filter.
-		prevScripts := stxosToScriptSource(block, stxos, compressionVersion)
+		prevScripts := stxosToScriptSource(block, stxos,
+			compressionVersion, isTreasuryEnabled)
 
 		// Create the filter from the block and referenced previous output
 		// scripts.
@@ -1006,7 +1013,9 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 	}
 
 	// Create and store version 2 GCS filters for all blocks in the main chain.
-	err = initializeGCSFilters(ctx, db, index, bestChain)
+	// We can use the false flag because there is no way the treasury could
+	// be active at this point.
+	err = initializeGCSFilters(ctx, db, index, bestChain, false)
 	if err != nil {
 		return err
 	}
@@ -1022,6 +1031,31 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 
 	elapsed := time.Since(start).Round(time.Millisecond)
 	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
+// upgradeToVersion7 upgrades a version 6 blockchain database to version 7.
+func upgradeToVersion7(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
+	log.Info("Adding treasury databases...")
+	start := time.Now()
+
+	// Add treasury database.
+	err := addTreasuryBucket(db)
+	if err != nil {
+		return err
+	}
+
+	// Add tspend database.
+	err = addTSpendBucket(db)
+	if err != nil {
+		return err
+	}
+
+	// XXX Rescan blocks for TADD/TSPEND
+	log.Errorf("XXX treasury databases not migrated")
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading treasury databases in %v.", elapsed)
 	return nil
 }
 
@@ -1067,6 +1101,14 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	// filters for all blocks in the main chain.
 	if dbInfo.version == 5 {
 		err := upgradeToVersion6(ctx, db, chainParams, dbInfo)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Add treasury database.
+	if dbInfo.version == 6 {
+		err := upgradeToVersion7(db, chainParams, dbInfo)
 		if err != nil {
 			return err
 		}

@@ -351,12 +351,6 @@ func TestRemoveOpcodeByData(t *testing.T) {
 				"0x01020304"),
 		},
 		{
-			name:   "invalid opcode",
-			before: []byte{OP_UNKNOWN193},
-			remove: []byte{1, 2, 3, 4},
-			after:  []byte{OP_UNKNOWN193},
-		},
-		{
 			name:   "invalid length (instruction)",
 			before: []byte{OP_PUSHDATA1},
 			remove: []byte{1, 2, 3, 4},
@@ -538,5 +532,16 @@ func TestIsUnspendable(t *testing.T) {
 				res, test.expected)
 			continue
 		}
+	}
+}
+
+// TestTreasury verifies that treasury scripts are properly detected.
+func TestTreasury(t *testing.T) {
+	script, err := PayToTreasury()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isTreasuryAddScript(0, script) {
+		t.Fatalf("invalid PayToTreasury script")
 	}
 }

@@ -43,6 +43,8 @@ const (
 	StakeSubChangeTy                     // Change for stake submission tx.
 	PubkeyAltTy                          // Alternative signature pubkey.
 	PubkeyHashAltTy                      // Alternative signature pubkey hash.
+	TreasuryAddTy                        // Add value to treasury
+	TreasurySpendTy                      // Spend from treasury
 )
 
 // scriptClassToName houses the human-readable strings which describe each
@@ -60,6 +62,8 @@ var scriptClassToName = []string{
 	StakeGenTy:        "stakegen",
 	StakeRevocationTy: "stakerevoke",
 	StakeSubChangeTy:  "sstxchange",
+	TreasuryAddTy:     "treasuryadd",
+	TreasurySpendTy:   "treasuryspend",
 }
 
 // String implements the Stringer interface by returning the name of
@@ -527,12 +531,85 @@ func isStakeChangeScript(scriptVersion uint16, script []byte) bool {
 		extractStakeScriptHash(script, stakeOpcode) != nil
 }
 
+// isTreasuryAddScript returns whether or not the passed OUTPUT script is a
+// supported add treasury script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+// XXX THIS IS WRONG AND WE PROBABLY WANT THIS TO GO AWAY
+func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
+	// We will support 2 OP_TADD variants. One where a user sends utxo from
+	// wallet to treasury and one where part of the block reward will be
+	// credited to the treasury.
+
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// First opcode must be an OP_ADD
+	tokenizer := MakeScriptTokenizer(scriptVersion, script)
+	if tokenizer.Next() {
+		if tokenizer.Opcode() != OP_TADD {
+			return false
+		}
+	} else {
+		return false
+	}
+
+	// The following opcode is optional and must be either an OP_RETURN or
+	// an OP_SSTXCHANGE.
+	// XXX This must not check the OP_RETURN case; that is isTreasuryBase.
+	if tokenizer.Next() {
+		if !(tokenizer.Opcode() == OP_RETURN ||
+			tokenizer.Opcode() == OP_SSTXCHANGE) {
+			return false
+		}
+	}
+
+	// Make sure there is no trailing stuff.
+	if !tokenizer.Done() {
+		return false
+	}
+
+	// make sure there was no error either.
+	if tokenizer.Err() != nil {
+		return false
+	}
+
+	return true
+}
+
+// isTreasurySpendScript returns whether or not the passed script is a
+// supported spend treasury OUTPUT script. Since we do not get to see the
+// inputs we cannot assert that there is a valid OP_TSPEND. Only call this
+// function when it has been asserted that the inputs contain a valid OP_TSPEND
+// construct.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+// XXX THIS IS WRONG AND WE PROBABLY WANT THIS TO GO AWAY
+func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
+	// An OP_TSPEND OUTPUT script consists of one or more OP_TGEN +
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// The only supported stake generation scripts are pay-to-pubkey-hash and
+	// pay-to-script-hash tagged with the stake submission opcode.
+	const stakeOpcode = OP_TGEN
+	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
+		extractStakeScriptHash(script, stakeOpcode) != nil
+}
+
 // typeOfScript returns the type of the script being inspected from the known
-// standard types.
+// standard types. It is important to note that this function will only be
+// called with output scripts.
 //
 // NOTE:  All scripts that are not version 0 are currently considered non
 // standard.
-func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
+func typeOfScript(scriptVersion uint16, script []byte, isTreasuryEnabled bool) ScriptClass {
 	if scriptVersion != 0 {
 		return NonStandardTy
 	}
@@ -562,19 +639,28 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return StakeSubChangeTy
 	}
 
+	if isTreasuryEnabled {
+		switch {
+		case isTreasuryAddScript(scriptVersion, script):
+			return TreasuryAddTy
+		case isTreasurySpendScript(scriptVersion, script):
+			return TreasurySpendTy
+		}
+	}
+
 	return NonStandardTy
 }
 
 // GetScriptClass returns the class of the script passed.
 //
 // NonStandardTy will be returned when the script does not parse.
-func GetScriptClass(version uint16, script []byte) ScriptClass {
+func GetScriptClass(version uint16, script []byte, isTreasuryEnabled bool) ScriptClass {
 	// All scripts with nonzero versions are considered non standard.
 	if version != 0 {
 		return NonStandardTy
 	}
 
-	return typeOfScript(version, script)
+	return typeOfScript(version, script, isTreasuryEnabled)
 }
 
 // GetStakeOutSubclass extracts the subclass (P2PKH or P2SH)
@@ -583,21 +669,24 @@ func GetScriptClass(version uint16, script []byte) ScriptClass {
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func GetStakeOutSubclass(pkScript []byte) (ScriptClass, error) {
+func GetStakeOutSubclass(pkScript []byte, isTreasuryEnabled bool) (ScriptClass, error) {
 	const scriptVersion = 0
 	if err := checkScriptParses(scriptVersion, pkScript); err != nil {
 		return 0, err
 	}
 
-	class := typeOfScript(scriptVersion, pkScript)
+	class := typeOfScript(scriptVersion, pkScript, isTreasuryEnabled)
 	isStake := class == StakeSubmissionTy ||
 		class == StakeGenTy ||
 		class == StakeRevocationTy ||
-		class == StakeSubChangeTy
+		class == StakeSubChangeTy ||
+		class == TreasuryAddTy || // This is ok since typeOfScript can't
+		class == TreasurySpendTy //  return these types when disabled.
 
 	subClass := ScriptClass(0)
 	if isStake {
-		subClass = typeOfScript(scriptVersion, pkScript[1:])
+		subClass = typeOfScript(scriptVersion, pkScript[1:],
+			isTreasuryEnabled)
 	} else {
 		return 0, fmt.Errorf("not a stake output")
 	}
@@ -616,6 +705,24 @@ func ContainsStakeOpCodes(pkScript []byte) (bool, error) {
 	tokenizer := MakeScriptTokenizer(scriptVersion, pkScript)
 	for tokenizer.Next() {
 		if isStakeOpcode(tokenizer.Opcode()) {
+			return true, nil
+		}
+	}
+
+	return false, tokenizer.Err()
+}
+
+// ContainsTreasuryOpCodes returns whether or not a pkScript contains treasury
+// tagging OP codes.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+func ContainsTreasuryOpCodes(pkScript []byte) (bool, error) {
+	const scriptVersion = 0
+	tokenizer := MakeScriptTokenizer(scriptVersion, pkScript)
+	for tokenizer.Next() {
+		if isTreasuryOpcode(tokenizer.Opcode()) {
 			return true, nil
 		}
 	}
@@ -1011,6 +1118,16 @@ func GenerateProvablyPruneableOut(data []byte) ([]byte, error) {
 	return NewScriptBuilder().AddOp(OP_RETURN).AddData(data).Script()
 }
 
+// PayToTreasury returns a script that credits the treasury from UTxOs.
+func PayToTreasury() ([]byte, error) {
+	return NewScriptBuilder().AddOp(OP_TADD).Script()
+}
+
+// PayFromTreasury returns a script that debits the treasury.
+func PayFromTreasury() ([]byte, error) {
+	return NewScriptBuilder().AddOp(OP_TADD).Script()
+}
+
 // PayToAddrScript creates a new script to pay a transaction output to a the
 // specified address.
 func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
@@ -1144,8 +1261,7 @@ func scriptHashToAddrs(hash []byte, params dcrutil.AddressParams) []dcrutil.Addr
 // NOTE: This function only attempts to identify version 0 scripts.  The return
 // value will indicate a nonstandard script type for other script versions along
 // with an invalid script version error.
-func ExtractPkScriptAddrs(version uint16, pkScript []byte,
-	chainParams dcrutil.AddressParams) (ScriptClass, []dcrutil.Address, int, error) {
+func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams dcrutil.AddressParams, isTreasuryEnabled bool) (ScriptClass, []dcrutil.Address, int, error) {
 	if version != 0 {
 		return NonStandardTy, nil, 0, fmt.Errorf("invalid script version")
 	}
@@ -1257,10 +1373,19 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return StakeSubChangeTy, scriptHashToAddrs(hash, chainParams), 1, nil
 	}
 
+	// XXX add OP_TSPEND/OP_TGEN here
+
 	// Check for null data script.
 	if isNullDataScript(version, pkScript) {
 		// Null data transactions have no addresses or required signatures.
 		return NullDataTy, nil, 0, nil
+	}
+
+	// Check for TADD
+	if isTreasuryEnabled {
+		if isTreasuryAddScript(version, pkScript) {
+			return TreasuryAddTy, nil, 0, nil
+		}
 	}
 
 	// Don't attempt to extract addresses or required signatures for nonstandard

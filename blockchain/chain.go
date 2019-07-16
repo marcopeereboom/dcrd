@@ -533,11 +533,19 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			node.height, prevHash, tip.hash, tip.height)
 	}
 
+	// Determine if treasury is active. This really shouldn't fail and
+	// maybe we should consider a panic.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+
 	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block) {
+	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
+		//panic(spew.Sdump(block))
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
 			"outputs", len(stxos), node.hash, node.height,
-			countSpentOutputs(block))
+			countSpentOutputs(block, isTreasuryEnabled))
 	}
 
 	// Write any modified block index entries to the database before
@@ -576,7 +584,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	curTotalTxns := b.stateSnapshot.TotalTxns
 	curTotalSubsidy := b.stateSnapshot.TotalSubsidy
 	b.stateLock.RUnlock()
-	subsidy := calculateAddedSubsidy(block, parent)
+	subsidy := calculateAddedSubsidy(block, parent, isTreasuryEnabled)
 	numTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	blockSize := uint64(block.MsgBlock().Header.Size)
 	state := newBestState(node, blockSize, numTxns, curTotalTxns+numTxns,
@@ -614,6 +622,19 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			return err
 		}
 
+		// Insert the treasury information into the database.
+		if isTreasuryEnabled {
+			err = b.writeTreasury(dbTx, block, node)
+			if err != nil {
+				return err
+			}
+
+			err = b.writeTSpend(dbTx, block, node)
+			if err != nil {
+				return err
+			}
+		}
+
 		// Insert the GCS filter for the block into the database.
 		err = dbPutGCSFilter(dbTx, block.Hash(), hdrCommitments.filter)
 		if err != nil {
@@ -624,7 +645,8 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		// optional indexes with the block being connected so they can
 		// update themselves accordingly.
 		if b.indexManager != nil {
-			err := b.indexManager.ConnectBlock(dbTx, block, parent, view)
+			err := b.indexManager.ConnectBlock(dbTx, block, parent,
+				view, isTreasuryEnabled)
 			if err != nil {
 				return err
 			}
@@ -731,6 +753,12 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 			tip.height)
 	}
 
+	pHash := &block.MsgBlock().Header.PrevBlock
+	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(pHash)
+	if err != nil {
+		return err
+	}
+
 	// Write any modified block index entries to the database before
 	// updating the best state.
 	if err := b.flushBlockIndex(); err != nil {
@@ -758,7 +786,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	numParentTxns := uint64(len(parent.Transactions()) + len(parent.STransactions()))
 	numBlockTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	newTotalTxns := curTotalTxns - numBlockTxns
-	subsidy := calculateAddedSubsidy(block, parent)
+	subsidy := calculateAddedSubsidy(block, parent, isTreasuryEnabled)
 	newTotalSubsidy := curTotalSubsidy - subsidy
 	prevNode := node.parent
 	state := newBestState(prevNode, parentBlockSize, numParentTxns,
@@ -803,7 +831,8 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		// optional indexes with the block being disconnected so they
 		// can update themselves accordingly.
 		if b.indexManager != nil {
-			err := b.indexManager.DisconnectBlock(dbTx, block, parent, view)
+			err := b.indexManager.DisconnectBlock(dbTx, block,
+				parent, view, isTreasuryEnabled)
 			if err != nil {
 				return err
 			}
@@ -859,22 +888,36 @@ func countSpentRegularOutputs(block *dcrutil.Block) int {
 
 // countSpentStakeOutputs returns the number of utxos the stake transactions in
 // the passed block spend.
-func countSpentStakeOutputs(block *dcrutil.Block) int {
+func countSpentStakeOutputs(block *dcrutil.Block, isTreasuryEnabled bool) int {
 	var numSpent int
 	for _, stx := range block.MsgBlock().STransactions {
 		// Exclude the vote stakebase since it has no input.
-		if stake.IsSSGen(stx) {
+		if stake.IsSSGen(stx, isTreasuryEnabled) {
 			numSpent++
 			continue
 		}
+
+		// XXX this doesn't look right.
+
+		// Exclude TSpend.
+		if stake.IsTSpend(stx) {
+			continue
+		}
+
+		// Exclude TreasuryBase
+		if stake.IsTreasuryBase(stx) {
+			continue
+		}
+
 		numSpent += len(stx.TxIn)
 	}
 	return numSpent
 }
 
 // countSpentOutputs returns the number of utxos the passed block spends.
-func countSpentOutputs(block *dcrutil.Block) int {
-	return countSpentRegularOutputs(block) + countSpentStakeOutputs(block)
+func countSpentOutputs(block *dcrutil.Block, isTreasuryEnabled bool) int {
+	return countSpentRegularOutputs(block) +
+		countSpentStakeOutputs(block, isTreasuryEnabled)
 }
 
 // loadOrCreateFilter attempts to load and return the version 2 GCS filter for
@@ -962,7 +1005,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 	// utxos created by the blocks.  In addition, if a block votes against its
 	// parent, the regular transactions are reconnected.
 	tip := b.bestChain.Tip()
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b)
 	view.SetBestHash(&tip.hash)
 	var nextBlockToDetach *dcrutil.Block
 	for tip != nil && tip != fork {
@@ -993,10 +1036,17 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		}
 		nextBlockToDetach = parent
 
+		// XXX is this right by looking at the parent?
+		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+		if err != nil {
+			return err
+		}
+
 		// Load all of the spent txos for the block from the spend journal.
 		var stxos []spentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
-			stxos, err = dbFetchSpendJournalEntry(dbTx, block)
+			stxos, err = dbFetchSpendJournalEntry(dbTx, block,
+				isTreasuryEnabled)
 			return err
 		})
 		if err != nil {
@@ -1006,7 +1056,8 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// Update the view to unspend all of the spent txos and remove the utxos
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
-		err = view.disconnectBlock(b.db, block, parent, stxos)
+		err = view.disconnectBlock(b.db, block, parent, stxos,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1059,10 +1110,16 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// Store the loaded block as parent of next iteration.
 		prevBlockAttached = block
 
+		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+		if err != nil {
+			return err
+		}
+
 		// Skip validation if the block is already known to be valid.  However,
 		// the utxo view still needs to be updated and the stxos and header
 		// commitment data are still needed.
-		stxos := make([]spentTxOut, 0, countSpentOutputs(block))
+		stxos := make([]spentTxOut, 0, countSpentOutputs(block,
+			isTreasuryEnabled))
 		var hdrCommitments headerCommitmentData
 		if b.index.NodeStatus(n).HasValidated() {
 			// Update the view to mark all utxos referenced by the block as
@@ -1070,7 +1127,8 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			// In the case the block votes against the parent, also disconnect
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
-			err := view.connectBlock(b.db, block, parent, &stxos)
+			err = view.connectBlock(b.db, block, parent, &stxos,
+				isTreasuryEnabled)
 			if err != nil {
 				return err
 			}
@@ -1326,7 +1384,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// flushed when a valid block is connected, and the worst case
 		// scenario if a block is invalid is it would need to be
 		// revalidated after a restart.
-		view := NewUtxoViewpoint()
+		view := NewUtxoViewpoint(b)
 		view.SetBestHash(parentHash)
 		var stxos []spentTxOut
 		var hdrCommitments headerCommitmentData
@@ -1353,8 +1411,14 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// this block.  Also, in the case the block votes against
 		// the parent, its regular transaction tree must be
 		// disconnected.
+		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+		if err != nil {
+			return 0, err
+		}
+
 		if fastAdd {
-			err := view.connectBlock(b.db, block, parent, &stxos)
+			err := view.connectBlock(b.db, block, parent, &stxos,
+				isTreasuryEnabled)
 			if err != nil {
 				return 0, err
 			}
@@ -1369,7 +1433,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		}
 
 		// Connect the block to the main chain.
-		err := b.connectBlock(node, block, parent, view, stxos, &hdrCommitments)
+		err = b.connectBlock(node, block, parent, view, stxos, &hdrCommitments)
 		if err != nil {
 			return 0, err
 		}
@@ -1894,6 +1958,10 @@ func (q *chainQueryerAdapter) BestHeight() int64 {
 	return q.BestSnapshot().Height
 }
 
+func (q *chainQueryerAdapter) IsTreasuryEnabledByHash(hash *chainhash.Hash) (bool, error) {
+	return q.IsTreasuryAgendaActiveByHash(hash)
+}
+
 // PrevScripts returns a source of previous transaction scripts and their
 // associated versions spent by the given block by using the spend journal.
 //
@@ -1902,13 +1970,20 @@ func (q *chainQueryerAdapter) BestHeight() int64 {
 //
 // This is part of the indexers.ChainQueryer interface.
 func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block) (indexers.PrevScripter, error) {
-	// Load all of the spent transaction output data from the database.
-	stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+	pHash := &block.MsgBlock().Header.PrevBlock
+	isTreasuryEnabled, err := q.IsTreasuryAgendaActiveByHash(pHash)
 	if err != nil {
 		return nil, err
 	}
 
-	prevScripts := stxosToScriptSource(block, stxos, currentCompressionVersion)
+	// Load all of the spent transaction output data from the database.
+	stxos, err := dbFetchSpendJournalEntry(dbTx, block, isTreasuryEnabled)
+	if err != nil {
+		return nil, err
+	}
+
+	prevScripts := stxosToScriptSource(block, stxos,
+		currentCompressionVersion, isTreasuryEnabled)
 	return prevScripts, nil
 }
 

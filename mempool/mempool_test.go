@@ -82,7 +82,7 @@ func (s *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.U
 	// do not affect the fake chain's view.
 
 	// Add an entry for the tx itself to the new view.
-	viewpoint := blockchain.NewUtxoViewpoint()
+	viewpoint := blockchain.NewUtxoViewpoint(nil)
 	entry := s.utxos.LookupEntry(tx.Hash())
 	viewpoint.Entries()[*tx.Hash()] = entry.Clone()
 
@@ -179,7 +179,8 @@ func (s *fakeChain) CalcSequenceLock(tx *dcrutil.Tx, view *blockchain.UtxoViewpo
 	// or time.
 	msgTx := tx.MsgTx()
 	enforce := msgTx.Version >= 2
-	if !enforce || standalone.IsCoinBaseTx(msgTx) || stake.IsSSGen(msgTx) {
+	if !enforce || standalone.IsCoinBaseTx(msgTx, false /* No treasury */) ||
+		stake.IsSSGen(msgTx, false) { // No treasury
 		return sequenceLock, nil
 	}
 
@@ -351,7 +352,8 @@ func (p *poolHarness) GetKey(addr dcrutil.Address) ([]byte, dcrec.SignatureType,
 
 // AddFakeUTXO creates a fake mined utxo for the provided transaction.
 func (p *poolHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64) {
-	p.chain.utxos.AddTxOuts(tx, blockHeight, wire.NullBlockIndex)
+	p.chain.utxos.AddTxOuts(tx, blockHeight, wire.NullBlockIndex,
+		false) // No treasury
 }
 
 // CreateCoinbaseTx returns a coinbase transaction with the requested number of
@@ -633,7 +635,7 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
 	signedScript, err := txscript.SignTxOutput(p.chainParams, vote, inputToSign,
 		redeemTicketScript, txscript.SigHashAll, p,
-		p, vote.TxIn[inputToSign].SignatureScript)
+		p, vote.TxIn[inputToSign].SignatureScript, false) // no treasury
 	if err != nil {
 		return nil, err
 	}
@@ -677,9 +679,10 @@ func (p *poolHarness) CreateRevocation(ticket *dcrutil.Tx) (*dcrutil.Tx, error) 
 	// Sign the input.
 	inputToSign := 0
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
-	signedScript, err := txscript.SignTxOutput(p.chainParams, revocation, inputToSign,
-		redeemTicketScript, txscript.SigHashAll, p,
-		p, revocation.TxIn[inputToSign].SignatureScript)
+	signedScript, err := txscript.SignTxOutput(p.chainParams, revocation,
+		inputToSign, redeemTicketScript, txscript.SigHashAll, p, p,
+		revocation.TxIn[inputToSign].SignatureScript,
+		false) // No treasury
 	if err != nil {
 		return nil, err
 	}
@@ -720,7 +723,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	// Create a new fake chain and harness bound to it.
 	subsidyCache := standalone.NewSubsidyCache(chainParams)
 	chain := &fakeChain{
-		utxos:       blockchain.NewUtxoViewpoint(),
+		utxos:       blockchain.NewUtxoViewpoint(nil),
 		utxoTimes:   make(map[wire.OutPoint]int64),
 		blocks:      make(map[chainhash.Hash]*dcrutil.Block),
 		scriptFlags: BaseStandardVerifyFlags,
@@ -770,6 +773,9 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			AddrIndex:           nil,
 			ExistsAddrIndex:     nil,
 			OnVoteReceived:      nil,
+			IsTreasuryAgendaActive: func() (bool, error) {
+				return false, nil // No treasury
+			},
 		}),
 	}
 
@@ -785,7 +791,8 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	if err != nil {
 		return nil, nil, err
 	}
-	harness.chain.utxos.AddTxOuts(coinbase, curHeight+1, wire.NullBlockIndex)
+	harness.chain.utxos.AddTxOuts(coinbase, curHeight+1, wire.NullBlockIndex,
+		false) // No treasury
 	for i := uint32(0); i < numOutputs; i++ {
 		outputs = append(outputs, txOutToSpendableOut(coinbase, i, wire.TxTreeRegular))
 	}
@@ -1448,7 +1455,7 @@ func TestOrphanChainRemoval(t *testing.T) {
 	// remove redeemer flag set and ensure that only the first orphan was
 	// removed.
 	harness.txPool.mtx.Lock()
-	harness.txPool.removeOrphan(chainedTxns[1], false)
+	harness.txPool.removeOrphan(chainedTxns[1], false, false) // No treasury
 	harness.txPool.mtx.Unlock()
 	testPoolMembership(tc, chainedTxns[1], false, false)
 	for _, tx := range chainedTxns[2 : maxOrphans+1] {
@@ -1458,7 +1465,7 @@ func TestOrphanChainRemoval(t *testing.T) {
 	// Remove the first remaining orphan that starts the orphan chain with
 	// the remove redeemer flag set and ensure they are all removed.
 	harness.txPool.mtx.Lock()
-	harness.txPool.removeOrphan(chainedTxns[2], true)
+	harness.txPool.removeOrphan(chainedTxns[2], true, false) // No treasury
 	harness.txPool.mtx.Unlock()
 	for _, tx := range chainedTxns[2 : maxOrphans+1] {
 		testPoolMembership(tc, tx, false, false)
@@ -1888,7 +1895,8 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	// the stake enabled height for the height of the fake utxos to ensure they
 	// are mature for the votes cast a stake validation height below.
 	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
-	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0)
+	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
+		false) // No treasury
 
 	// Create enough votes all using the same ticket and voting on different
 	// blocks at stake validation height to be able to force rejection due to
@@ -2012,7 +2020,8 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	// the stake enabled height for the height of the fake utxos to ensure they
 	// are matured for the votes cast a stake validation height below.
 	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
-	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0)
+	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
+		false) // No treasury
 
 	// Create a vote that votes on a block at stake validation height.
 	harness.chain.SetBestHash(&chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e})

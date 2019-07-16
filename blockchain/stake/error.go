@@ -93,9 +93,28 @@ const (
 	// second output was corrupted in some way.
 	ErrSSGenBadVotePush
 
-	// ErrSSGenBadGenOuts indicates that the something was wrong with the
-	// stake generation outputs that were present after the first two
-	// OP_RETURN pushes in an SSGen tx.
+	// ErrSSGenInvalidDiscriminatorLength indicates that the discriminator
+	// length is too short.
+	ErrSSGenInvalidDiscriminatorLength
+
+	// ErrSSGenInvalidTVLength indicates that this is an invalid Treasury
+	// Vote length.
+	ErrSSGenInvalidTVLength
+
+	// ErrSSGenInvalidVote indicates that this is an invalid treasury vote.
+	ErrSSGenInvalidTreasuryVote
+
+	// ErrSSGenDuplicateTreasuryVote indicates that there is a duplicate
+	// treasury vote.
+	ErrSSGenDuplicateTreasuryVote
+
+	// ErrSSGenUnknownDiscriminator indicates that the supplied
+	// discriminator is unsupported.
+	ErrSSGenUnknownDiscriminator
+
+	// ErrSSGenBadGenOuts indicates that something was wrong with the stake
+	// generation outputs that were present after the first two OP_RETURN
+	// pushes in an SSGen tx.
 	ErrSSGenBadGenOuts
 
 	// ErrSSRtxWrongNumInputs indicates that a given SSRtx contains an
@@ -176,49 +195,158 @@ const (
 	// ErrUnknownTicketSpent indicates that an unknown ticket was spent by
 	// the block.
 	ErrUnknownTicketSpent
+
+	// ErrTAddInvalidCount indicates that this transaction contains an
+	// invalid TADD script count.
+	ErrTAddInvalidCount
+
+	// ErrTAddInvalidVersion indicates that this transaction has an invalid
+	// version in an output script.
+	ErrTAddInvalidVersion
+
+	// ErrTAddInvalidScriptLength indicates that this transaction has a zero
+	// length output script.
+	ErrTAddInvalidScriptLength
+
+	// ErrTAddInvalidtLength indicates that output 0 is not exactly 1 byte.
+	ErrTAddInvalidLength
+
+	// ErrTAddInvalidOpcode indicates that this transaction does not have a
+	// TADD opcode.
+	ErrTAddInvalidOpcode
+
+	// ErrTAddInvalid indicates that this transaction contains an invalid
+	// change script.
+	ErrTAddInvalidChange
+
+	// ErrTSpendInvalidLength indicates that this transaction has an
+	// invalid number of inputs and/or outputs.
+	ErrTSpendInvalidLength
+
+	// ErrTSpendInvalidVersion indicates that this transaction has an
+	// invalid version in an output script.
+	ErrTSpendInvalidVersion
+
+	// ErrTSpendInvalidScriptLength indicates that the TSPEND transaction
+	// has outputs that have a zero length script.
+	ErrTSpendInvalidScriptLength
+
+	// ErrTSpendInvalidTokenCount indicates that this transaction does not
+	// have enough tokens to encode a valid TSPEND.
+	ErrTSpendInvalidTokenCount
+
+	// ErrTSpendInvalidSignature indicates that this transaction has an
+	// invalid signature in the input script.
+	ErrTSpendInvalidSignature
+
+	// ErrTSpendInvalidPubkey indicates that this transaction contains an
+	// invalid public key.
+	ErrTSpendInvalidPubkey
+
+	// ErrTSpendInvalidOpcode indicates that this transaction does not have
+	// a TSPEND opcode.
+	ErrTSpendInvalidOpcode
+
+	// ErrTSpendInvalidTGen indicates that the TSPEND transaction has
+	// outputs that are not tagged with OP_TGEN.
+	ErrTSpendInvalidTGen
+
+	// ErrTSpendInvalidTransaction indicates that a TSPEND transaction
+	// output 0 does not have an a valid null data script.
+	ErrTSpendInvalidTransaction
+
+	// ErrTSpendInvalidSpendScript indicates that this transaction contains
+	// an invalid P2SH or P2PH script.
+	ErrTSpendInvalidSpendScript
+
+	// ErrTreasuryBaseInvalidCount indicates that this transaction contains
+	// an invalid treasury base script count.
+	ErrTreasuryBaseInvalidCount
+
+	// ErrTreasuryBaseInvalidVersion indicates that this transaction has an
+	// invalid version in an output script.
+	ErrTreasuryBaseInvalidVersion
+
+	// ErrTreasuryInvalidOpcode0 indicates that this transaction does not
+	// have a TADD opcode in TxOut[0].
+	ErrTreasuryBaseInvalidOpcode0
+
+	// ErrTreasuryInvalidOpcode1 indicates that this transaction does not
+	// have an OP_RETURN opcode in TxOut[1].
+	ErrTreasuryBaseInvalidOpcode1
+
+	// ErrTreasuryBaseInvalid indicates that this transaction contains
+	// invalid stakebase TxIn constants.
+	ErrTreasuryBaseInvalid
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrSStxTooManyInputs:    "ErrSStxTooManyInputs",
-	ErrSStxTooManyOutputs:   "ErrSStxTooManyOutputs",
-	ErrSStxNoOutputs:        "ErrSStxNoOutputs",
-	ErrSStxInvalidInputs:    "ErrSStxInvalidInputs",
-	ErrSStxInvalidOutputs:   "ErrSStxInvalidOutputs",
-	ErrSStxInOutProportions: "ErrSStxInOutProportions",
-	ErrSStxBadCommitAmount:  "ErrSStxBadCommitAmount",
-	ErrSStxBadChangeAmts:    "ErrSStxBadChangeAmts",
-	ErrSStxVerifyCalcAmts:   "ErrSStxVerifyCalcAmts",
-	ErrSSGenWrongNumInputs:  "ErrSSGenWrongNumInputs",
-	ErrSSGenTooManyOutputs:  "ErrSSGenTooManyOutputs",
-	ErrSSGenNoOutputs:       "ErrSSGenNoOutputs",
-	ErrSSGenWrongIndex:      "ErrSSGenWrongIndex",
-	ErrSSGenWrongTxTree:     "ErrSSGenWrongTxTree",
-	ErrSSGenNoStakebase:     "ErrSSGenNoStakebase",
-	ErrSSGenNoReference:     "ErrSSGenNoReference",
-	ErrSSGenBadReference:    "ErrSSGenBadReference",
-	ErrSSGenNoVotePush:      "ErrSSGenNoVotePush",
-	ErrSSGenBadVotePush:     "ErrSSGenBadVotePush",
-	ErrSSGenBadGenOuts:      "ErrSSGenBadGenOuts",
-	ErrSSRtxWrongNumInputs:  "ErrSSRtxWrongNumInputs",
-	ErrSSRtxTooManyOutputs:  "ErrSSRtxTooManyOutputs",
-	ErrSSRtxNoOutputs:       "ErrSSRtxNoOutputs",
-	ErrSSRtxWrongTxTree:     "ErrSSRtxWrongTxTree",
-	ErrSSRtxBadOuts:         "ErrSSRtxBadOuts",
-	ErrVerSStxAmts:          "ErrVerSStxAmts",
-	ErrVerifyInput:          "ErrVerifyInput",
-	ErrVerifyOutType:        "ErrVerifyOutType",
-	ErrVerifyTooMuchFees:    "ErrVerifyTooMuchFees",
-	ErrVerifySpendTooMuch:   "ErrVerifySpendTooMuch",
-	ErrVerifyOutputAmt:      "ErrVerifyOutputAmt",
-	ErrVerifyOutPkhs:        "ErrVerifyOutPkhs",
-	ErrDatabaseCorrupt:      "ErrDatabaseCorrupt",
-	ErrMissingDatabaseTx:    "ErrMissingDatabaseTx",
-	ErrMemoryCorruption:     "ErrMemoryCorruption",
-	ErrFindTicketIdxs:       "ErrFindTicketIdxs",
-	ErrMissingTicket:        "ErrMissingTicket",
-	ErrDuplicateTicket:      "ErrDuplicateTicket",
-	ErrUnknownTicketSpent:   "ErrUnknownTicketSpent",
+	ErrSStxTooManyInputs:               "ErrSStxTooManyInputs",
+	ErrSStxTooManyOutputs:              "ErrSStxTooManyOutputs",
+	ErrSStxNoOutputs:                   "ErrSStxNoOutputs",
+	ErrSStxInvalidInputs:               "ErrSStxInvalidInputs",
+	ErrSStxInvalidOutputs:              "ErrSStxInvalidOutputs",
+	ErrSStxInOutProportions:            "ErrSStxInOutProportions",
+	ErrSStxBadCommitAmount:             "ErrSStxBadCommitAmount",
+	ErrSStxBadChangeAmts:               "ErrSStxBadChangeAmts",
+	ErrSStxVerifyCalcAmts:              "ErrSStxVerifyCalcAmts",
+	ErrSSGenWrongNumInputs:             "ErrSSGenWrongNumInputs",
+	ErrSSGenTooManyOutputs:             "ErrSSGenTooManyOutputs",
+	ErrSSGenNoOutputs:                  "ErrSSGenNoOutputs",
+	ErrSSGenWrongIndex:                 "ErrSSGenWrongIndex",
+	ErrSSGenWrongTxTree:                "ErrSSGenWrongTxTree",
+	ErrSSGenNoStakebase:                "ErrSSGenNoStakebase",
+	ErrSSGenNoReference:                "ErrSSGenNoReference",
+	ErrSSGenBadReference:               "ErrSSGenBadReference",
+	ErrSSGenNoVotePush:                 "ErrSSGenNoVotePush",
+	ErrSSGenBadVotePush:                "ErrSSGenBadVotePush",
+	ErrSSGenInvalidDiscriminatorLength: "ErrSSGenInvalidDiscriminatorLength",
+	ErrSSGenInvalidTVLength:            "ErrSSGenInvalidTVLength",
+	ErrSSGenInvalidTreasuryVote:        "ErrSSGenInvalidTreasuryVote",
+	ErrSSGenDuplicateTreasuryVote:      "ErrSSGenDuplicateTreasuryVote",
+	ErrSSGenUnknownDiscriminator:       "ErrSSGenUnknownDiscriminator",
+	ErrSSGenBadGenOuts:                 "ErrSSGenBadGenOuts",
+	ErrSSRtxWrongNumInputs:             "ErrSSRtxWrongNumInputs",
+	ErrSSRtxTooManyOutputs:             "ErrSSRtxTooManyOutputs",
+	ErrSSRtxNoOutputs:                  "ErrSSRtxNoOutputs",
+	ErrSSRtxWrongTxTree:                "ErrSSRtxWrongTxTree",
+	ErrSSRtxBadOuts:                    "ErrSSRtxBadOuts",
+	ErrVerSStxAmts:                     "ErrVerSStxAmts",
+	ErrVerifyInput:                     "ErrVerifyInput",
+	ErrVerifyOutType:                   "ErrVerifyOutType",
+	ErrVerifyTooMuchFees:               "ErrVerifyTooMuchFees",
+	ErrVerifySpendTooMuch:              "ErrVerifySpendTooMuch",
+	ErrVerifyOutputAmt:                 "ErrVerifyOutputAmt",
+	ErrVerifyOutPkhs:                   "ErrVerifyOutPkhs",
+	ErrDatabaseCorrupt:                 "ErrDatabaseCorrupt",
+	ErrMissingDatabaseTx:               "ErrMissingDatabaseTx",
+	ErrMemoryCorruption:                "ErrMemoryCorruption",
+	ErrFindTicketIdxs:                  "ErrFindTicketIdxs",
+	ErrMissingTicket:                   "ErrMissingTicket",
+	ErrDuplicateTicket:                 "ErrDuplicateTicket",
+	ErrUnknownTicketSpent:              "ErrUnknownTicketSpent",
+	ErrTAddInvalidCount:                "ErrTAddInvalidCount",
+	ErrTAddInvalidVersion:              "ErrTAddInvalidVersion",
+	ErrTAddInvalidScriptLength:         "ErrTAddInvalidScriptLength",
+	ErrTAddInvalidLength:               "ErrTAddInvalidLength",
+	ErrTAddInvalidOpcode:               "ErrTAddInvalidOpcode",
+	ErrTAddInvalidChange:               "ErrTAddInvalidChange",
+	ErrTSpendInvalidLength:             "ErrTSpendInvalidLength",
+	ErrTSpendInvalidVersion:            "ErrTSpendInvalidVersion",
+	ErrTSpendInvalidScriptLength:       "ErrTSpendInvalidScriptLength",
+	ErrTSpendInvalidTokenCount:         "ErrTSpendInvalidTokenCount",
+	ErrTSpendInvalidSignature:          "ErrTSpendInvalidSignature",
+	ErrTSpendInvalidPubkey:             "ErrTSpendInvalidPubkey",
+	ErrTSpendInvalidOpcode:             "ErrTSpendInvalidOpcode",
+	ErrTSpendInvalidTransaction:        "ErrTSpendInvalidTransaction",
+	ErrTSpendInvalidTGen:               "ErrTSpendInvalidTGen",
+	ErrTSpendInvalidSpendScript:        "ErrTSpendInvalidSpendScript",
+	ErrTreasuryBaseInvalidCount:        "ErrTreasuryBaseInvalidCount",
+	ErrTreasuryBaseInvalidVersion:      "ErrTreasuryBaseInvalidVersion",
+	ErrTreasuryBaseInvalidOpcode0:      "ErrTreasuryBaseInvalidOpcode0",
+	ErrTreasuryBaseInvalidOpcode1:      "ErrTreasuryBaseInvalidOpcode1",
+	ErrTreasuryBaseInvalid:             "ErrTreasuryBaseInvalid",
 }
 
 // String returns the ErrorCode as a human-readable name.

@@ -66,6 +66,13 @@ func IsPushOnlyScript(script []byte) bool {
 // opcodes.
 func isStakeOpcode(op byte) bool {
 	return op >= OP_SSTX && op <= OP_SSTXCHANGE
+
+}
+
+// isTreasuryOpcode returns whether or not the opcode is one of the treasury
+// tagging opcodes.
+func isTreasuryOpcode(op byte) bool {
+	return op >= OP_TADD && op <= OP_TGEN
 }
 
 // ExtractScriptHash extracts the script hash from the passed script if it is a
@@ -104,11 +111,22 @@ func isStakeScriptHashScript(script []byte) bool {
 		script[23] == OP_EQUAL
 }
 
+// isTreasuryScriptHashScript returns whether or not the passed script is a
+// stake-tagged pay-to-script-hash script.
+func isTreasuryScriptHashScript(script []byte) bool {
+	return len(script) == 24 &&
+		isTreasuryOpcode(script[0]) &&
+		script[1] == OP_HASH160 &&
+		script[2] == OP_DATA_20 &&
+		script[23] == OP_EQUAL
+}
+
 // isAnyKindOfScriptHash returns whether or not the passed script is either a
 // regular pay-to-script-hash script or a stake-tagged pay-to-script-hash
 // script.
 func isAnyKindOfScriptHash(script []byte) bool {
-	return isScriptHashScript(script) || isStakeScriptHashScript(script)
+	return isScriptHashScript(script) || isStakeScriptHashScript(script) ||
+		isTreasuryScriptHashScript(script)
 }
 
 // hasP2SHRedeemScriptStakeOpCodes returns an error if the provided public key
@@ -146,6 +164,46 @@ func hasP2SHRedeemScriptStakeOpCodes(version uint16, sigScript, pkScript []byte)
 	if hasStakeOpCodes {
 		str := "stake opcodes were found in a p2sh script"
 		return scriptError(ErrP2SHStakeOpCodes, str)
+	}
+
+	return nil
+}
+
+// hasP2SHRedeemScriptTreasuryOpCodes returns an error if the provided public key
+// script is a regular pay-to-script-hash or a stake-tagged pay-to-script and,
+// when it is, that the redeem script within the provided signature script
+// contains stake opcodes.  An error is also returned if the signature script is
+// malformed after determining the public key script is one of the
+// aforementioned cases.
+func hasP2SHRedeemScriptTreasuryOpCodes(version uint16, sigScript, pkScript []byte) error {
+	// The only stake scripts currently supported are version 0.
+	if version != 0 {
+		return nil
+	}
+
+	// Nothing further to check if the public key script is not a normal
+	// pay-to-script-hash script or one tagged with a stake opcode.
+	if !(isScriptHashScript(pkScript) || isTreasuryScriptHashScript(pkScript)) {
+		return nil
+	}
+
+	// Extract the redeem script from the signature script.
+	redeemScript := finalOpcodeData(version, sigScript)
+	if len(redeemScript) == 0 {
+		str := "treasury p2sh signature script has no pushed data"
+		return scriptError(ErrNotPushOnly, str)
+	}
+
+	// Ensure the redeem script does not contain any treasury opcodes as
+	// their use is prohibited outside of the very specific circumstances
+	// permitted by the treasury system.
+	hasStakeOpCodes, err := ContainsTreasuryOpCodes(redeemScript)
+	if err != nil {
+		return err
+	}
+	if hasStakeOpCodes {
+		str := "treasury opcodes were found in a p2sh script"
+		return scriptError(ErrP2SHTreasuryOpCodes, str)
 	}
 
 	return nil
@@ -321,6 +379,8 @@ func countSigOpsV0(script []byte, precise bool) int {
 			} else {
 				numSigOps += MaxPubKeysPerMultiSig
 			}
+
+		// XXX add case for OP_TGEN here
 
 		default:
 			// Not a sigop.

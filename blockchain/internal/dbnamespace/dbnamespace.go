@@ -56,4 +56,13 @@ var (
 	// GCSFilterBucketName is the name of the db bucket used to house GCS
 	// filters.
 	GCSFilterBucketName = []byte("gcsfilters")
+
+	// TreasuryBucketName is the name of the db bucket that is used to
+	// house TADD/TSPEND additions and subtractions from the treasury
+	// account.
+	TreasuryBucketName = []byte("treasury")
+
+	// TreasuryTSpendName is the name of the db bucket that is used to
+	// house TSpend transactions which were included in the blockchain.
+	TreasuryTSpendName = []byte("tspend")
 )

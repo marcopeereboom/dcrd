@@ -183,6 +183,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getstakeversioninfo":   handleGetStakeVersionInfo,
 	"getstakeversions":      handleGetStakeVersions,
 	"getticketpoolvalue":    handleGetTicketPoolValue,
+	"gettreasurybalance":    handleGetTreasuryBalance,
 	"getvoteinfo":           handleGetVoteInfo,
 	"gettxout":              handleGetTxOut,
 	"gettxoutsetinfo":       handleGetTxOutSetInfo,
@@ -257,9 +258,11 @@ var rpcAskWallet = map[string]struct{}{
 	"rescanwallet":            {},
 	"revoketickets":           {},
 	"sendfrom":                {},
+	"sendfromtreasury":        {},
 	"sendmany":                {},
 	"sendtoaddress":           {},
 	"sendtomultisig":          {},
+	"sendtotreasury":          {},
 	"setticketfee":            {},
 	"settxfee":                {},
 	"setvotechoice":           {},
@@ -339,6 +342,7 @@ var rpcLimited = map[string]struct{}{
 	"getstakeversioninfo":   {},
 	"getstakeversions":      {},
 	"getrawtransaction":     {},
+	"gettreasurybalance":    {},
 	"gettxout":              {},
 	"getvoteinfo":           {},
 	"livetickets":           {},
@@ -446,6 +450,17 @@ func newWorkState() *workState {
 	return &workState{
 		templatePool: make(map[[merkleRootPairSize]byte]*wire.MsgBlock),
 	}
+}
+
+// isTreasuryAgendaActive returns if the treasury agenda is active or not.
+func isTreasuryAgendaActive(s *rpcServer) (bool, error) {
+	chain := s.cfg.Chain
+	isTreasuryEnabled, err := chain.IsTreasuryAgendaActive()
+	if err != nil {
+		return false, rpcInternalError(err.Error(), "Could not "+
+			"obtain treasury agenda status")
+	}
+	return isTreasuryEnabled, nil
 }
 
 // handleUnimplemented is the handler for commands that should ultimately be
@@ -1039,10 +1054,10 @@ func handleDebugLevel(_ context.Context, s *rpcServer, cmd interface{}) (interfa
 
 // createVinList returns a slice of JSON objects for the inputs of the passed
 // transaction.
-func createVinList(mtx *wire.MsgTx) []types.Vin {
+func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 	// Coinbase transactions only have a single txin by definition.
 	vinList := make([]types.Vin, len(mtx.TxIn))
-	if standalone.IsCoinBaseTx(mtx) {
+	if standalone.IsCoinBaseTx(mtx, isTreasuryEnabled) {
 		txIn := mtx.TxIn[0]
 		vinEntry := &vinList[0]
 		vinEntry.Coinbase = hex.EncodeToString(txIn.SignatureScript)
@@ -1055,7 +1070,7 @@ func createVinList(mtx *wire.MsgTx) []types.Vin {
 
 	// Stakebase transactions (votes) have two inputs: a null stake base
 	// followed by an input consuming a ticket's stakesubmission.
-	isSSGen := stake.IsSSGen(mtx)
+	isSSGen := stake.IsSSGen(mtx, isTreasuryEnabled)
 
 	for i, txIn := range mtx.TxIn {
 		// Handle only the null input of a stakebase differently.
@@ -1093,9 +1108,9 @@ func createVinList(mtx *wire.MsgTx) []types.Vin {
 
 // createVoutList returns a slice of JSON objects for the outputs of the passed
 // transaction.
-func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap map[string]struct{}) []types.Vout {
+func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap map[string]struct{}, isTreasuryEnabled bool) []types.Vout {
 
-	txType := stake.DetermineTxType(mtx)
+	txType := stake.DetermineTxType(mtx, isTreasuryEnabled)
 	voutList := make([]types.Vout, 0, len(mtx.TxOut))
 	for i, v := range mtx.TxOut {
 		// The disassembled string will contain [error] inline if the
@@ -1133,9 +1148,11 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 			// Ignore the error here since an error means the script
 			// couldn't parse and there is no additional information
 			// about it anyways.
+			// XXX teach ExtractPkScriptAddrs about TADD
 			var sc txscript.ScriptClass
 			sc, addrs, reqSigs, _ = txscript.ExtractPkScriptAddrs(
-				v.Version, v.PkScript, chainParams)
+				v.Version, v.PkScript, chainParams,
+				isTreasuryEnabled)
 			scriptClass = sc.String()
 		}
 
@@ -1183,7 +1200,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 
 // createTxRawResult converts the passed transaction and associated parameters
 // to a raw transaction JSON object.
-func createTxRawResult(chainParams *chaincfg.Params, mtx *wire.MsgTx, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader, blkHash string, blkHeight int64, confirmations int64) (*types.TxRawResult, error) {
+func createTxRawResult(chainParams *chaincfg.Params, mtx *wire.MsgTx, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader, blkHash string, blkHeight int64, confirmations int64, isTreasuryEnabled bool) (*types.TxRawResult, error) {
 	mtxHex, err := messageToHex(mtx)
 	if err != nil {
 		return nil, err
@@ -1197,8 +1214,8 @@ func createTxRawResult(chainParams *chaincfg.Params, mtx *wire.MsgTx, txHash str
 	txReply := &types.TxRawResult{
 		Hex:         mtxHex,
 		Txid:        txHash,
-		Vin:         createVinList(mtx),
-		Vout:        createVoutList(mtx, chainParams, nil),
+		Vin:         createVinList(mtx, isTreasuryEnabled),
+		Vout:        createVoutList(mtx, chainParams, nil, isTreasuryEnabled),
 		Version:     int32(mtx.Version),
 		LockTime:    mtx.LockTime,
 		Expiry:      mtx.Expiry,
@@ -1237,14 +1254,19 @@ func handleDecodeRawTransaction(_ context.Context, s *rpcServer, cmd interface{}
 			err)
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create and return the result.
 	txReply := types.TxRawDecodeResult{
 		Txid:     mtx.TxHash().String(),
 		Version:  int32(mtx.Version),
 		Locktime: mtx.LockTime,
 		Expiry:   mtx.Expiry,
-		Vin:      createVinList(&mtx),
-		Vout:     createVoutList(&mtx, s.cfg.ChainParams, nil),
+		Vin:      createVinList(&mtx, isTreasuryEnabled),
+		Vout:     createVoutList(&mtx, s.cfg.ChainParams, nil, isTreasuryEnabled),
 	}
 	return txReply, nil
 }
@@ -1273,11 +1295,16 @@ func handleDecodeScript(_ context.Context, s *rpcServer, cmd interface{}) (inter
 	// doesn't fully parse, so ignore the error here.
 	disbuf, _ := txscript.DisasmString(script)
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get information about the script.
 	// Ignore the error here since an error means the script couldn't parse
 	// and there is no additional information about it anyways.
 	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, s.cfg.ChainParams)
+		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.Address()
@@ -1857,6 +1884,11 @@ func handleGetBlock(_ context.Context, s *rpcServer, cmd interface{}) (interface
 		NextHash:      nextHashString,
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	if c.VerboseTx == nil || !*c.VerboseTx {
 		transactions := blk.Transactions()
 		txNames := make([]string, len(transactions))
@@ -1881,7 +1913,8 @@ func handleGetBlock(_ context.Context, s *rpcServer, cmd interface{}) (interface
 			rawTxn, err := createTxRawResult(chainParams,
 				tx.MsgTx(), tx.Hash().String(), uint32(i),
 				blockHeader, blk.Hash().String(),
-				int64(blockHeader.Height), confirmations)
+				int64(blockHeader.Height), confirmations,
+				isTreasuryEnabled)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
 					"Could not create transaction")
@@ -1896,7 +1929,8 @@ func handleGetBlock(_ context.Context, s *rpcServer, cmd interface{}) (interface
 			rawSTxn, err := createTxRawResult(chainParams,
 				tx.MsgTx(), tx.Hash().String(), uint32(i),
 				blockHeader, blk.Hash().String(),
-				int64(blockHeader.Height), confirmations)
+				int64(blockHeader.Height), confirmations,
+				isTreasuryEnabled)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
 					"Could not create stake transaction")
@@ -2786,8 +2820,14 @@ func handleGetRawTransaction(_ context.Context, s *rpcServer, cmd interface{}) (
 		confirmations = 1 + s.cfg.Chain.BestSnapshot().Height - blkHeight
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	rawTxn, err := createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
-		blkIndex, blkHeader, blkHashStr, blkHeight, confirmations)
+		blkIndex, blkHeader, blkHashStr, blkHeight, confirmations,
+		isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -2973,6 +3013,31 @@ func handleGetTicketPoolValue(_ context.Context, s *rpcServer, cmd interface{}) 
 	return amt.ToCoin(), nil
 }
 
+// handleGetTreasuryBalance implements the gettreasurybalance command.
+func handleGetTreasuryBalance(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
+	tbc, ok := cmd.(*types.GetTreasuryBalanceCmd)
+	if !ok {
+		return nil, rpcInvalidError("Invalid type: %T", cmd)
+	}
+
+	hash, height, balance, values, err := s.cfg.Chain.TreasuryBalance(tbc.Hash)
+	if err != nil {
+		return nil, rpcInternalError(err.Error(),
+			"Could not obtain treasury balance")
+	}
+
+	tbr := types.GetTreasuryBalanceResult{
+		Hash:    hash,
+		Height:  height,
+		Balance: balance,
+	}
+
+	if !(tbc.Verbose == nil || !*tbc.Verbose) {
+		tbr.Updates = values
+	}
+	return tbr, nil
+}
+
 // handleGetVoteInfo implements the getvoteinfo command.
 func handleGetVoteInfo(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetVoteInfoCmd)
@@ -3108,6 +3173,11 @@ func handleGetTxOut(_ context.Context, s *rpcServer, cmd interface{}) (interface
 		return nil, rpcDecodeHexError(c.Txid)
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	// If requested and the tx is available in the mempool try to fetch it
 	// from there, otherwise attempt to fetch from the block database.
 	var bestBlockHash string
@@ -3149,7 +3219,7 @@ func handleGetTxOut(_ context.Context, s *rpcServer, cmd interface{}) (interface
 		value = txOut.Value
 		scriptVersion = txOut.Version
 		pkScript = txOut.PkScript
-		isCoinbase = standalone.IsCoinBaseTx(mtx)
+		isCoinbase = standalone.IsCoinBaseTx(mtx, isTreasuryEnabled)
 	} else {
 		entry, err := s.cfg.Chain.FetchUtxoEntry(txHash)
 		if err != nil {
@@ -3187,7 +3257,7 @@ func handleGetTxOut(_ context.Context, s *rpcServer, cmd interface{}) (interface
 	// error means the script couldn't parse and there is no additional
 	// information about it anyways.
 	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, s.cfg.ChainParams)
+		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.Address()
@@ -3613,10 +3683,10 @@ type retrievedTx struct {
 // fetchInputTxos fetches the outpoints from all transactions referenced by the
 // inputs to the passed transaction by checking the transaction mempool first
 // then the transaction index for those already mined into blocks.
-func fetchInputTxos(s *rpcServer, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut, error) {
+func fetchInputTxos(s *rpcServer, tx *wire.MsgTx, isTreasuryEnabled bool) (map[wire.OutPoint]wire.TxOut, error) {
 	mp := s.cfg.TxMemPool
 	originOutputs := make(map[wire.OutPoint]wire.TxOut)
-	voteTx := stake.IsSSGen(tx)
+	voteTx := stake.IsSSGen(tx, isTreasuryEnabled)
 	for txInIndex, txIn := range tx.TxIn {
 		// vote tx have null input for vin[0],
 		// skip since it resolves to an invalid transaction
@@ -3685,9 +3755,9 @@ func fetchInputTxos(s *rpcServer, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut,
 
 // createVinListPrevOut returns a slice of JSON objects for the inputs of the
 // passed transaction.
-func createVinListPrevOut(s *rpcServer, mtx *wire.MsgTx, chainParams *chaincfg.Params, vinExtra bool, filterAddrMap map[string]struct{}) ([]types.VinPrevOut, error) {
+func createVinListPrevOut(s *rpcServer, mtx *wire.MsgTx, chainParams *chaincfg.Params, vinExtra bool, filterAddrMap map[string]struct{}, isTreasuryEnabled bool) ([]types.VinPrevOut, error) {
 	// Coinbase transactions only have a single txin by definition.
-	if standalone.IsCoinBaseTx(mtx) {
+	if standalone.IsCoinBaseTx(mtx, isTreasuryEnabled) {
 		// Only include the transaction if the filter map is empty
 		// because a coinbase input has no addresses and so would never
 		// match a non-empty filter.
@@ -3712,7 +3782,7 @@ func createVinListPrevOut(s *rpcServer, mtx *wire.MsgTx, chainParams *chaincfg.P
 	var originOutputs map[wire.OutPoint]wire.TxOut
 	if vinExtra || len(filterAddrMap) > 0 {
 		var err error
-		originOutputs, err = fetchInputTxos(s, mtx)
+		originOutputs, err = fetchInputTxos(s, mtx, isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -3720,7 +3790,7 @@ func createVinListPrevOut(s *rpcServer, mtx *wire.MsgTx, chainParams *chaincfg.P
 
 	// Stakebase transactions (votes) have two inputs: a null stake base
 	// followed by an input consuming a ticket's stakesubmission.
-	isSSGen := stake.IsSSGen(mtx)
+	isSSGen := stake.IsSSGen(mtx, isTreasuryEnabled)
 
 	for i, txIn := range mtx.TxIn {
 		// Handle only the null input of a stakebase differently.
@@ -3780,7 +3850,7 @@ func createVinListPrevOut(s *rpcServer, mtx *wire.MsgTx, chainParams *chaincfg.P
 		// couldn't parse and there is no additional information about
 		// it anyways.
 		_, addrs, _, _ := txscript.ExtractPkScriptAddrs(originTxOut.Version,
-			originTxOut.PkScript, chainParams)
+			originTxOut.PkScript, chainParams, isTreasuryEnabled)
 
 		// Encode the addresses while checking if the address passes
 		// the filter when needed.
@@ -4028,6 +4098,11 @@ func handleSearchRawTransactions(_ context.Context, s *rpcServer, cmd interface{
 		}
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	// The verbose flag is set, so generate the JSON object and return it.
 	best := s.cfg.Chain.BestSnapshot()
 	chainParams := s.cfg.ChainParams
@@ -4056,12 +4131,13 @@ func handleSearchRawTransactions(_ context.Context, s *rpcServer, cmd interface{
 		result.Hex = hexTxns[i]
 		result.Txid = mtx.TxHash().String()
 		result.Vin, err = createVinListPrevOut(s, mtx, s.cfg.ChainParams,
-			vinExtra, filterAddrMap)
+			vinExtra, filterAddrMap, isTreasuryEnabled)
 		if err != nil {
 			return nil, rpcInternalError(err.Error(),
 				"Could not create vin list")
 		}
-		result.Vout = createVoutList(mtx, chainParams, filterAddrMap)
+		result.Vout = createVoutList(mtx, chainParams, filterAddrMap,
+			isTreasuryEnabled)
 		result.Version = int32(mtx.Version)
 		result.LockTime = mtx.LockTime
 		result.Expiry = mtx.Expiry
@@ -4168,12 +4244,17 @@ func handleSendRawTransaction(_ context.Context, s *rpcServer, cmd interface{}) 
 
 	s.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	// Keep track of all the regular sendrawtransaction request txns so that
 	// they can be rebroadcast if they don't make their way into a block.
 	//
 	// Note that votes are only valid for a specific block and are time
 	// sensitive, so they should not be added to the rebroadcast logic.
-	if txType := stake.DetermineTxType(msgtx); txType != stake.TxTypeSSGen {
+	if txType := stake.DetermineTxType(msgtx, isTreasuryEnabled); txType != stake.TxTypeSSGen {
 		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 		s.cfg.ConnMgr.AddRebroadcastInventory(iv, tx)
 	}
@@ -4377,6 +4458,11 @@ func ticketFeeInfoForBlock(s *rpcServer, height int64, txType stake.TxType) (*ty
 		return nil, err
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	txNum := 0
 	switch txType {
 	case stake.TxTypeRegular:
@@ -4403,7 +4489,8 @@ func ticketFeeInfoForBlock(s *rpcServer, height int64, txType stake.TxType) (*ty
 		}
 	} else {
 		for _, stx := range bl.STransactions() {
-			thisTxType := stake.DetermineTxType(stx.MsgTx())
+			thisTxType := stake.DetermineTxType(stx.MsgTx(),
+				isTreasuryEnabled)
 			if thisTxType == txType {
 				txFees[itr] = calcFeePerKb(stx)
 				itr++
@@ -4430,6 +4517,11 @@ func ticketFeeInfoForRange(s *rpcServer, start int64, end int64, txType stake.Tx
 		return nil, err
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
 	var txFees []dcrutil.Amount
 	for i := range hashes {
 		bl, err := s.cfg.Chain.BlockByHash(&hashes[i])
@@ -4448,7 +4540,8 @@ func ticketFeeInfoForRange(s *rpcServer, start int64, end int64, txType stake.Tx
 			}
 		} else {
 			for _, stx := range bl.STransactions() {
-				thisTxType := stake.DetermineTxType(stx.MsgTx())
+				thisTxType := stake.DetermineTxType(stx.MsgTx(),
+					isTreasuryEnabled)
 				if thisTxType == txType {
 					txFees = append(txFees, calcFeePerKb(stx))
 				}
@@ -4560,7 +4653,12 @@ func handleTicketsForAddress(_ context.Context, s *rpcServer, cmd interface{}) (
 		return nil, rpcInvalidError("Invalid address: %v", err)
 	}
 
-	tickets, err := s.cfg.Chain.TicketsWithAddress(addr)
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
+	tickets, err := s.cfg.Chain.TicketsWithAddress(addr, isTreasuryEnabled)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "could not obtain tickets")
 	}
@@ -4756,8 +4854,17 @@ func verifyChain(_ context.Context, s *rpcServer, level, depth int64) error {
 
 		// Level 1 does basic chain sanity checks.
 		if level > 0 {
-			err := blockchain.CheckBlockSanity(block, s.cfg.TimeSource,
-				s.cfg.ChainParams)
+			pHash := &block.MsgBlock().Header.PrevBlock
+			isTreasuryEnabled, err := s.cfg.Chain.IsTreasuryAgendaActiveByHash(pHash)
+			if err != nil {
+				rpcsLog.Errorf("Verify is unable to ascertain"+
+					" if treasury agenda is active: %v",
+					err)
+				return err
+			}
+
+			err = blockchain.CheckBlockSanity(block,
+				s.cfg.TimeSource, s.cfg.ChainParams, isTreasuryEnabled)
 			if err != nil {
 				rpcsLog.Errorf("Verify is unable to validate "+
 					"block at hash %v height %d: %v",

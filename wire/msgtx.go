@@ -355,7 +355,7 @@ type MsgTx struct {
 	TxIn       []*TxIn
 	TxOut      []*TxOut
 	LockTime   uint32
-	Expiry     uint32
+	Expiry     uint32 // In blocks
 }
 
 // AddTxIn adds a transaction input to the message.

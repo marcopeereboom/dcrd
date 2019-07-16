@@ -221,6 +221,10 @@ const (
 	// is not a coinbase transaction.
 	ErrFirstTxNotCoinbase
 
+	// ErrFirstTxNotOpReturn indicates the first transaction in a block
+	// is not an OP_RETURN.
+	ErrFirstTxNotOpReturn
+
 	// ErrCoinbaseHeight indicates that the encoded height in the coinbase
 	// is incorrect.
 	ErrCoinbaseHeight
@@ -499,6 +503,38 @@ const (
 	// block that is either not the current best chain tip or its parent.
 	ErrInvalidTemplateParent
 
+	// ErrMultipleTreasuryBases indicates a block contains more than one
+	// treasurybase transaction.
+	ErrMultipleTreasuryBases
+
+	// ErrUnknownPiKey indicates that the provided ipublic Pi Key is not
+	// a well known kwy.
+	ErrUnknownPiKey
+
+	// ErrInvalidPiSignature indicates that a TSPEND transaction was not
+	// properly signed.
+	ErrInvalidPiSignature
+
+	// ErrNotTVI indicates that a TSPEND transaction appeared on a non-TVI
+	// block.
+	ErrNotTVI
+
+	// ErrInvalidTSpendWindow indicates that this TSPEND transactoin is
+	// outside of the allowed window.
+	ErrInvalidTSpendWindow
+
+	// ErrNotEnoughTSpendVotes indicates that a TSPEND transaction does not
+	// have enough votes to be included in block.
+	ErrNotEnoughTSpendVotes
+
+	// ErrTSpendExists indicates that a TSPEND has been mined in a block on
+	// the current chain.
+	ErrTSpendExists
+
+	// ErrInvalidExpenditure indicates that a TSPEND transaction
+	// expenditure is out of range.
+	ErrInvalidExpenditure
+
 	// numErrorCodes is the maximum error code number used in tests.
 	numErrorCodes
 )
@@ -539,6 +575,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrBadFees:                "ErrBadFees",
 	ErrTooManySigOps:          "ErrTooManySigOps",
 	ErrFirstTxNotCoinbase:     "ErrFirstTxNotCoinbase",
+	ErrFirstTxNotOpReturn:     "ErrFirstTxNotOpReturn",
 	ErrCoinbaseHeight:         "ErrCoinbaseHeight",
 	ErrMultipleCoinbases:      "ErrMultipleCoinbases",
 	ErrStakeTxInRegularTree:   "ErrStakeTxInRegularTree",
@@ -605,6 +642,14 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrInvalidEarlyFinalState: "ErrInvalidEarlyFinalState",
 	ErrKnownInvalidBlock:      "ErrKnownInvalidBlock",
 	ErrInvalidAncestorBlock:   "ErrInvalidAncestorBlock",
+	ErrMultipleTreasuryBases:  "ErrMultipleTreasuryBases",
+	ErrUnknownPiKey:           "ErrUnknownPiKey",
+	ErrInvalidPiSignature:     "ErrInvalidPiSignature",
+	ErrNotTVI:                 "ErrNotTVI",
+	ErrInvalidTSpendWindow:    "ErrInvalidTSpendWindow",
+	ErrNotEnoughTSpendVotes:   "ErrNotEnoughTSpendVotes",
+	ErrTSpendExists:           "ErrTSpendExists",
+	ErrInvalidExpenditure:     "ErrInvalidExpenditure",
 	ErrInvalidTemplateParent:  "ErrInvalidTemplateParent",
 }
 

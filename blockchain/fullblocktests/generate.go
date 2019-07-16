@@ -823,7 +823,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			taxOutput := b.Transactions[0].TxOut[0]
 			_, addrs, _, _ := txscript.ExtractPkScriptAddrs(
 				g.Params().OrganizationPkScriptVersion,
-				taxOutput.PkScript, g.Params())
+				taxOutput.PkScript, g.Params(),
+				false) // No treasury
 			p2shTaxAddr := addrs[0].(*dcrutil.AddressScriptHash)
 			p2pkhTaxAddr, err := dcrutil.NewAddressPubKeyHash(
 				p2shTaxAddr.Hash160()[:], g.Params(),
