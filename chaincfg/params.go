@@ -140,6 +140,10 @@ const (
 	// the stake root header field to support header commitments and provides
 	// an initial commitment to version 2 GCS filters defined by DCP0005.
 	VoteIDHeaderCommitments = "headercommitments"
+
+	// VoteIDTreasury is the vote ID for the agenda that enables the
+	// TADD/TSUB treasury opcodes.
+	VoteIDTreasury = "treasury"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule

@@ -665,9 +665,9 @@ func (b *BlockChain) isFixSeqLocksAgendaActive(prevNode *blockNode) (bool, error
 	return state.State == ThresholdActive, nil
 }
 
-// IsFixSeqLocksAgendaActive returns whether or not the fix sequence locks
-// agenda vote, as defined in DCP0004 has passed and is now active for the
-// block AFTER the current best chain block.
+// IsFixSeqLocksAgendaActive returns whether or not whether or not the fix
+// sequence locks agenda vote, as defined in DCP0004 has passed and is now
+// active for the block AFTER the current best chain block.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsFixSeqLocksAgendaActive() (bool, error) {
@@ -726,6 +726,47 @@ func (b *BlockChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (
 
 	b.chainLock.Lock()
 	isActive, err := b.isHeaderCommitmentsAgendaActive(node)
+	b.chainLock.Unlock()
+	return isActive, err
+}
+
+// isTreasuryAgendaActive returns whether or not the treasury opcodes are
+// enabled from the point of view of the passed block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
+	// Determine the correct deployment version for the fix sequence locks
+	// consensus vote as defined in DCP0004 or treat it as active when voting
+	// is not enabled for the current network.
+	const deploymentID = chaincfg.VoteIDTreasury
+	deploymentVer, ok := b.deploymentVers[deploymentID]
+	if !ok {
+		return true, nil
+	}
+
+	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	if err != nil {
+		return false, err
+	}
+
+	// NOTE: The choice field of the return threshold state is not examined
+	// here because there is only one possible choice that can be active for
+	// the agenda, which is yes, so there is no need to check it.
+	return state.State == ThresholdActive, nil
+}
+
+// IsTreasuryAgendaActive returns whether or not whether or not the TADD/TSUB
+// opcodes are active.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsTreasuryAgendaActive() (bool, error) {
+	b.chainLock.Lock()
+	isActive, err := b.isTreasuryAgendaActive(b.bestChain.Tip())
 	b.chainLock.Unlock()
 	return isActive, err
 }

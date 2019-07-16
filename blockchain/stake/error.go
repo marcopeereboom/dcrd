@@ -176,6 +176,14 @@ const (
 	// ErrUnknownTicketSpent indicates that an unknown ticket was spent by
 	// the block.
 	ErrUnknownTicketSpent
+
+	// ErrTreasuryTAddInvalid indicates that this transaction contains an
+	// invalid TADD script.
+	ErrTreasuryTAddInvalid
+
+	// ErrTreasuryTSpendInvalid indicates that this transaction contains an
+	// invalid TSPEND script.
+	ErrTreasuryTSpendInvalid
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -219,6 +227,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrMissingTicket:        "ErrMissingTicket",
 	ErrDuplicateTicket:      "ErrDuplicateTicket",
 	ErrUnknownTicketSpent:   "ErrUnknownTicketSpent",
+	ErrTreasuryTAddInvalid:  "ErrTreasuryTAddInvalid",
 }
 
 // String returns the ErrorCode as a human-readable name.
