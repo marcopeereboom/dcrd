@@ -178,6 +178,10 @@ const (
 	// sequence lock functionality needed for Lightning Network (among other
 	// uses) defined by DCP0004.
 	VoteIDFixLNSeqLocks = "fixlnseqlocks"
+
+	// VoteIDTreasury is the vote ID for the agenda that enables the
+	// TADD/TSUB treasury opcodes.
+	VoteIDTreasury = "treasury"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
