@@ -3,6 +3,7 @@ module github.com/decred/dcrd/blockchain/v3
 go 1.11
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/blockchain/standalone v1.1.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2

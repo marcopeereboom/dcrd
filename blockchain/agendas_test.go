@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/blockchain/stake/v3"
+	"github.com/decred/dcrd/blockchain/v2/chaingen"
 	"github.com/decred/dcrd/blockchain/v3/chaingen"
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
@@ -882,19 +885,19 @@ func TestTreasury(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// ---------------------------------------------------------------------
-	// Create block that has a tadd.
+	// Create block that has a tadd with change.
 	//
 	//   ... -> b0
 	// ---------------------------------------------------------------------
 
 	outs := g.OldestCoinbaseOuts()
-	b0 := g.NextBlock("b0", &outs[0], outs[1:], replaceTreasuryVersions,
+	b0 := g.NextBlock("b0", nil, outs[1:], replaceTreasuryVersions,
 		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b, 1, 0)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			tx.TxOut[0].PkScript = []byte{txscript.OP_TADD}
+			tx := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(1),
+				dcrutil.Amount(1))
 			b.AddTransaction(tx)
 		})
+	t.Logf("b0: %v", spew.Sdump(b0))
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
@@ -905,13 +908,15 @@ func TestTreasury(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b1", nil, outs[1:], replaceTreasuryVersions,
+	b1 := g.NextBlock("b1", nil, outs[1:], replaceTreasuryVersions,
 		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b0, 1, 0)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			tx.TxOut[0].PkScript = []byte{txscript.OP_TADD}
+			// Make sure there is no change.
+			tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount(),
+				dcrutil.Amount(0))
 			b.AddTransaction(tx)
 		})
+	t.Logf("b1: %v", spew.Sdump(b1))
+	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
 	//// ---------------------------------------------------------------------
