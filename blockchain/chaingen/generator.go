@@ -520,6 +520,46 @@ func (g *Generator) CreateTicketPurchaseTx(spend *SpendableOut, ticketPrice, fee
 	return tx
 }
 
+// CreateTreasuryTAdd creates a new transaction that spends the provided output
+// to the treasury. If the amount minus fee is zero the returned transaction
+// does not have a change output.
+//
+// The transaction consists of the following outputs:
+// - First output is an OP_TADD
+// - Second output is optional and but when used it is an OP_SSTXCHANGE.
+func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.Amount) *wire.MsgTx {
+	// Calculate change and generate script to deliver it.
+	var (
+		changeScript []byte
+		err          error
+	)
+	change := spend.amount - amount - fee
+	if change != 0 {
+		changeScript, err = txscript.PayToSStxChange(g.p2shOpTrueAddr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// Generate and return the transaction spending from the provided
+	// spendable output with the previously described outputs.
+	tx := wire.NewMsgTx()
+	tx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: spend.prevOut,
+		Sequence:         wire.MaxTxInSequenceNum,
+		ValueIn:          int64(spend.amount),
+		BlockHeight:      spend.blockHeight,
+		BlockIndex:       spend.blockIndex,
+		SignatureScript:  opTrueRedeemScript,
+	})
+	tx.AddTxOut(wire.NewTxOut(int64(spend.amount),
+		[]byte{txscript.OP_TADD}))
+	if change != 0 {
+		tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+	}
+	return tx
+}
+
 // isTicketPurchaseTx returns whether or not the passed transaction is a stake
 // ticket purchase.
 //
