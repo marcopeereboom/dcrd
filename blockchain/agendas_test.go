@@ -895,7 +895,7 @@ func TestTreasury(t *testing.T) {
 		func(b *wire.MsgBlock) {
 			tx := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(1),
 				dcrutil.Amount(1))
-			b.AddTransaction(tx)
+			b.AddSTransaction(tx)
 		})
 	t.Logf("b0: %v", spew.Sdump(b0))
 	g.SaveTipCoinbaseOuts()
@@ -911,9 +911,9 @@ func TestTreasury(t *testing.T) {
 	b1 := g.NextBlock("b1", nil, outs[1:], replaceTreasuryVersions,
 		func(b *wire.MsgBlock) {
 			// Make sure there is no change.
-			tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount(),
-				dcrutil.Amount(0))
-			b.AddTransaction(tx)
+			tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount()-1,
+				dcrutil.Amount(1))
+			b.AddSTransaction(tx)
 		})
 	t.Logf("b1: %v", spew.Sdump(b1))
 	g.SaveTipCoinbaseOuts()
