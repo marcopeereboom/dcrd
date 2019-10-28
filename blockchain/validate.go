@@ -312,7 +312,9 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	// stake opcodes.
 	isTicket := !isVote && stake.IsSStx(tx)
 	isRevocation := !isVote && !isTicket && stake.IsSSRtx(tx)
-	isStakeTx := isVote || isTicket || isRevocation
+	isTreasury := !isVote && !isTicket && !isRevocation &&
+		(stake.IsTAdd(tx) || stake.IsTSpend(tx))
+	isStakeTx := isVote || isTicket || isRevocation || isTreasury
 	var totalAtom int64
 	for txOutIdx, txOut := range tx.TxOut {
 		atom := txOut.Value
@@ -664,7 +666,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// Do some preliminary checks on each stake transaction to ensure they
 	// are sane while tallying each type before continuing.
 	stakeValidationHeight := uint32(chainParams.StakeValidationHeight)
-	var totalTickets, totalVotes, totalRevocations int64
+	var totalTickets, totalVotes, totalRevocations, totalTreasury int64
 	var totalYesVotes int64
 	for txIdx, stx := range msgBlock.STransactions {
 		err := CheckTransactionSanity(stx, chainParams)
@@ -714,6 +716,12 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 
 		case stake.TxTypeSSRtx:
 			totalRevocations++
+
+		case stake.TxTypeTAdd:
+			totalTreasury++
+
+		case stake.TxTypeTSpend:
+			totalTreasury++
 		}
 	}
 
@@ -736,7 +744,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// transaction type is added, that implicit condition would no longer
 	// hold and therefore an explicit check is performed here.
 	numStakeTx := int64(len(msgBlock.STransactions))
-	calcStakeTx := totalTickets + totalVotes + totalRevocations
+	calcStakeTx := totalTickets + totalVotes + totalRevocations +
+		totalTreasury
 	if numStakeTx != calcStakeTx {
 		errStr := fmt.Sprintf("block contains an unexpected number "+
 			"of stake transactions (contains %d, expected %d)",
