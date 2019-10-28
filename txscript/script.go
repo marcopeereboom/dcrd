@@ -63,9 +63,10 @@ func IsPushOnlyScript(script []byte) bool {
 }
 
 // isStakeOpcode returns whether or not the opcode is one of the stake tagging
-// opcodes.
+// opcodes. This includes treasury opcodes.
 func isStakeOpcode(op byte) bool {
-	return op >= OP_SSTX && op <= OP_SSTXCHANGE
+	return (op >= OP_SSTX && op <= OP_SSTXCHANGE) ||
+		(op == OP_TADD || op == OP_TSPEND)
 }
 
 // extractScriptHash extracts the script hash from the passed script if it is a
