@@ -552,7 +552,7 @@ func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.
 		BlockIndex:       spend.blockIndex,
 		SignatureScript:  opTrueRedeemScript,
 	})
-	tx.AddTxOut(wire.NewTxOut(int64(spend.amount),
+	tx.AddTxOut(wire.NewTxOut(int64(amount),
 		[]byte{txscript.OP_TADD}))
 	if change != 0 {
 		tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
