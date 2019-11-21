@@ -691,7 +691,11 @@ func DbRemoveAllBuckets(dbTx database.Tx) error {
 	if err != nil {
 		return err
 	}
-	return meta.DeleteBucket(dbnamespace.TicketsInBlockBucketName)
+	err = meta.DeleteBucket(dbnamespace.TicketsInBlockBucketName)
+	if err != nil {
+		return err
+	}
+	return meta.DeleteBucket(dbnamespace.TreasuryBucketName)
 }
 
 // DbCreate initializes all the buckets required for the database and stores
@@ -744,5 +748,12 @@ func DbCreate(dbTx database.Tx) error {
 	// Create the bucket that houses the tickets that were added with
 	// this block into the main chain.
 	_, err = meta.CreateBucket(dbnamespace.TicketsInBlockBucketName)
+	if err != nil {
+		return err
+	}
+
+	// Create the bucket that houses the treasury account
+	// information.
+	_, err = meta.CreateBucket(dbnamespace.TreasuryBucketName)
 	return err
 }
