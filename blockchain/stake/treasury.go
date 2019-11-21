@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake/v2/internal/dbnamespace"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/txscript/v2"
@@ -101,6 +102,32 @@ type TreasuryState struct {
 	Values  []int64 // All TADD/TSPEND values in this block (for use when block is mature)
 }
 
+func deserializeTreasuryState(data []byte) (*TreasuryState, error) {
+	var ts TreasuryState
+	buf := bytes.NewReader(data)
+	err := binary.Read(buf, binary.LittleEndian, &ts.Balance)
+	if err != nil {
+		return nil, ticketDBError(fmt.Sprintf("balance %v", err))
+	}
+
+	var count int
+	err := binary.Read(buf, binary.LittleEndian, &count)
+	if err != nil {
+		return nil, ticketDBError(fmt.Sprintf("count %v", err))
+	}
+
+	ts.Values = make([]int64, count)
+	for i := 0; i < count; i++ {
+		err := binary.Read(buf, binary.LittleEndian, &Values[i])
+		if err != nil {
+			return nil, ticketDBError(fmt.Sprintf("values %v %v",
+				i, err))
+		}
+	}
+
+	return &ts, nil
+}
+
 func serializeTreasuryState(ts TreasuryState) []byte {
 	serializedData := new(bytes.Buffer)
 
@@ -129,6 +156,21 @@ func DbPutTreasury(dbTx database.Tx, ts TreasuryState) error {
 
 	// Store the current treasury state into the database.
 	return dbTx.Metadata().Put(dbnamespace.TreasuryBucketName, serializedData)
+}
+
+// dbFetchTreasury uses an existing database transaction to fetch the best
+// treasury state.
+func dbFetchTreasury(dbTx database.Tx, hash *chainhash.Hash) (*TreasuryState, error) {
+	meta := dbTx.Metadata()
+	bucket := meta.Bucket(dbnamespace.TreasuryBucketName)
+
+	v := bucket.Get(hash[:])
+	if v == nil {
+		return nil, ticketDBError(ErrMissingKey,
+			fmt.Sprintf("missing key %v for treasury", hash))
+	}
+
+	return deserializeTreasuryState(v)
 }
 
 // WriteTreasury inserts the current balance and the future treasury add/spend
