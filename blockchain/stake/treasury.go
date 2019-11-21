@@ -84,6 +84,13 @@ func IsTSpend(tx *wire.MsgTx) bool {
 	return checkTSpend(tx) == nil
 }
 
+func AddTreasuryBucket(db database.DB) error {
+	return db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(dbnamespace.TreasuryBucketName)
+		return err
+	})
+}
+
 // TreasuryState records the treasury balance as of this block and it records
 // the yet to mature adds and spends. The TADDS are positive and the TSPENDS
 // are negative. Additionally the values are written in the exact same order as

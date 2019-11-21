@@ -15,7 +15,6 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone"
-	"github.com/decred/dcrd/blockchain/v2/internal/dbnamespace"
 	"github.com/decred/dcrd/blockchain/v2/internal/progresslog"
 	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -1031,10 +1030,7 @@ func upgradeToVersion7(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 	start := time.Now()
 
 	// Add database
-	err := db.Update(func(dbTx database.Tx) error {
-		_, err := dbTx.Metadata().CreateBucketIfNotExists(dbnamespace.TreasuryBucketName)
-		return err
-	})
+	err := stake.AddTreasuryBucket(db)
 	if err != nil {
 		return err
 	}

@@ -1634,13 +1634,6 @@ func (b *BlockChain) createChainState() error {
 			return err
 		}
 
-		// Create the bucket that houses the treasury account
-		// information.
-		_, err = meta.CreateBucket(dbnamespace.TreasuryBucketName)
-		if err != nil {
-			return err
-		}
-
 		// Add the genesis block to the block index.
 		err = dbPutBlockNode(dbTx, node)
 		if err != nil {
