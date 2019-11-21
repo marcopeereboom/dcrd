@@ -43,4 +43,9 @@ var (
 	// list of tickets in a block added to the mainchain, so that it can be
 	// looked up later to insert new tickets into the live ticket database.
 	TicketsInBlockBucketName = []byte("ticketsinblock")
+
+	// TreasuryBucketName is the name of the db bucket that is used to
+	// house TADD/TSPEND additions and subtractions from the treasury
+	// account.
+	TreasuryBucketName = []byte("treasury")
 )

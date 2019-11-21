@@ -542,6 +542,13 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			countSpentOutputs(block))
 	}
 
+	// Determine if treasury is active. This really shouldn't fail and
+	// maybe we should consider a panic.
+	treasuryFeaturesActive, err := b.isTreasuryAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+
 	// Write any modified block index entries to the database before
 	// updating the best state.
 	if err := b.flushBlockIndex(); err != nil {
@@ -614,6 +621,14 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		err = stake.WriteConnectedBestNode(dbTx, stakeNode, node.hash)
 		if err != nil {
 			return err
+		}
+
+		// Insert the treasury information into the database.
+		if treasuryFeaturesActive {
+			err = stake.WriteTreasury(dbTx, block)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Insert the GCS filter for the block into the database.

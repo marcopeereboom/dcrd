@@ -347,6 +347,8 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 
 		// Ensure that non-stake transactions have no outputs with opcodes
 		// OP_SSTX, OP_SSRTX, OP_SSGEN, or OP_SSTX_CHANGE.
+		//
+		// Note that OP_TADD is a valid output for a regular transaction.
 		if !isStakeTx {
 			hasOp, err := txscript.ContainsStakeOpCodes(txOut.PkScript)
 			if err != nil {
