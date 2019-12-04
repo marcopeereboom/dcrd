@@ -5,12 +5,9 @@
 package stake
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake/v2/internal/dbnamespace"
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/txscript/v2"
@@ -85,92 +82,12 @@ func IsTSpend(tx *wire.MsgTx) bool {
 	return checkTSpend(tx) == nil
 }
 
+// AddTreasuryBucket creates the treasury database if it doesn't exist.
 func AddTreasuryBucket(db database.DB) error {
 	return db.Update(func(dbTx database.Tx) error {
 		_, err := dbTx.Metadata().CreateBucketIfNotExists(dbnamespace.TreasuryBucketName)
 		return err
 	})
-}
-
-// TreasuryState records the treasury balance as of this block and it records
-// the yet to mature adds and spends. The TADDS are positive and the TSPENDS
-// are negative. Additionally the values are written in the exact same order as
-// they appear in the block. This can be used to verify the correctness of the
-// record if needed.
-type TreasuryState struct {
-	Balance int64   // Treasury balance as of this block
-	Values  []int64 // All TADD/TSPEND values in this block (for use when block is mature)
-}
-
-func deserializeTreasuryState(data []byte) (*TreasuryState, error) {
-	var ts TreasuryState
-	buf := bytes.NewReader(data)
-	err := binary.Read(buf, binary.LittleEndian, &ts.Balance)
-	if err != nil {
-		return nil, ticketDBError(fmt.Sprintf("balance %v", err))
-	}
-
-	var count int
-	err := binary.Read(buf, binary.LittleEndian, &count)
-	if err != nil {
-		return nil, ticketDBError(fmt.Sprintf("count %v", err))
-	}
-
-	ts.Values = make([]int64, count)
-	for i := 0; i < count; i++ {
-		err := binary.Read(buf, binary.LittleEndian, &Values[i])
-		if err != nil {
-			return nil, ticketDBError(fmt.Sprintf("values %v %v",
-				i, err))
-		}
-	}
-
-	return &ts, nil
-}
-
-func serializeTreasuryState(ts TreasuryState) []byte {
-	serializedData := new(bytes.Buffer)
-
-	err := binary.Write(serializedData, binary.LittleEndian, ts.Balance)
-	if err != nil {
-		panic("serializeTreasuryState ts.Balance")
-	}
-	err = binary.Write(serializedData, binary.LittleEndian, len(ts.Values))
-	if err != nil {
-		panic("serializeTreasuryState len(ts.Values)")
-	}
-	for k, v := range ts.Values {
-		err := binary.Write(serializedData, binary.LittleEndian, v)
-		if err != nil {
-			panic(fmt.Sprintf("serializeTreasuryState k=%v v=%v",
-				k, v))
-		}
-	}
-	return serializedData.Bytes()
-}
-
-// DbPutTreasury inserts a treasury record into the database.
-func DbPutTreasury(dbTx database.Tx, ts TreasuryState) error {
-	// Serialize the current treasury state.
-	serializedData := serializeTreasuryState(ts)
-
-	// Store the current treasury state into the database.
-	return dbTx.Metadata().Put(dbnamespace.TreasuryBucketName, serializedData)
-}
-
-// dbFetchTreasury uses an existing database transaction to fetch the best
-// treasury state.
-func dbFetchTreasury(dbTx database.Tx, hash *chainhash.Hash) (*TreasuryState, error) {
-	meta := dbTx.Metadata()
-	bucket := meta.Bucket(dbnamespace.TreasuryBucketName)
-
-	v := bucket.Get(hash[:])
-	if v == nil {
-		return nil, ticketDBError(ErrMissingKey,
-			fmt.Sprintf("missing key %v for treasury", hash))
-	}
-
-	return deserializeTreasuryState(v)
 }
 
 // WriteTreasury inserts the current balance and the future treasury add/spend

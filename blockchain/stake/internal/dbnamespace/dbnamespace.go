@@ -49,3 +49,16 @@ var (
 	// account.
 	TreasuryBucketName = []byte("treasury")
 )
+
+// TreasuryState records the treasury balance as of this block and it records
+// the yet to mature adds and spends. The TADDS are positive and the TSPENDS
+// are negative. Additionally the values are written in the exact same order as
+// they appear in the block. This can be used to verify the correctness of the
+// record if needed.
+//
+// XXX this really doesn't belong here but there is no other way to share this
+// between blockchain and stake package.
+type TreasuryState struct {
+	Balance int64   // Treasury balance as of this block
+	Values  []int64 // All TADD/TSPEND values in this block (for use when block is mature)
+}
