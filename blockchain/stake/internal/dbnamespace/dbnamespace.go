@@ -50,6 +50,12 @@ var (
 	TreasuryBucketName = []byte("treasury")
 )
 
+const (
+	// TreasuryMaxEntriesPerBlock is the maximum number of OP_TADD/OP_SPEND
+	// transactions in a given block.
+	TreasuryMaxEntriesPerBlock = 256
+)
+
 // TreasuryState records the treasury balance as of this block and it records
 // the yet to mature adds and spends. The TADDS are positive and the TSPENDS
 // are negative. Additionally the values are written in the exact same order as
