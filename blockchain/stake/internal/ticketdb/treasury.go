@@ -27,7 +27,7 @@ func serializeTreasuryState(ts dbnamespace.TreasuryState) ([]byte, error) {
 		return nil, ticketDBError(ErrTreasurySerialization,
 			fmt.Sprintf("invalid treasury balance: %v", ts.Balance))
 	}
-	if len(ts.Values) > 65536 /* PNOOMA */ {
+	if len(ts.Values) > dbnamespace.TreasuryMaxEntriesPerBlock {
 		return nil, ticketDBError(ErrTreasurySerialization,
 			fmt.Sprintf("invalid treasury values length: %v",
 				len(ts.Values)))
@@ -40,7 +40,8 @@ func serializeTreasuryState(ts dbnamespace.TreasuryState) ([]byte, error) {
 		return nil, ticketDBError(ErrTreasurySerialization,
 			err.Error())
 	}
-	err = binary.Write(serializedData, binary.LittleEndian, int64(len(ts.Values)))
+	err = binary.Write(serializedData, binary.LittleEndian,
+		int64(len(ts.Values)))
 	if err != nil {
 		return nil, ticketDBError(ErrTreasurySerialization,
 			err.Error())
@@ -72,13 +73,17 @@ func deserializeTreasuryState(data []byte) (*dbnamespace.TreasuryState, error) {
 		return nil, ticketDBError(ErrTreasuryDeserialization,
 			fmt.Sprintf("count %v", err))
 	}
+	if count > dbnamespace.TreasuryMaxEntriesPerBlock {
+		return nil, ticketDBError(ErrTreasuryDeserialization,
+			fmt.Sprintf("invalid treasury values length: %v", count))
+	}
 
 	ts.Values = make([]int64, count)
 	for i := int64(0); i < count; i++ {
 		err := binary.Read(buf, binary.LittleEndian, &ts.Values[i])
 		if err != nil {
 			return nil, ticketDBError(ErrTreasuryDeserialization,
-				fmt.Sprintf("values %v %v", i, err))
+				fmt.Sprintf("values read %v error %v", i, err))
 		}
 	}
 
