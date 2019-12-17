@@ -114,5 +114,6 @@ func WriteTreasury(dbTx database.Tx, block *dcrutil.Block) error {
 		}
 	}
 
-	return ticketdb.DbPutTreasury(dbTx, ts)
+	hash := block.Hash()
+	return ticketdb.DbPutTreasury(dbTx, *hash, ts)
 }
