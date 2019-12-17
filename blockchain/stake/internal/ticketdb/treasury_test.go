@@ -6,11 +6,18 @@ package ticketdb
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
+	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v2/internal/dbnamespace"
+	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
 )
 
 const (
@@ -181,6 +188,92 @@ func TestDeserializeTreasuryState(t *testing.T) {
 		if !reflect.DeepEqual(*tso, test.expected) {
 			t.Fatalf("%v %v (equal): got %v expected %v",
 				i, test.name, *tso, test.expected)
+		}
+	}
+}
+
+// TestTreasuryDatabase tests treasury database functionality.
+func TestTreasuryDatabase(t *testing.T) {
+	// Create a new database to store treasury state.
+	dbName := "ffldb_treasurydb_test"
+	dbPath, err := ioutil.TempDir("", dbName)
+	if err != nil {
+		t.Fatalf("unable to create treasury db path: %v", err)
+	}
+	defer os.RemoveAll(dbPath)
+	net := chaincfg.RegNetParams().Net
+	testDb, err := database.Create(testDbType, dbPath, net)
+	if err != nil {
+		t.Fatalf("error creating treasury db: %v", err)
+	}
+	defer testDb.Close()
+
+	// Initialize the database, then try to read the version.
+	err = testDb.Update(DbCreate)
+	if err != nil {
+		t.Fatalf("%v", err.Error())
+	}
+
+	var dbi *DatabaseInfo
+	err = testDb.View(func(dbTx database.Tx) error {
+		dbi, err = DbFetchDatabaseInfo(dbTx)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("%v", err.Error())
+	}
+	if dbi.Version != currentDatabaseVersion {
+		t.Fatalf("bad version after reading from DB; want %v, got %v",
+			currentDatabaseVersion, dbi.Version)
+	}
+
+	// Write maxTreasuryState records out.
+	maxTreasuryState := uint64(1024)
+	for i := uint64(0); i < maxTreasuryState; i++ {
+		// Create synthetic treasury state
+		ts := dbnamespace.TreasuryState{
+			Balance: int64(i),
+			Values:  []int64{int64(i), -int64(i)},
+		}
+
+		// Create hash of counter.
+		b := make([]byte, 16)
+		binary.LittleEndian.PutUint64(b[0:], i)
+		hash := chainhash.HashH(b)
+
+		err = testDb.Update(func(dbTx database.Tx) error {
+			return DbPutTreasury(dbTx, hash, ts)
+		})
+		if err != nil {
+			t.Fatalf("%v", err.Error())
+		}
+	}
+
+	// Pull records back out.
+	for i := uint64(0); i < maxTreasuryState; i++ {
+		// Create synthetic treasury state
+		ts := dbnamespace.TreasuryState{
+			Balance: int64(i),
+			Values:  []int64{int64(i), -int64(i)},
+		}
+
+		// Create hash of counter.
+		b := make([]byte, 16)
+		binary.LittleEndian.PutUint64(b[0:], i)
+		hash := chainhash.HashH(b)
+
+		var tsr *dbnamespace.TreasuryState
+		err = testDb.View(func(dbTx database.Tx) error {
+			tsr, err = DbFetchTreasury(dbTx, hash)
+			return err
+		})
+		if err != nil {
+			t.Fatalf("%v", err.Error())
+		}
+
+		if !reflect.DeepEqual(ts, *tsr) {
+			t.Fatalf("not same treasury state got %v wanted %v",
+				spew.Sdump(ts), spew.Sdump(*tsr))
 		}
 	}
 }
