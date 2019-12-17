@@ -5,9 +5,8 @@
 package stake
 
 import (
-	"fmt"
-
 	"github.com/decred/dcrd/blockchain/stake/v2/internal/dbnamespace"
+	"github.com/decred/dcrd/blockchain/stake/v2/internal/ticketdb"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/txscript/v2"
@@ -93,5 +92,27 @@ func AddTreasuryBucket(db database.DB) error {
 // WriteTreasury inserts the current balance and the future treasury add/spend
 // into the database.
 func WriteTreasury(dbTx database.Tx, block *dcrutil.Block) error {
-	return fmt.Errorf("not yet WriteTreasury")
+	msgBlock := block.MsgBlock()
+	ts := dbnamespace.TreasuryState{
+		Balance: 0, // XXX
+		Values:  make([]int64, 0, len(msgBlock.Transactions)*2),
+	}
+	for _, v := range msgBlock.Transactions {
+		if IsTAdd(v) {
+			// This is a TAdd, pull values out of block.
+			for _, vv := range v.TxOut {
+				ts.Values = append(ts.Values, vv.Value)
+			}
+			continue
+		}
+		if IsTSpend(v) {
+			// This is a TSpend, pull values out of block.
+			for _, vv := range v.TxOut {
+				ts.Values = append(ts.Values, vv.Value)
+			}
+			continue
+		}
+	}
+
+	return ticketdb.DbPutTreasury(dbTx, ts)
 }
