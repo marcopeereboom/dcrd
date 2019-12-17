@@ -90,8 +90,8 @@ func deserializeTreasuryState(data []byte) (*dbnamespace.TreasuryState, error) {
 	return &ts, nil
 }
 
-// DbPutTreasury inserts a treasury record into the database.
-func DbPutTreasury(dbTx database.Tx, ts dbnamespace.TreasuryState) error {
+// DbPutTreasury inserts a treasury state record into the database.
+func DbPutTreasury(dbTx database.Tx, hash chainhash.Hash, ts dbnamespace.TreasuryState) error {
 	// Serialize the current treasury state.
 	serializedData, err := serializeTreasuryState(ts)
 	if err != nil {
@@ -99,12 +99,14 @@ func DbPutTreasury(dbTx database.Tx, ts dbnamespace.TreasuryState) error {
 	}
 
 	// Store the current treasury state into the database.
-	return dbTx.Metadata().Put(dbnamespace.TreasuryBucketName, serializedData)
+	meta := dbTx.Metadata()
+	bucket := meta.Bucket(dbnamespace.TreasuryBucketName)
+	return bucket.Put(hash[:], serializedData)
 }
 
-// dbFetchTreasury uses an existing database transaction to fetch the best
-// treasury state.
-func dbFetchTreasury(dbTx database.Tx, hash *chainhash.Hash) (*dbnamespace.TreasuryState, error) {
+// DbFetchTreasury uses an existing database transaction to fetch the treasury
+// state.
+func DbFetchTreasury(dbTx database.Tx, hash chainhash.Hash) (*dbnamespace.TreasuryState, error) {
 	meta := dbTx.Metadata()
 	bucket := meta.Bucket(dbnamespace.TreasuryBucketName)
 
