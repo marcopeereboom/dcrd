@@ -97,7 +97,7 @@ func WriteTreasury(dbTx database.Tx, block *dcrutil.Block) error {
 		Balance: 0, // XXX
 		Values:  make([]int64, 0, len(msgBlock.Transactions)*2),
 	}
-	for _, v := range msgBlock.Transactions {
+	for _, v := range msgBlock.STransactions {
 		if IsTAdd(v) {
 			// This is a TAdd, pull values out of block.
 			for _, vv := range v.TxOut {
@@ -107,8 +107,8 @@ func WriteTreasury(dbTx database.Tx, block *dcrutil.Block) error {
 		}
 		if IsTSpend(v) {
 			// This is a TSpend, pull values out of block.
-			for _, vv := range v.TxOut {
-				ts.Values = append(ts.Values, vv.Value)
+			for _, vv := range v.TxIn {
+				ts.Values = append(ts.Values, -vv.ValueIn)
 			}
 			continue
 		}
