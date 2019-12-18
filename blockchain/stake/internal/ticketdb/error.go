@@ -47,29 +47,19 @@ const (
 	// ErrLoadAllTickets indicates that there was an error loading the tickets
 	// from the database, presumably at startup.
 	ErrLoadAllTickets
-
-	// ErrTreasurySerialization indicates that the treasury state
-	// serialization failed.
-	ErrTreasurySerialization
-
-	// ErrTreasuryDeserialization indicates that the treasury state
-	// deserialization failed.
-	ErrTreasuryDeserialization
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrUndoDataShortRead:       "ErrUndoDataShortRead",
-	ErrUndoDataCorrupt:         "ErrUndoDataCorrupt",
-	ErrTicketHashesShortRead:   "ErrTicketHashesShortRead",
-	ErrTicketHashesCorrupt:     "ErrTicketHashesCorrupt",
-	ErrUninitializedBucket:     "ErrUninitializedBucket",
-	ErrMissingKey:              "ErrMissingKey",
-	ErrChainStateShortRead:     "ErrChainStateShortRead",
-	ErrDatabaseInfoShortRead:   "ErrDatabaseInfoShortRead",
-	ErrLoadAllTickets:          "ErrLoadAllTickets",
-	ErrTreasurySerialization:   "ErrTreasurySerialization",
-	ErrTreasuryDeserialization: "ErrTreasuryDeserialization",
+	ErrUndoDataShortRead:     "ErrUndoDataShortRead",
+	ErrUndoDataCorrupt:       "ErrUndoDataCorrupt",
+	ErrTicketHashesShortRead: "ErrTicketHashesShortRead",
+	ErrTicketHashesCorrupt:   "ErrTicketHashesCorrupt",
+	ErrUninitializedBucket:   "ErrUninitializedBucket",
+	ErrMissingKey:            "ErrMissingKey",
+	ErrChainStateShortRead:   "ErrChainStateShortRead",
+	ErrDatabaseInfoShortRead: "ErrDatabaseInfoShortRead",
+	ErrLoadAllTickets:        "ErrLoadAllTickets",
 }
 
 // String returns the ErrorCode as a human-readable name.
