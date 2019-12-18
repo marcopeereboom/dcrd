@@ -5,10 +5,6 @@
 package stake
 
 import (
-	"github.com/decred/dcrd/blockchain/stake/v2/internal/dbnamespace"
-	"github.com/decred/dcrd/blockchain/stake/v2/internal/ticketdb"
-	"github.com/decred/dcrd/database/v2"
-	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -79,41 +75,4 @@ func checkTSpend(mtx *wire.MsgTx) error {
 // IsTSpend returns true if the provided transaction is a proper TSPEND.
 func IsTSpend(tx *wire.MsgTx) bool {
 	return checkTSpend(tx) == nil
-}
-
-// AddTreasuryBucket creates the treasury database if it doesn't exist.
-func AddTreasuryBucket(db database.DB) error {
-	return db.Update(func(dbTx database.Tx) error {
-		_, err := dbTx.Metadata().CreateBucketIfNotExists(dbnamespace.TreasuryBucketName)
-		return err
-	})
-}
-
-// WriteTreasury inserts the current balance and the future treasury add/spend
-// into the database.
-func WriteTreasury(dbTx database.Tx, block *dcrutil.Block) error {
-	msgBlock := block.MsgBlock()
-	ts := dbnamespace.TreasuryState{
-		Balance: 0, // XXX
-		Values:  make([]int64, 0, len(msgBlock.Transactions)*2),
-	}
-	for _, v := range msgBlock.STransactions {
-		if IsTAdd(v) {
-			// This is a TAdd, pull values out of block.
-			for _, vv := range v.TxOut {
-				ts.Values = append(ts.Values, vv.Value)
-			}
-			continue
-		}
-		if IsTSpend(v) {
-			// This is a TSpend, pull values out of block.
-			for _, vv := range v.TxIn {
-				ts.Values = append(ts.Values, -vv.ValueIn)
-			}
-			continue
-		}
-	}
-
-	hash := block.Hash()
-	return ticketdb.DbPutTreasury(dbTx, *hash, ts)
 }

@@ -1646,6 +1646,13 @@ func (b *BlockChain) createChainState() error {
 			return err
 		}
 
+		// Create the bucket that houses the treasury account
+		// information.
+		_, err = meta.CreateBucket(dbnamespace.TreasuryBucketName)
+		if err != nil {
+			return err
+		}
+
 		// Initialize the stake buckets in the database, along with
 		// the best state for the stake database.
 		_, err = stake.InitDatabaseState(dbTx, b.chainParams,
