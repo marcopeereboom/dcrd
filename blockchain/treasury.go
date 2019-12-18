@@ -40,10 +40,10 @@ type TreasuryState struct {
 // serializeTreasuryState serializes the TreasuryState structure
 // for use in the database.
 // The format is as follows:
-// littleendian.int64(treasury balance as of this block)
-// littleendian.int64(length of values arrays)
-// []littleendian.int64(all additions and subtractions from treasury in this
-//   block)
+// dbnamespace.ByteOrder.int64(treasury balance as of this block)
+// dbnamespace.ByteOrder.int64(length of values arrays)
+// []dbnamespace.ByteOrder.int64(all additions and subtractions from treasury
+//   in this block)
 func serializeTreasuryState(ts TreasuryState) ([]byte, error) {
 	// Just a little sanity testing.
 	if ts.Balance < 0 {
