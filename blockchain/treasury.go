@@ -107,8 +107,8 @@ func deserializeTreasuryState(data []byte) (*TreasuryState, error) {
 	return &ts, nil
 }
 
-// DbPutTreasury inserts a treasury state record into the database.
-func DbPutTreasury(dbTx database.Tx, hash chainhash.Hash, ts TreasuryState) error {
+// dbPutTreasury inserts a treasury state record into the database.
+func dbPutTreasury(dbTx database.Tx, hash chainhash.Hash, ts TreasuryState) error {
 	// Serialize the current treasury state.
 	serializedData, err := serializeTreasuryState(ts)
 	if err != nil {
@@ -121,9 +121,9 @@ func DbPutTreasury(dbTx database.Tx, hash chainhash.Hash, ts TreasuryState) erro
 	return bucket.Put(hash[:], serializedData)
 }
 
-// DbFetchTreasury uses an existing database transaction to fetch the treasury
+// dbFetchTreasury uses an existing database transaction to fetch the treasury
 // state.
-func DbFetchTreasury(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, error) {
+func dbFetchTreasury(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, error) {
 	meta := dbTx.Metadata()
 	bucket := meta.Bucket(dbnamespace.TreasuryBucketName)
 
@@ -135,7 +135,7 @@ func DbFetchTreasury(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, err
 	return deserializeTreasuryState(v)
 }
 
-func (b *BlockChain) calculateTreasuryBalance(block *dcrutil.Block, node *blockNode) (int64, error) {
+func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode) (int64, error) {
 	wantNode := node.RelativeAncestor(int64(b.chainParams.CoinbaseMaturity))
 	if wantNode == nil {
 		// Since the node does not exist we can safely assume the
@@ -143,15 +143,51 @@ func (b *BlockChain) calculateTreasuryBalance(block *dcrutil.Block, node *blockN
 		return 0, nil
 	}
 
-	return 0, fmt.Errorf("not yet")
+	// Current balance is in the parent node
+	ts, err := dbFetchTreasury(dbTx, node.parent.hash)
+	if err != nil {
+		panic(err)
+		return 0, err
+	}
+
+	// Add values to current balance
+	valuesBlock, err := dbFetchBlockByNode(dbTx, wantNode)
+	if err != nil {
+		return 0, err
+	}
+
+	var netValue int64
+	for _, v := range valuesBlock.MsgBlock().STransactions {
+		if stake.IsTAdd(v) {
+			// This is a TAdd, pull values out of block.
+			for _, vv := range v.TxOut {
+				netValue += vv.Value
+			}
+			continue
+		}
+		if stake.IsTSpend(v) {
+			// This is a TSpend, pull values out of block.
+			for _, vv := range v.TxIn {
+				netValue -= vv.ValueIn
+			}
+			continue
+		}
+	}
+
+	return ts.Balance + netValue, nil
 }
 
 // WriteTreasury inserts the current balance and the future treasury add/spend
 // into the database.
-func (b *BlockChain) WriteTreasury(dbTx database.Tx, block *dcrutil.Block, node *blockNode) error {
+func (b *BlockChain) writeTreasury(dbTx database.Tx, block *dcrutil.Block, node *blockNode) error {
+	// Calculate balance as of this node
+	balance, err := b.calculateTreasuryBalance(dbTx, node)
+	if err != nil {
+		return err
+	}
 	msgBlock := block.MsgBlock()
 	ts := TreasuryState{
-		Balance: 0, // XXX
+		Balance: balance,
 		Values:  make([]int64, 0, len(msgBlock.Transactions)*2),
 	}
 	for _, v := range msgBlock.STransactions {
@@ -172,11 +208,11 @@ func (b *BlockChain) WriteTreasury(dbTx database.Tx, block *dcrutil.Block, node 
 	}
 
 	hash := block.Hash()
-	return DbPutTreasury(dbTx, *hash, ts)
+	return dbPutTreasury(dbTx, *hash, ts)
 }
 
 // AddTreasuryBucket creates the treasury database if it doesn't exist.
-func AddTreasuryBucket(db database.DB) error {
+func addTreasuryBucket(db database.DB) error {
 	return db.Update(func(dbTx database.Tx) error {
 		_, err := dbTx.Metadata().CreateBucketIfNotExists(dbnamespace.TreasuryBucketName)
 		return err

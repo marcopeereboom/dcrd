@@ -1032,7 +1032,7 @@ func upgradeToVersion7(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 	start := time.Now()
 
 	// Add database
-	err := AddTreasuryBucket(db)
+	err := addTreasuryBucket(db)
 	if err != nil {
 		return err
 	}
