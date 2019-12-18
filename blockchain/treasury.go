@@ -146,8 +146,9 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 	// Current balance is in the parent node
 	ts, err := dbFetchTreasury(dbTx, node.parent.hash)
 	if err != nil {
-		panic(err)
-		return 0, err
+		// Since the node.parent.hash does not exist in the treasury db
+		// we can safely assume the balance is 0
+		return 0, nil
 	}
 
 	// Add values to current balance
