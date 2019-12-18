@@ -5,10 +5,10 @@
 package blockchain
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v2/chaingen"
@@ -897,12 +897,12 @@ func TestTreasury(t *testing.T) {
 				dcrutil.Amount(1))
 			b.AddSTransaction(tx)
 		})
-	t.Logf("b0: %v", spew.Sdump(b0))
+	//t.Logf("b0: %v", spew.Sdump(b0))
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
-	// Create a block that has a tadd
+	// Create a block that has a tadd without change
 	//
 	//   ... -> b0 -> b1
 	// ---------------------------------------------------------------------
@@ -915,9 +915,31 @@ func TestTreasury(t *testing.T) {
 				dcrutil.Amount(1))
 			b.AddSTransaction(tx)
 		})
-	t.Logf("b1: %v", spew.Sdump(b1))
+	//t.Logf("b1: %v", spew.Sdump(b1))
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
+
+	_ = b0
+	_ = b1
+
+	// ---------------------------------------------------------------------
+	// Create a number of blocks with tadd up to maturity
+	//
+	//   ... -> b0 -> b1 -> ... -> bN
+	// ---------------------------------------------------------------------
+
+	t.Logf("%v", params.CoinbaseMaturity)
+	for i := 2; i < int(params.CoinbaseMaturity-2); i++ {
+		outs = g.OldestCoinbaseOuts()
+		_ = g.NextBlock(fmt.Sprintf("b%v", i), nil, outs[1:],
+			replaceTreasuryVersions, func(b *wire.MsgBlock) {
+				tx := g.CreateTreasuryTAdd(&outs[0],
+					dcrutil.Amount(1), dcrutil.Amount(1))
+				b.AddSTransaction(tx)
+			})
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+	}
 
 	//// ---------------------------------------------------------------------
 	//// Create block that involves reorganize to a sequence lock spending
