@@ -622,7 +622,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 		// Insert the treasury information into the database.
 		if treasuryFeaturesActive {
-			err = b.WriteTreasury(dbTx, block, node)
+			err = b.writeTreasury(dbTx, block, node)
 			if err != nil {
 				return err
 			}

@@ -205,7 +205,7 @@ func TestTreasuryDatabase(t *testing.T) {
 	defer testDb.Close()
 
 	// Initialize the database, then try to read the version.
-	err = AddTreasuryBucket(testDb)
+	err = addTreasuryBucket(testDb)
 	if err != nil {
 		t.Fatalf("%v", err.Error())
 	}
@@ -225,7 +225,7 @@ func TestTreasuryDatabase(t *testing.T) {
 		hash := chainhash.HashH(b)
 
 		err = testDb.Update(func(dbTx database.Tx) error {
-			return DbPutTreasury(dbTx, hash, ts)
+			return dbPutTreasury(dbTx, hash, ts)
 		})
 		if err != nil {
 			t.Fatalf("%v", err.Error())
@@ -247,7 +247,7 @@ func TestTreasuryDatabase(t *testing.T) {
 
 		var tsr *TreasuryState
 		err = testDb.View(func(dbTx database.Tx) error {
-			tsr, err = DbFetchTreasury(dbTx, hash)
+			tsr, err = dbFetchTreasury(dbTx, hash)
 			return err
 		})
 		if err != nil {
