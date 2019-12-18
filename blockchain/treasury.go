@@ -57,17 +57,17 @@ func serializeTreasuryState(ts TreasuryState) ([]byte, error) {
 
 	// Serialize TreasuryState.
 	serializedData := new(bytes.Buffer)
-	err := binary.Write(serializedData, binary.LittleEndian, ts.Balance)
+	err := binary.Write(serializedData, dbnamespace.ByteOrder, ts.Balance)
 	if err != nil {
 		return nil, err
 	}
-	err = binary.Write(serializedData, binary.LittleEndian,
+	err = binary.Write(serializedData, dbnamespace.ByteOrder,
 		int64(len(ts.Values)))
 	if err != nil {
 		return nil, err
 	}
 	for _, v := range ts.Values {
-		err := binary.Write(serializedData, binary.LittleEndian, v)
+		err := binary.Write(serializedData, dbnamespace.ByteOrder, v)
 		if err != nil {
 			return nil, err
 		}
@@ -80,13 +80,13 @@ func serializeTreasuryState(ts TreasuryState) ([]byte, error) {
 func deserializeTreasuryState(data []byte) (*TreasuryState, error) {
 	var ts TreasuryState
 	buf := bytes.NewReader(data)
-	err := binary.Read(buf, binary.LittleEndian, &ts.Balance)
+	err := binary.Read(buf, dbnamespace.ByteOrder, &ts.Balance)
 	if err != nil {
 		return nil, fmt.Errorf("balance %v", err)
 	}
 
 	var count int64
-	err = binary.Read(buf, binary.LittleEndian, &count)
+	err = binary.Read(buf, dbnamespace.ByteOrder, &count)
 	if err != nil {
 		return nil, fmt.Errorf("count %v", err)
 	}
@@ -97,7 +97,7 @@ func deserializeTreasuryState(data []byte) (*TreasuryState, error) {
 
 	ts.Values = make([]int64, count)
 	for i := int64(0); i < count; i++ {
-		err := binary.Read(buf, binary.LittleEndian, &ts.Values[i])
+		err := binary.Read(buf, dbnamespace.ByteOrder, &ts.Values[i])
 		if err != nil {
 			return nil,
 				fmt.Errorf("values read %v error %v", i, err)
@@ -135,9 +135,20 @@ func DbFetchTreasury(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, err
 	return deserializeTreasuryState(v)
 }
 
+func (b *BlockChain) calculateTreasuryBalance(block *dcrutil.Block, node *blockNode) (int64, error) {
+	wantNode := node.RelativeAncestor(int64(b.chainParams.CoinbaseMaturity))
+	if wantNode == nil {
+		// Since the node does not exist we can safely assume the
+		// balance is 0
+		return 0, nil
+	}
+
+	return 0, fmt.Errorf("not yet")
+}
+
 // WriteTreasury inserts the current balance and the future treasury add/spend
 // into the database.
-func WriteTreasury(dbTx database.Tx, block *dcrutil.Block) error {
+func (b *BlockChain) WriteTreasury(dbTx database.Tx, block *dcrutil.Block, node *blockNode) error {
 	msgBlock := block.MsgBlock()
 	ts := TreasuryState{
 		Balance: 0, // XXX

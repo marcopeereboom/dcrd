@@ -228,9 +228,6 @@ type BlockChain struct {
 	calcPriorStakeVersionCache    map[[chainhash.HashSize]byte]uint32
 	calcVoterVersionIntervalCache map[[chainhash.HashSize]byte]uint32
 	calcStakeVersionCache         map[[chainhash.HashSize]byte]uint32
-
-	// Treasury cache
-	treasuryBalance int64
 }
 
 const (
@@ -626,7 +623,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 		// Insert the treasury information into the database.
 		if treasuryFeaturesActive {
-			err = WriteTreasury(dbTx, block)
+			err = b.WriteTreasury(dbTx, block, node)
 			if err != nil {
 				return err
 			}
