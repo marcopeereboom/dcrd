@@ -157,6 +157,7 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 		return 0, err
 	}
 
+	// XXX fetch ts from wantNode instead of doing this
 	var netValue int64
 	for _, v := range valuesBlock.MsgBlock().STransactions {
 		if stake.IsTAdd(v) {
