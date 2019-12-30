@@ -221,8 +221,9 @@ func addTreasuryBucket(db database.DB) error {
 	})
 }
 
-// TreasuryBalance returns the height, treasury balance and values for the
-// provided hash.
-func (b *BlockChain) TreasuryBalance(hash string) (int64, int64, []int64, error) {
-	return 0, 0, []int64{}, fmt.Errorf("not yet TreasuryBalance")
+// TreasuryBalance returns the hash, height, treasury balance and the updates
+// for the block that is CoinbaseMaturity from now.  If there is no hash
+// provided it'll return the values for bestblock.
+func (b *BlockChain) TreasuryBalance(hash string) (string, int64, int64, []int64, error) {
+	return "", 0, 0, []int64{}, fmt.Errorf("not yet TreasuryBalance")
 }
