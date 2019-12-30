@@ -2971,8 +2971,8 @@ func handleGetTreasuryBalance(_ context.Context, s *rpcServer, cmd interface{}) 
 	}
 
 	tbr := types.GetTreasuryBalanceResult{
-		Height:  height,
 		Hash:    hash,
+		Height:  height,
 		Balance: balance,
 	}
 
