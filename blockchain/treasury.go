@@ -220,3 +220,9 @@ func addTreasuryBucket(db database.DB) error {
 		return err
 	})
 }
+
+// TreasuryBalance returns the height, treasury balance and values for the
+// provided hash.
+func (b *BlockChain) TreasuryBalance(hash string) (int64, int64, []int64, error) {
+	return 0, 0, []int64{}, fmt.Errorf("not yet TreasuryBalance")
+}

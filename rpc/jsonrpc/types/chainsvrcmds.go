@@ -805,6 +805,20 @@ func NewGetVoteInfoCmd(version uint32) *GetVoteInfoCmd {
 	}
 }
 
+// GetTreasuryBalanceCmd returns the treasury balance for the provided block
+// hash. If no hash is provide it returns the best block treasury balance.
+type GetTreasuryBalanceCmd struct {
+	Hash string
+}
+
+// NewGetTreasuryBalanceCmd returns a new instance which can be used to
+// issue a JSON-RPC gettreasurybalance command.
+func NewGetTreasuryBalanceCmd(hash string) *GetTreasuryBalanceCmd {
+	return &GetTreasuryBalanceCmd{
+		Hash: hash,
+	}
+}
+
 // GetWorkCmd defines the getwork JSON-RPC command.
 type GetWorkCmd struct {
 	Data *string
@@ -1181,6 +1195,7 @@ func init() {
 	dcrjson.MustRegister(Method("getstakeversioninfo"), (*GetStakeVersionInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getstakeversions"), (*GetStakeVersionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getticketpoolvalue"), (*GetTicketPoolValueCmd)(nil), flags)
+	dcrjson.MustRegister(Method("gettreasurybalance"), (*GetTreasuryBalanceCmd)(nil), flags)
 	dcrjson.MustRegister(Method("gettxout"), (*GetTxOutCmd)(nil), flags)
 	dcrjson.MustRegister(Method("gettxoutsetinfo"), (*GetTxOutSetInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getvoteinfo"), (*GetVoteInfoCmd)(nil), flags)

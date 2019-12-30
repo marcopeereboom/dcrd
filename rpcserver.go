@@ -185,6 +185,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getstakeversioninfo":   handleGetStakeVersionInfo,
 	"getstakeversions":      handleGetStakeVersions,
 	"getticketpoolvalue":    handleGetTicketPoolValue,
+	"gettreasurybalance":    handleGetTreasuryBalance,
 	"getvoteinfo":           handleGetVoteInfo,
 	"gettxout":              handleGetTxOut,
 	"gettxoutsetinfo":       handleGetTxOutSetInfo,
@@ -2957,6 +2958,26 @@ func handleGetTicketPoolValue(_ context.Context, s *rpcServer, cmd interface{}) 
 	}
 
 	return amt.ToCoin(), nil
+}
+
+// handleGetTreasuryBalance implements the gettreasurybalance command.
+func handleGetTreasuryBalance(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	tbc, ok := cmd.(*types.GetTreasuryBalanceCmd)
+	if !ok {
+		return nil, rpcInvalidError("Invalid type: %T", cmd)
+	}
+	height, balance, values, err := s.cfg.Chain.TreasuryBalance(tbc.Hash)
+	if err != nil {
+		return nil, rpcInternalError(err.Error(),
+			"Could not obtain treasury balance")
+	}
+
+	return types.GetTreasuryBalanceResult{
+		Height:  height,
+		Hash:    tbc.Hash,
+		Balance: balance,
+		Values:  values,
+	}, nil
 }
 
 // handleGetVoteInfo implements the getvoteinfo command.
