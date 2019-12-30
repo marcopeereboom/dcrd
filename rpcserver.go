@@ -2978,7 +2978,7 @@ func handleGetTreasuryBalance(s *rpcServer, cmd interface{}, closeChan <-chan st
 		Balance: balance,
 	}
 
-	if tbc.Verbose != nil {
+	if !(tbc.Verbose == nil || *tbc.Verbose == false) {
 		tbr.Updates = values
 	}
 	return tbr, nil
