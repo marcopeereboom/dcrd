@@ -2963,7 +2963,7 @@ func handleGetTicketPoolValue(_ context.Context, s *rpcServer, cmd interface{}) 
 }
 
 // handleGetTreasuryBalance implements the gettreasurybalance command.
-func handleGetTreasuryBalance(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+func handleGetTreasuryBalance(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
 	tbc, ok := cmd.(*types.GetTreasuryBalanceCmd)
 	if !ok {
 		return nil, rpcInvalidError("Invalid type: %T", cmd)

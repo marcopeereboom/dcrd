@@ -15,7 +15,6 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone"
-	"github.com/decred/dcrd/blockchain/v2/internal/progresslog"
 	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
@@ -1025,7 +1024,7 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 }
 
 // upgradeToVersion7 upgrades a version 6 blockchain database to version 7.
-func upgradeToVersion7(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
+func upgradeToVersion7(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
 	log.Info("Adding treasury database...")
 	start := time.Now()
 
@@ -1092,7 +1091,7 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 
 	// Add treasury database.
 	if dbInfo.version == 6 {
-		err := upgradeToVersion7(db, chainParams, dbInfo, interrupt)
+		err := upgradeToVersion7(db, chainParams, dbInfo)
 		if err != nil {
 			return err
 		}
