@@ -2966,18 +2966,22 @@ func handleGetTreasuryBalance(s *rpcServer, cmd interface{}, closeChan <-chan st
 	if !ok {
 		return nil, rpcInvalidError("Invalid type: %T", cmd)
 	}
-	height, balance, values, err := s.cfg.Chain.TreasuryBalance(tbc.Hash)
+	hash, height, balance, values, err := s.cfg.Chain.TreasuryBalance(tbc.Hash)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(),
 			"Could not obtain treasury balance")
 	}
 
-	return types.GetTreasuryBalanceResult{
+	tbr := types.GetTreasuryBalanceResult{
 		Height:  height,
-		Hash:    tbc.Hash,
+		Hash:    hash,
 		Balance: balance,
-		Values:  values,
-	}, nil
+	}
+
+	if tbc.Verbose != nil {
+		tbr.Updates = values
+	}
+	return tbr, nil
 }
 
 // handleGetVoteInfo implements the getvoteinfo command.

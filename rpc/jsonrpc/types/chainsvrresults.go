@@ -423,7 +423,7 @@ type GetTreasuryBalanceResult struct {
 	Height  int64   `json:"height"`
 	Hash    string  `json:"hash"`
 	Balance int64   `json:"balance"`
-	Values  []int64 `json:"values,omitempty"`
+	Updates []int64 `json:"updates,omitempty"`
 }
 
 // GetWorkResult models the data from the getwork command.
