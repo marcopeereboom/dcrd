@@ -260,9 +260,11 @@ var rpcAskWallet = map[string]struct{}{
 	"rescanwallet":            {},
 	"revoketickets":           {},
 	"sendfrom":                {},
+	"sendfromtreasury":        {},
 	"sendmany":                {},
 	"sendtoaddress":           {},
 	"sendtomultisig":          {},
+	"sendtotreasury":          {},
 	"setticketfee":            {},
 	"settxfee":                {},
 	"setvotechoice":           {},
@@ -2966,6 +2968,7 @@ func handleGetTreasuryBalance(s *rpcServer, cmd interface{}, closeChan <-chan st
 	if !ok {
 		return nil, rpcInvalidError("Invalid type: %T", cmd)
 	}
+
 	hash, height, balance, values, err := s.cfg.Chain.TreasuryBalance(tbc.Hash)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(),

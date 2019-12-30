@@ -808,13 +808,13 @@ func NewGetVoteInfoCmd(version uint32) *GetVoteInfoCmd {
 // GetTreasuryBalanceCmd returns the treasury balance for the provided block
 // hash. If no hash is provide it returns the best block treasury balance.
 type GetTreasuryBalanceCmd struct {
-	Hash    string
+	Hash    *string
 	Verbose *bool `jsonrpcdefault:"false"`
 }
 
 // NewGetTreasuryBalanceCmd returns a new instance which can be used to
 // issue a JSON-RPC gettreasurybalance command.
-func NewGetTreasuryBalanceCmd(hash string) *GetTreasuryBalanceCmd {
+func NewGetTreasuryBalanceCmd(hash *string) *GetTreasuryBalanceCmd {
 	return &GetTreasuryBalanceCmd{
 		Hash: hash,
 	}
