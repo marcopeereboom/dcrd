@@ -221,9 +221,46 @@ func addTreasuryBucket(db database.DB) error {
 	})
 }
 
+// treasuryBalanceFailure returns a failure for the TreasuryBalance function.
+// It exists because the return values should not be copy pasted.
+func treasuryBalanceFailure(err error) (string, int64, int64, []int64, error) {
+	return "", 0, 0, []int64{}, err
+}
+
 // TreasuryBalance returns the hash, height, treasury balance and the updates
 // for the block that is CoinbaseMaturity from now.  If there is no hash
 // provided it'll return the values for bestblock.
 func (b *BlockChain) TreasuryBalance(hash *string) (string, int64, int64, []int64, error) {
-	return "", 0, 0, []int64{}, fmt.Errorf("not yet TreasuryBalance")
+	// Use best block if a hash is not provided.
+	if hash == nil {
+		best := b.BestSnapshot()
+		h := best.Hash.String()
+		hash = &h
+	}
+
+	// Retrieve block node.
+	ch, err := chainhash.NewHashFromStr(*hash)
+	if err != nil {
+		return treasuryBalanceFailure(err)
+	}
+	node := b.index.LookupNode(ch)
+	if node == nil || !b.index.NodeStatus(node).HaveData() {
+		return treasuryBalanceFailure(fmt.Errorf("block %s is not known",
+			hash))
+	}
+	if ok, _ := b.isTreasuryAgendaActive(node); !ok {
+		return treasuryBalanceFailure(fmt.Errorf("treasury not active"))
+	}
+
+	// Retrieve treasury bits.
+	var ts *TreasuryState
+	err = b.db.View(func(dbTx database.Tx) error {
+		ts, err = dbFetchTreasury(dbTx, *ch)
+		return err
+	})
+	if err != nil {
+		return treasuryBalanceFailure(err)
+	}
+
+	return *hash, node.height, ts.Balance, ts.Values, nil
 }
