@@ -246,7 +246,7 @@ func (b *BlockChain) TreasuryBalance(hash *string) (string, int64, int64, []int6
 	node := b.index.LookupNode(ch)
 	if node == nil || !b.index.NodeStatus(node).HaveData() {
 		return treasuryBalanceFailure(
-			fmt.Errorf("block %s is not known", hash))
+			fmt.Errorf("block %s is not known", *hash))
 	}
 	if ok, _ := b.isTreasuryAgendaActive(node); !ok {
 		return treasuryBalanceFailure(fmt.Errorf("treasury not active"))
