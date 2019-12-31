@@ -344,6 +344,7 @@ var rpcLimited = map[string]struct{}{
 	"getstakeversioninfo":   {},
 	"getstakeversions":      {},
 	"getrawtransaction":     {},
+	"gettreasurybalance":    {},
 	"gettxout":              {},
 	"getvoteinfo":           {},
 	"livetickets":           {},
