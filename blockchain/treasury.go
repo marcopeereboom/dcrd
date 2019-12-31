@@ -29,9 +29,6 @@ const (
 // are negative. Additionally the values are written in the exact same order as
 // they appear in the block. This can be used to verify the correctness of the
 // record if needed.
-//
-// XXX this really doesn't belong here but there is no other way to share this
-// between blockchain and stake package.
 type TreasuryState struct {
 	Balance int64   // Treasury balance as of this block
 	Values  []int64 // All TADD/TSPEND values in this block (for use when block is mature)
@@ -75,8 +72,8 @@ func serializeTreasuryState(ts TreasuryState) ([]byte, error) {
 	return serializedData.Bytes(), nil
 }
 
-// deserializeTreasuryState desrializes a binary blob into a
-// TreasuryState structure.
+// deserializeTreasuryState deserializes a binary blob into a TreasuryState
+// structure.
 func deserializeTreasuryState(data []byte) (*TreasuryState, error) {
 	var ts TreasuryState
 	buf := bytes.NewReader(data)
@@ -135,6 +132,9 @@ func dbFetchTreasury(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, err
 	return deserializeTreasuryState(v)
 }
 
+// calculateTreasuryBalance calculates the treasury balance as of the provided
+// node. It does that by moving back CoinbaseMaturity blocks and
+// adding/subtracting the treasury updates to/from the *parent node*.
 func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode) (int64, error) {
 	wantNode := node.RelativeAncestor(int64(b.chainParams.CoinbaseMaturity))
 	if wantNode == nil {
@@ -245,8 +245,8 @@ func (b *BlockChain) TreasuryBalance(hash *string) (string, int64, int64, []int6
 	}
 	node := b.index.LookupNode(ch)
 	if node == nil || !b.index.NodeStatus(node).HaveData() {
-		return treasuryBalanceFailure(fmt.Errorf("block %s is not known",
-			hash))
+		return treasuryBalanceFailure(
+			fmt.Errorf("block %s is not known", hash))
 	}
 	if ok, _ := b.isTreasuryAgendaActive(node); !ok {
 		return treasuryBalanceFailure(fmt.Errorf("treasury not active"))
