@@ -151,29 +151,22 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 		return 0, nil
 	}
 
-	// Add values to current balance
-	valuesBlock, err := dbFetchBlockByNode(dbTx, wantNode)
+	// Fetch values that need to be added to the treasury balance.
+	wts, err := dbFetchTreasury(dbTx, wantNode.hash)
 	if err != nil {
-		return 0, err
+		// Since wantNode does not exist in the treasury db we can
+		// safely assume the balance is 0
+		return 0, nil
 	}
 
-	// XXX fetch ts from wantNode instead of doing this
+	// Add all TAdd values to the balance. Note that negative Values are
+	// TSpend.
 	var netValue int64
-	for _, v := range valuesBlock.MsgBlock().STransactions {
-		if stake.IsTAdd(v) {
-			// This is a TAdd, pull values out of block.
-			for _, vv := range v.TxOut {
-				netValue += vv.Value
-			}
+	for _, v := range wts.Values {
+		if v < 0 {
 			continue
 		}
-		if stake.IsTSpend(v) {
-			// This is a TSpend, pull values out of block.
-			for _, vv := range v.TxIn {
-				netValue -= vv.ValueIn
-			}
-			continue
-		}
+		netValue += v
 	}
 
 	return ts.Balance + netValue, nil
