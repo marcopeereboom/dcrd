@@ -5,12 +5,13 @@
 package blockchain
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3/chaingen"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
@@ -844,13 +845,14 @@ func TestTreasuryFeaturesDeployment(t *testing.T) {
 	testTreasuryFeaturesDeployment(t, chaincfg.RegNetParams())
 }
 
-func getTipTreasuryState(g *chaingenHarness) (*TreasuryState, error) {
+// getTreasuryState retrieves the treasury state for the provided hash.
+func getTreasuryState(g *chaingenHarness, hash chainhash.Hash) (*TreasuryState, error) {
 	var (
 		tsr *TreasuryState
 		err error
 	)
 	err = g.chain.db.View(func(dbTx database.Tx) error {
-		tsr, err = dbFetchTreasury(dbTx, g.Tip().BlockHash())
+		tsr, err = dbFetchTreasury(dbTx, hash)
 		return err
 	})
 	return tsr, nil
@@ -896,78 +898,94 @@ func TestTreasury(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// ---------------------------------------------------------------------
-	// Create block that has a tadd with change.
+	// Create 10 blocks that has a tadd without change.
 	//
 	//   ... -> b0
 	// ---------------------------------------------------------------------
 
-	outs := g.OldestCoinbaseOuts()
-	b0 := g.NextBlock("b0", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			tx := g.CreateTreasuryTAdd(&outs[0], dcrutil.Amount(1),
-				dcrutil.Amount(1))
-			b.AddSTransaction(tx)
-		})
-	//t.Logf("b0: %v", spew.Sdump(b0))
-	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	blockCount := 10
+	expectedTotal := 0
+	for i := 0; i < blockCount; i++ {
+		amount := i + 1
+		if i < blockCount-int(params.CoinbaseMaturity) {
+			expectedTotal += amount
+		}
+		outs := g.OldestCoinbaseOuts()
+		name := fmt.Sprintf("b%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			func(b *wire.MsgBlock) {
+				tx := g.CreateTreasuryTAdd(&outs[0],
+					dcrutil.Amount(amount),
+					dcrutil.Amount(0))
+				b.AddSTransaction(tx)
+			})
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+	}
 
-	ts, err := getTipTreasuryState(g)
+	ts, err := getTreasuryState(g, g.Tip().BlockHash())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(spew.Sdump(ts))
 
-	// ---------------------------------------------------------------------
-	// Create a block that has a tadd without change
-	//
-	//   ... -> b0 -> b1
-	// ---------------------------------------------------------------------
-
-	outs = g.OldestCoinbaseOuts()
-	b1 := g.NextBlock("b1", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Make sure there is no change.
-			tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount()-1,
-				dcrutil.Amount(1))
-			b.AddSTransaction(tx)
-		})
-	//t.Logf("b1: %v", spew.Sdump(b1))
-	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
-
-	ts, err = getTipTreasuryState(g)
-	if err != nil {
-		t.Fatal(err)
+	if ts.Balance != int64(expectedTotal) {
+		t.Fatalf("invalid balance: total %v expected %v",
+			ts.Balance, expectedTotal)
 	}
-	t.Log(spew.Sdump(ts))
-
-	// ---------------------------------------------------------------------
-	// Create one more block and check treasury balance
-	//
-	//   ... -> b0 -> b1 -> b2
-	// ---------------------------------------------------------------------
-
-	outs = g.OldestCoinbaseOuts()
-	b2 := g.NextBlock("b2", nil, outs[1:], replaceTreasuryVersions,
-		func(b *wire.MsgBlock) {
-			// Make sure there is no change.
-			tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount()-1,
-				dcrutil.Amount(1))
-			b.AddSTransaction(tx)
-		})
-	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
-
-	_ = b0
-	_ = b1
-	_ = b2
-
-	ts, err = getTipTreasuryState(g)
-	if err != nil {
-		t.Fatal(err)
+	if ts.Values[0] != int64(blockCount) {
+		t.Fatalf("invalid Value: total %v expected %v",
+			ts.Balance, expectedTotal)
 	}
-	t.Log(spew.Sdump(ts))
+	//// ---------------------------------------------------------------------
+	//// Create a block that has a tadd without change
+	////
+	////   ... -> b0 -> b1
+	//// ---------------------------------------------------------------------
+
+	//outs = g.OldestCoinbaseOuts()
+	//b1 := g.NextBlock("b1", nil, outs[1:], replaceTreasuryVersions,
+	//	func(b *wire.MsgBlock) {
+	//		// Make sure there is no change.
+	//		tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount()-1,
+	//			dcrutil.Amount(1))
+	//		b.AddSTransaction(tx)
+	//	})
+	////t.Logf("b1: %v", spew.Sdump(b1))
+	//g.SaveTipCoinbaseOuts()
+	//g.AcceptTipBlock()
+
+	//ts, err = getTipTreasuryState(g)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//t.Log(spew.Sdump(ts))
+
+	//// ---------------------------------------------------------------------
+	//// Create one more block and check treasury balance
+	////
+	////   ... -> b0 -> b1 -> b2
+	//// ---------------------------------------------------------------------
+
+	//outs = g.OldestCoinbaseOuts()
+	//b2 := g.NextBlock("b2", nil, outs[1:], replaceTreasuryVersions,
+	//	func(b *wire.MsgBlock) {
+	//		// Make sure there is no change.
+	//		tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount()-1,
+	//			dcrutil.Amount(1))
+	//		b.AddSTransaction(tx)
+	//	})
+	//g.SaveTipCoinbaseOuts()
+	//g.AcceptTipBlock()
+
+	//_ = b0
+	//_ = b1
+	//_ = b2
+
+	//ts, err = getTipTreasuryState(g)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//t.Log(spew.Sdump(ts))
 
 	//g.chain.db.View
 	//g.chain.calculateTreasuryBalance()
