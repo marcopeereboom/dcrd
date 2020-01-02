@@ -15,22 +15,23 @@ const (
 
 // checkTAdd verifies that the provided MsgTx is a valid TADD.
 func checkTAdd(mtx *wire.MsgTx) error {
-	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or more
+	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or 1
 	// stake change outputs.
-
-	// First output must be a TADD
-	if len(mtx.TxOut) == 0 {
+	if !(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
 		return stakeRuleError(ErrTreasuryTAddInvalid,
 			"invalid TADD script")
 	}
+
+	// First output must be a TADD
 	if len(mtx.TxOut[0].PkScript) != 1 ||
 		mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
 		return stakeRuleError(ErrTreasuryTAddInvalid,
 			"invalid TADD script")
 	}
 
-	// Make sure we only have stake change outputs.
-	for _, tx := range mtx.TxOut[1:] {
+	// Up to 1 stake change output allowed.
+	if len(mtx.TxOut) == 2 {
+		tx := mtx.TxOut[1]
 		if txscript.GetScriptClass(tx.Version, tx.PkScript) !=
 			txscript.StakeSubChangeTy {
 			return stakeRuleError(ErrTreasuryTAddInvalid,
