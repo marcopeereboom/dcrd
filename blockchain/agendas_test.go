@@ -905,10 +905,13 @@ func TestTreasury(t *testing.T) {
 
 	blockCount := 10
 	expectedTotal := 0
+	skippedTotal := 0
 	for i := 0; i < blockCount; i++ {
 		amount := i + 1
 		if i < blockCount-int(params.CoinbaseMaturity) {
 			expectedTotal += amount
+		} else {
+			skippedTotal += amount
 		}
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("b%v", i)
@@ -934,245 +937,45 @@ func TestTreasury(t *testing.T) {
 	}
 	if ts.Values[0] != int64(blockCount) {
 		t.Fatalf("invalid Value: total %v expected %v",
+			ts.Values[0], int64(blockCount))
+	}
+
+	// ---------------------------------------------------------------------
+	// Create 10 blocks that has a tadd with change.
+	//
+	//   ... -> b10
+	// ---------------------------------------------------------------------
+
+	expectedTotal += skippedTotal
+	for i := blockCount; i < blockCount*2; i++ {
+		amount := i + 1
+		if i < (blockCount*2)-int(params.CoinbaseMaturity) {
+			expectedTotal += amount
+		}
+		outs := g.OldestCoinbaseOuts()
+		name := fmt.Sprintf("b%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			func(b *wire.MsgBlock) {
+				tx := g.CreateTreasuryTAdd(&outs[0],
+					dcrutil.Amount(amount),
+					dcrutil.Amount(1))
+				b.AddSTransaction(tx)
+			})
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+	}
+
+	ts, err = getTreasuryState(g, g.Tip().BlockHash())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ts.Balance != int64(expectedTotal) {
+		t.Fatalf("invalid balance: total %v expected %v",
 			ts.Balance, expectedTotal)
 	}
-	//// ---------------------------------------------------------------------
-	//// Create a block that has a tadd without change
-	////
-	////   ... -> b0 -> b1
-	//// ---------------------------------------------------------------------
-
-	//outs = g.OldestCoinbaseOuts()
-	//b1 := g.NextBlock("b1", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		// Make sure there is no change.
-	//		tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount()-1,
-	//			dcrutil.Amount(1))
-	//		b.AddSTransaction(tx)
-	//	})
-	////t.Logf("b1: %v", spew.Sdump(b1))
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//ts, err = getTipTreasuryState(g)
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//t.Log(spew.Sdump(ts))
-
-	//// ---------------------------------------------------------------------
-	//// Create one more block and check treasury balance
-	////
-	////   ... -> b0 -> b1 -> b2
-	//// ---------------------------------------------------------------------
-
-	//outs = g.OldestCoinbaseOuts()
-	//b2 := g.NextBlock("b2", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		// Make sure there is no change.
-	//		tx := g.CreateTreasuryTAdd(&outs[0], outs[0].Amount()-1,
-	//			dcrutil.Amount(1))
-	//		b.AddSTransaction(tx)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//_ = b0
-	//_ = b1
-	//_ = b2
-
-	//ts, err = getTipTreasuryState(g)
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//t.Log(spew.Sdump(ts))
-
-	//g.chain.db.View
-	//g.chain.calculateTreasuryBalance()
-
-	// ---------------------------------------------------------------------
-	// Create a number of blocks with tadd up to maturity
-	//
-	//   ... -> b0 -> b1 -> ... -> bN
-	// ---------------------------------------------------------------------
-
-	//t.Logf("%v", params.CoinbaseMaturity)
-	//for i := 2; i < int(params.CoinbaseMaturity-2); i++ {
-	//	outs = g.OldestCoinbaseOuts()
-	//	_ = g.NextBlock(fmt.Sprintf("b%v", i), nil, outs[1:],
-	//		replaceTreasuryVersions, func(b *wire.MsgBlock) {
-	//			tx := g.CreateTreasuryTAdd(&outs[0],
-	//				dcrutil.Amount(1), dcrutil.Amount(1))
-	//			b.AddSTransaction(tx)
-	//		})
-	//	g.SaveTipCoinbaseOuts()
-	//	g.AcceptTipBlock()
-	//}
-
-	//// ---------------------------------------------------------------------
-	//// Create block that involves reorganize to a sequence lock spending
-	//// from an output created in a block prior to the parent also spent on
-	//// on the side chain.
-	////
-	////   ... -> b0 -> b1  -> b2
-	////            \-> b1a
-	//// ---------------------------------------------------------------------
-	//g.SetTip("b0")
-	//g.NextBlock("b1", nil, outs[1:], replaceTreasuryVersions)
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptedToSideChainWithExpectedTip("b1a")
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b2", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		spend := chaingen.MakeSpendableOut(b0, 1, 0)
-	//		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-	//		enableSeqLocks(tx, 0)
-	//		b.AddTransaction(tx)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-	//g.ExpectTip("b2")
-
-	//// ---------------------------------------------------------------------
-	//// Create block that involves a sequence lock on a vote.
-	////
-	////   ... -> b2 -> b3
-	//// ---------------------------------------------------------------------
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b3", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		enableSeqLocks(b.STransactions[0], 0)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//// ---------------------------------------------------------------------
-	//// Create block that involves a sequence lock on a ticket.
-	////
-	////   ... -> b3 -> b4
-	//// ---------------------------------------------------------------------
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b4", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		enableSeqLocks(b.STransactions[5], 0)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//// ---------------------------------------------------------------------
-	//// Create two blocks such that the tip block involves a sequence lock
-	//// spending from a different output of a transaction the parent block
-	//// also spends from.
-	////
-	////   ... -> b4 -> b5 -> b6
-	//// ---------------------------------------------------------------------
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b5", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		spend := chaingen.MakeSpendableOut(b0, 1, 1)
-	//		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-	//		b.AddTransaction(tx)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b6", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		spend := chaingen.MakeSpendableOut(b0, 1, 2)
-	//		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-	//		enableSeqLocks(tx, 0)
-	//		b.AddTransaction(tx)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//// ---------------------------------------------------------------------
-	//// Create block that involves a sequence lock spending from a regular
-	//// tree transaction earlier in the block.  This used to be rejected
-	//// due to a consensus bug, however the fix sequence locks agenda allows
-	//// it to be accepted as desired.
-	////
-	////   ... -> b6 -> b7
-	//// ---------------------------------------------------------------------
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b7", &outs[0], outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		spend := chaingen.MakeSpendableOut(b, 1, 0)
-	//		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-	//		enableSeqLocks(tx, 0)
-	//		b.AddTransaction(tx)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//// ---------------------------------------------------------------------
-	//// Create block that involves a sequence lock spending from a block
-	//// prior to the parent.  This used to be rejected due to a consensus
-	//// bug, however the fix sequence locks agenda allows it to be accepted
-	//// as desired.
-	////
-	////   ... -> b6 -> b8 -> b9
-	//// ---------------------------------------------------------------------
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b8", nil, outs[1:], replaceTreasuryVersions)
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b9", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		spend := chaingen.MakeSpendableOut(b0, 1, 3)
-	//		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-	//		enableSeqLocks(tx, 0)
-	//		b.AddTransaction(tx)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//// ---------------------------------------------------------------------
-	//// Create two blocks such that the tip block involves a sequence lock
-	//// spending from a different output of a transaction the parent block
-	//// also spends from when the parent block has been disapproved.  This
-	//// used to be rejected due to a consensus bug, however the fix sequence
-	//// locks agenda allows it to be accepted as desired.
-	////
-	////   ... -> b8 -> b10 -> b11
-	//// ---------------------------------------------------------------------
-
-	//const (
-	//	// vbDisapprovePrev and vbApprovePrev represent no and yes votes,
-	//	// respectively, on whether or not to approve the previous block.
-	//	vbDisapprovePrev = 0x0000
-	//	vbApprovePrev    = 0x0001
-	//)
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b10", nil, outs[1:], replaceTreasuryVersions,
-	//	func(b *wire.MsgBlock) {
-	//		spend := chaingen.MakeSpendableOut(b0, 1, 4)
-	//		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-	//		b.AddTransaction(tx)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
-
-	//outs = g.OldestCoinbaseOuts()
-	//g.NextBlock("b11", nil, outs[1:], replaceTreasuryVersions,
-	//	chaingen.ReplaceVotes(vbDisapprovePrev, fslVersion),
-	//	func(b *wire.MsgBlock) {
-	//		b.Header.VoteBits &^= vbApprovePrev
-	//		spend := chaingen.MakeSpendableOut(b0, 1, 5)
-	//		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-	//		enableSeqLocks(tx, 0)
-	//		b.AddTransaction(tx)
-	//	})
-	//g.SaveTipCoinbaseOuts()
-	//g.AcceptTipBlock()
+	if ts.Values[0] != int64(blockCount*2) {
+		t.Fatalf("invalid Value: total %v expected %v",
+			ts.Values[0], int64(blockCount)*2)
+	}
 }
