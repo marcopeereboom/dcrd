@@ -194,10 +194,10 @@ func (b *BlockChain) writeTreasury(dbTx database.Tx, block *dcrutil.Block, node 
 	}
 	for _, v := range msgBlock.STransactions {
 		if stake.IsTAdd(v) {
-			// This is a TAdd, pull values out of block.
-			for _, vv := range v.TxOut {
-				ts.Values = append(ts.Values, vv.Value)
-			}
+			// This is a TAdd, pull amount out of TxOut[0].  Note
+			// that TxOut[1], if it exists, contains the change
+			// output. We have to ignore change.
+			ts.Values = append(ts.Values, v.TxOut[0].Value)
 			continue
 		}
 		if stake.IsTSpend(v) {
