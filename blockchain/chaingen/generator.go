@@ -560,6 +560,13 @@ func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.
 	return tx
 }
 
+// addressAmountTuple wraps address+amount in a tuple for easy parameter
+// passing.
+type addressAmountTuple struct {
+	address dcrutil.Address
+	amount  dcrutil.Amount
+}
+
 // CreateTreasuryTSpend creates a new transaction that spends treasury funds to
 // outputs.
 //
@@ -567,29 +574,33 @@ func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.
 // - First output is an OP_TSPEND
 // XXX this is incomplete and incorrect but is used for no to validate treasury
 // accounting.
-func (g *Generator) CreateTreasuryTSpend(ticketTx *wire.MsgTx, ticketBlockHeight, ticketBlockIndex uint32, amount dcrutil.Amount) *wire.MsgTx {
-	// The third and subsequent outputs pay the original commitment amounts
-	// along with the appropriate portion of the vote subsidy.  This impl
-	// uses the standard pay-to-script-hash to an OP_TRUE.
-	stakeGenScript, err := txscript.PayToSSGen(g.p2shOpTrueAddr)
-	if err != nil {
-		panic(err)
+func (g *Generator) CreateTreasuryTSpend(ticketBlockHeight, ticketBlockIndex uint32, payouts []addressAmountTuple, fee dcrutil.Amount) *wire.MsgTx {
+	// Calculate total payout.
+	totalPayout := int64(0)
+	for _, v := range payouts {
+		totalPayout += int64(v.amount)
 	}
 
-	ticketHash := ticketTx.CachedTxHash()
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
-		PreviousOutPoint: *wire.NewOutPoint(ticketHash, 0,
-			wire.TxTreeStake),
-		Sequence:        wire.MaxTxInSequenceNum,
-		ValueIn:         int64(0), // XXX is this right
-		BlockHeight:     ticketBlockHeight,
-		BlockIndex:      ticketBlockIndex,
-		SignatureScript: opTrueRedeemScript,
+		// Coinbase transactions have no inputs, so previous outpoint is
+		// zero hash and max index.
+		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+			wire.MaxPrevOutIndex, wire.TxTreeStake), // XXX think about TxTreeStake
+		Sequence:    wire.MaxTxInSequenceNum,
+		ValueIn:     int64(fee) + totalPayout,
+		BlockHeight: wire.NullBlockHeight,
+		BlockIndex:  wire.NullBlockIndex,
+		//SignatureScript: coinbaseSigScript,
+		SignatureScript: []byte{txscript.OP_TSPEND},
 	})
-	tx.AddTxOut(wire.NewTxOut(int64(0),
-		[]byte{txscript.OP_TSPEND}))
-	tx.AddTxOut(wire.NewTxOut(int64(amount), stakeGenScript))
+
+	// Create output TX' for all payouts.
+	// XXX add address
+	for _, v := range payouts {
+		tx.AddTxOut(wire.NewTxOut(int64(v.amount),
+			g.p2shOpTrueScript))
+	}
 	return tx
 }
 
