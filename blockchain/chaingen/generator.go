@@ -560,6 +560,39 @@ func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.
 	return tx
 }
 
+// CreateTreasuryTSpend creates a new transaction that spends treasury funds to
+// outputs.
+//
+// The transaction consists of the following outputs:
+// - First output is an OP_TSPEND
+// XXX this is incomplete and incorrect but is used for no to validate treasury
+// accounting.
+func (g *Generator) CreateTreasuryTSpend(ticketTx *wire.MsgTx, ticketBlockHeight, ticketBlockIndex uint32, amount dcrutil.Amount) *wire.MsgTx {
+	// The third and subsequent outputs pay the original commitment amounts
+	// along with the appropriate portion of the vote subsidy.  This impl
+	// uses the standard pay-to-script-hash to an OP_TRUE.
+	stakeGenScript, err := txscript.PayToSSGen(g.p2shOpTrueAddr)
+	if err != nil {
+		panic(err)
+	}
+
+	ticketHash := ticketTx.CachedTxHash()
+	tx := wire.NewMsgTx()
+	tx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: *wire.NewOutPoint(ticketHash, 0,
+			wire.TxTreeStake),
+		Sequence:        wire.MaxTxInSequenceNum,
+		ValueIn:         int64(0), // XXX is this right
+		BlockHeight:     ticketBlockHeight,
+		BlockIndex:      ticketBlockIndex,
+		SignatureScript: opTrueRedeemScript,
+	})
+	tx.AddTxOut(wire.NewTxOut(int64(0),
+		[]byte{txscript.OP_TSPEND}))
+	tx.AddTxOut(wire.NewTxOut(int64(amount), stakeGenScript))
+	return tx
+}
+
 // isTicketPurchaseTx returns whether or not the passed transaction is a stake
 // ticket purchase.
 //

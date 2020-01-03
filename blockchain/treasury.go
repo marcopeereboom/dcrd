@@ -164,6 +164,7 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 	var netValue int64
 	for _, v := range wts.Values {
 		if v < 0 {
+			// XXX why are we not subtracting TSPEND here?
 			continue
 		}
 		netValue += v
