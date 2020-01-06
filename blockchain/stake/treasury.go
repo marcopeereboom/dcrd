@@ -53,17 +53,23 @@ func IsTAdd(tx *wire.MsgTx) bool {
 func checkTSpend(mtx *wire.MsgTx) error {
 	// XXX this is not right but we need a stub
 
-	// A TSPEND consists of one OP_TSPEND in PkScript[0] followed by a
-	// signature of sorts.
-	// The remaining outputs should be of the stake gen type.
+	// A TSPEND consists of one OP_TSPEND in PkScript[0] followed by 1 or
+	// more stake change outputs.
+	if !(len(mtx.TxIn) < 2) {
+		return stakeRuleError(ErrTreasuryTAddInvalid,
+			"invalid TSPEND script")
+	}
 
-	// First output must be a TSPEND
-	if len(mtx.TxOut) == 0 {
+	// A TSPEND consists of one OP_TSPEND in SignatureScript[0] followed by
+	// one or more normal signature scripts.
+
+	// First input must be a TSPEND
+	if len(mtx.TxIn) == 0 {
 		return stakeRuleError(ErrTreasuryTSpendInvalid,
 			"invalid TSPEND script")
 	}
-	if len(mtx.TxOut[0].PkScript) != 1 ||
-		mtx.TxOut[0].PkScript[0] != txscript.OP_TSPEND {
+	if len(mtx.TxIn[0].SignatureScript) != 1 ||
+		mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND {
 		return stakeRuleError(ErrTreasuryTSpendInvalid,
 			"invalid TSPEND script")
 	}
