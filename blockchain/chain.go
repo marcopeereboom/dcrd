@@ -532,18 +532,18 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			node.height, prevHash, tip.hash, tip.height)
 	}
 
-	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block) {
-		panicf("provided %v stxos for block %v (height %v) which spends %v "+
-			"outputs", len(stxos), node.hash, node.height,
-			countSpentOutputs(block))
-	}
-
 	// Determine if treasury is active. This really shouldn't fail and
 	// maybe we should consider a panic.
 	treasuryFeaturesActive, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
+	}
+
+	// Sanity check the correct number of stxos are provided.
+	if len(stxos) != countSpentOutputs(block) {
+		panicf("provided %v stxos for block %v (height %v) which spends %v "+
+			"outputs", len(stxos), node.hash, node.height,
+			countSpentOutputs(block))
 	}
 
 	// Write any modified block index entries to the database before
@@ -881,6 +881,12 @@ func countSpentStakeOutputs(block *dcrutil.Block) int {
 			numSpent++
 			continue
 		}
+
+		// Exclude TSpend.
+		if stake.IsTSpend(stx) {
+			continue
+		}
+
 		numSpent += len(stx.TxIn)
 	}
 	return numSpent

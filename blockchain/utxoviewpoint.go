@@ -385,9 +385,15 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	// if a slice was provided for the spent txout details, append an entry
 	// to it.
 	isVote := stake.IsSSGen(msgTx)
+	isTSpend := stake.IsTSpend(msgTx)
 	for txInIdx, txIn := range msgTx.TxIn {
 		// Ignore stakebase since it has no input.
 		if isVote && txInIdx == 0 {
+			continue
+		}
+
+		// Ignore TSpend since it has no input.
+		if isTSpend && txInIdx == 0 {
 			continue
 		}
 
