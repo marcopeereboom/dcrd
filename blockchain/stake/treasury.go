@@ -74,6 +74,12 @@ func checkTSpend(mtx *wire.MsgTx) error {
 			"invalid TSPEND script")
 	}
 
+	// Check all scripts.
+	for k := range mtx.TxIn[1:] {
+		// check mtx.TxIn[k] is p2sh
+		_ = k
+	}
+
 	// XXX add more rules here
 
 	return nil
