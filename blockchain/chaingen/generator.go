@@ -560,11 +560,11 @@ func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.
 	return tx
 }
 
-// addressAmountTuple wraps address+amount in a tuple for easy parameter
+// AddressAmountTuple wraps address+amount in a tuple for easy parameter
 // passing.
-type addressAmountTuple struct {
-	address dcrutil.Address
-	amount  dcrutil.Amount
+type AddressAmountTuple struct {
+	Address dcrutil.Address
+	Amount  dcrutil.Amount
 }
 
 // CreateTreasuryTSpend creates a new transaction that spends treasury funds to
@@ -574,11 +574,11 @@ type addressAmountTuple struct {
 // - First output is an OP_TSPEND
 // XXX this is incomplete and incorrect but is used for no to validate treasury
 // accounting.
-func (g *Generator) CreateTreasuryTSpend(ticketBlockHeight, ticketBlockIndex uint32, payouts []addressAmountTuple, fee dcrutil.Amount) *wire.MsgTx {
+func (g *Generator) CreateTreasuryTSpend(payouts []AddressAmountTuple, fee dcrutil.Amount) *wire.MsgTx {
 	// Calculate total payout.
 	totalPayout := int64(0)
 	for _, v := range payouts {
-		totalPayout += int64(v.amount)
+		totalPayout += int64(v.Amount)
 	}
 
 	tx := wire.NewMsgTx()
@@ -598,7 +598,7 @@ func (g *Generator) CreateTreasuryTSpend(ticketBlockHeight, ticketBlockIndex uin
 	// Create output TX' for all payouts.
 	// XXX add address
 	for _, v := range payouts {
-		tx.AddTxOut(wire.NewTxOut(int64(v.amount),
+		tx.AddTxOut(wire.NewTxOut(int64(v.Amount),
 			g.p2shOpTrueScript))
 	}
 	return tx

@@ -978,4 +978,46 @@ func TestTreasury(t *testing.T) {
 		t.Fatalf("invalid Value: total %v expected %v",
 			ts.Values[0], int64(blockCount)*2)
 	}
+
+	// ---------------------------------------------------------------------
+	// Create 10 blocks that has a tspend
+	//
+	//   ... -> b20
+	// ---------------------------------------------------------------------
+
+	expectedTotal += skippedTotal
+	for i := blockCount; i < blockCount*2; i++ {
+		amount := i + 1
+		if i < (blockCount*2)-int(params.CoinbaseMaturity) {
+			expectedTotal -= amount
+		}
+		outs := g.OldestCoinbaseOuts()
+		name := fmt.Sprintf("b%v", i+blockCount*2)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			func(b *wire.MsgBlock) {
+				tx := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+					{
+						Amount: dcrutil.Amount(amount),
+					},
+				},
+					dcrutil.Amount(1)) // fee
+				b.AddSTransaction(tx)
+			})
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+	}
+
+	ts, err = getTreasuryState(g, g.Tip().BlockHash())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ts.Balance != int64(expectedTotal) {
+		t.Fatalf("invalid balance: total %v expected %v",
+			ts.Balance, expectedTotal)
+	}
+	if ts.Values[0] != int64(blockCount*2) {
+		t.Fatalf("invalid Value: total %v expected %v",
+			ts.Values[0], int64(blockCount)*2)
+	}
 }
