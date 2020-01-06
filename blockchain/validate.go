@@ -2178,20 +2178,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 		}
 	}
 
-	// XXX Scan all scripts for TADD/TSPEND. This must execute regardless
-	// of runScripts being disabled. We run this last so that we do not
-	// have to deal with unwinding treasury state.
-	//treasuryFeaturesActive, err := b.isTreasuryAgendaActive(node.parent)
-	//if err != nil {
-	//	return err
-	//}
-	//if treasuryFeaturesActive {
-	//	err = b.updateTreasury(block)
-	//	if err != nil {
-	//		log.Tracef("updateTreasury failed: %v", err)
-	//		return err
-	//	}
-	//}
+	// Perform additional checks on TSpend transactions.
+	isTSpend := stake.IsTSpend(msgTx)
 
 	// -------------------------------------------------------------------
 	// Decred general transaction testing (and a few stake exceptions).
@@ -2207,6 +2195,12 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 			stakeVoteSubsidy := subsidyCache.CalcStakeVoteSubsidy(
 				int64(heightVotingOn))
 			totalAtomIn += stakeVoteSubsidy
+			continue
+		}
+
+		// idx can only be 0 in this case but check it anyway.
+		if isTSpend && idx == 0 {
+			totalAtomIn += txIn.ValueIn
 			continue
 		}
 
@@ -2493,6 +2487,11 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		return 0, nil
 	}
 
+	// TSpend has no additional inputs.
+	if stake.IsTSpend(tx.MsgTx()) {
+		return 0, nil
+	}
+
 	// Accumulate the number of signature operations in all transaction
 	// inputs.
 	msgTx := tx.MsgTx()
@@ -2714,10 +2713,16 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
 		isSSGen := stake.IsSSGen(msgTx)
+		isTSpend := stake.IsTSpend(msgTx)
 
 		for i, in := range msgTx.TxIn {
 			// Ignore stakebases.
 			if isSSGen && i == 0 {
+				continue
+			}
+
+			// Ignore TSpend.
+			if isTSpend && i == 0 {
 				continue
 			}
 
@@ -2746,9 +2751,14 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 			// with the height of the current block.
 			totalOutputs -= subsidyCache.CalcStakeVoteSubsidy(height - 1)
 		}
+
+		if isTSpend {
+			totalOutputs -= msgTx.TxIn[0].ValueIn
+		}
 	}
 
 	if totalInputs < totalOutputs {
+		panic(fmt.Sprintf("in %v out %v", totalInputs, totalOutputs))
 		str := fmt.Sprintf("negative cumulative fees found in stake " +
 			"tx tree")
 		return 0, ruleError(ErrStakeFees, str)
