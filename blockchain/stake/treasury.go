@@ -64,6 +64,14 @@ func checkTSpend(mtx *wire.MsgTx) error {
 			"invalid TSPEND script")
 	}
 
+	// Check to make sure that all output scripts are the consensus version.
+	for _, txOut := range mtx.TxOut {
+		if txOut.Version != consensusVersion {
+			return stakeRuleError(ErrTreasuryTSpendInvalid,
+				"invalid script version found in txOut")
+		}
+	}
+
 	// Verify there is a TSPEND in SignatureScript.
 	if len(mtx.TxIn[0].SignatureScript) != 1 ||
 		mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND {
@@ -71,14 +79,8 @@ func checkTSpend(mtx *wire.MsgTx) error {
 			"invalid TSPEND script")
 	}
 
-	// Check to make sure that all output scripts are the consensus version.
+	// Verify that the TxOut's contains P2SH scripts.
 	for _, txOut := range mtx.TxOut {
-		if txOut.Version != consensusVersion {
-			return stakeRuleError(ErrTreasuryTSpendInvalid,
-				"invalid script version found in txOut")
-		}
-
-		// Verify that the TxOut's contains P2SH scripts.
 		sc := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
 		if !(sc == txscript.ScriptHashTy || sc == txscript.PubKeyHashTy) {
 			return stakeRuleError(ErrTreasuryTSpendInvalid,
