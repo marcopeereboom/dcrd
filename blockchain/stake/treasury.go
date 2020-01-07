@@ -29,7 +29,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 			"invalid TADD script")
 	}
 
-	// Up to 1 stake change output allowed.
+	// only 1 stake change output allowed.
 	if len(mtx.TxOut) == 2 {
 		tx := mtx.TxOut[1]
 		if txscript.GetScriptClass(tx.Version, tx.PkScript) !=
@@ -39,7 +39,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 		}
 	}
 
-	// XXX add more rules here
+	// XXX add TxIn rules here
 
 	return nil
 }
@@ -53,16 +53,33 @@ func IsTAdd(tx *wire.MsgTx) bool {
 func checkTSpend(mtx *wire.MsgTx) error {
 	// XXX this is not right but we need a stub
 
-	// A TSPEND consists of one OP_TSPEND in PkScript[0].
-	if !(len(mtx.TxIn) == 1) {
+	// A TSPEND consists of one OP_TSPEND in TxIn[0].SignatureScript and
+	// least P2SH TxOut script.
+	if len(mtx.TxIn) != 1 || len(mtx.TxOut) <= 0 {
 		return stakeRuleError(ErrTreasuryTAddInvalid,
 			"invalid TSPEND script")
 	}
 
+	// Verify there is a TSPEND in SignatureScript.
 	if len(mtx.TxIn[0].SignatureScript) != 1 ||
 		mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND {
 		return stakeRuleError(ErrTreasuryTSpendInvalid,
 			"invalid TSPEND script")
+	}
+
+	// Check to make sure that all output scripts are the consensus version.
+	for _, txOut := range mtx.TxOut {
+		if txOut.Version != consensusVersion {
+			return stakeRuleError(ErrTreasuryTSpendInvalid,
+				"invalid script version found in txOut")
+		}
+
+		// Verify that the TxOut's contains P2SH scripts.
+		if txscript.GetScriptClass(txOut.Version, txOut.PkScript) !=
+			txscript.ScriptHashTy {
+			return stakeRuleError(ErrTreasuryTSpendInvalid,
+				"Output is not P2SH")
+		}
 	}
 
 	// XXX add more rules here
