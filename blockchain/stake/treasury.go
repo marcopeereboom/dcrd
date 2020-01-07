@@ -18,6 +18,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 			"invalid TADD script")
 	}
 
+	// Verify all TxOut script versions.
 	for k := range mtx.TxOut {
 		if mtx.TxOut[k].Version != consensusVersion {
 			return stakeRuleError(ErrTreasuryTSpendInvalid,
