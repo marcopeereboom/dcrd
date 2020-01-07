@@ -9,10 +9,6 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-const (
-	MaxOutputsPerTAdd = 1
-)
-
 // checkTAdd verifies that the provided MsgTx is a valid TADD.
 func checkTAdd(mtx *wire.MsgTx) error {
 	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or 1
@@ -20,6 +16,13 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	if !(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
 		return stakeRuleError(ErrTreasuryTAddInvalid,
 			"invalid TADD script")
+	}
+
+	for k := range mtx.TxOut {
+		if mtx.TxOut[k].Version != consensusVersion {
+			return stakeRuleError(ErrTreasuryTSpendInvalid,
+				"invalid script version found in TADD TxOut")
+		}
 	}
 
 	// First output must be a TADD
@@ -39,7 +42,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 		}
 	}
 
-	// XXX add TxIn rules here
+	// XXX add more rules here
 
 	return nil
 }
@@ -75,8 +78,8 @@ func checkTSpend(mtx *wire.MsgTx) error {
 		}
 
 		// Verify that the TxOut's contains P2SH scripts.
-		if txscript.GetScriptClass(txOut.Version, txOut.PkScript) !=
-			txscript.ScriptHashTy {
+		sc := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+		if !(sc == txscript.ScriptHashTy || sc == txscript.PubKeyHashTy) {
 			return stakeRuleError(ErrTreasuryTSpendInvalid,
 				"Output is not P2SH")
 		}
