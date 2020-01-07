@@ -163,10 +163,6 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 	// TSpend.
 	var netValue int64
 	for _, v := range wts.Values {
-		if v < 0 {
-			// XXX why are we not subtracting TSPEND here?
-			continue
-		}
 		netValue += v
 	}
 
@@ -196,8 +192,8 @@ func (b *BlockChain) writeTreasury(dbTx database.Tx, block *dcrutil.Block, node 
 		}
 		if stake.IsTSpend(v) {
 			// This is a TSpend, pull values out of block.
-			for _, vv := range v.TxIn {
-				ts.Values = append(ts.Values, -vv.ValueIn)
+			for _, vv := range v.TxOut {
+				ts.Values = append(ts.Values, -vv.Value)
 			}
 			continue
 		}
