@@ -980,21 +980,25 @@ func TestTreasury(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
-	// Create 10 blocks that has a tspend
+	// Create 20 blocks that has a tspend and params.CoinbaseMaturity more
+	// to bring treasury balance back to 0.
 	//
 	//   ... -> b20
 	// ---------------------------------------------------------------------
 
-	expectedTotal += skippedTotal
-	for i := blockCount; i < blockCount*2; i++ {
+	for i := 0; i < blockCount*2+int(params.CoinbaseMaturity); i++ {
 		amount := i + 1
-		if i < (blockCount*2)-int(params.CoinbaseMaturity) {
-			expectedTotal -= amount
+		if i > (blockCount * 2) {
+			// skip last CoinbaseMaturity blocks
+			amount = 0
 		}
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("b%v", i+blockCount*2)
 		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			func(b *wire.MsgBlock) {
+				if amount == 0 {
+					return
+				}
 				tx := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
 					{
 						Amount: dcrutil.Amount(amount),
@@ -1012,12 +1016,8 @@ func TestTreasury(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if ts.Balance != int64(expectedTotal) {
+	if ts.Balance != int64(0) {
 		t.Fatalf("invalid balance: total %v expected %v",
-			ts.Balance, expectedTotal)
-	}
-	if ts.Values[0] != int64(blockCount*2) {
-		t.Fatalf("invalid Value: total %v expected %v",
-			ts.Values[0], int64(blockCount)*2)
+			ts.Balance, 0)
 	}
 }
