@@ -740,9 +740,6 @@ func (b *BlockChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
-	// Determine the correct deployment version for the fix sequence locks
-	// consensus vote as defined in DCP0004 or treat it as active when voting
-	// is not enabled for the current network.
 	const deploymentID = chaincfg.VoteIDTreasury
 	deploymentVer, ok := b.deploymentVers[deploymentID]
 	if !ok {
