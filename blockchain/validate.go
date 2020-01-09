@@ -312,9 +312,8 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	// stake opcodes.
 	isTicket := !isVote && stake.IsSStx(tx)
 	isRevocation := !isVote && !isTicket && stake.IsSSRtx(tx)
-	isTreasury := !isVote && !isTicket && !isRevocation &&
-		(stake.IsTAdd(tx) || stake.IsTSpend(tx))
-	isStakeTx := isVote || isTicket || isRevocation || isTreasury
+	isTAdd := !isRevocation && stake.IsTAdd(tx)
+	isStakeTx := isVote || isTicket || isRevocation || isTAdd
 	var totalAtom int64
 	for txOutIdx, txOut := range tx.TxOut {
 		atom := txOut.Value
