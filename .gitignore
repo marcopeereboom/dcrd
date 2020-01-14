@@ -44,3 +44,4 @@ cmd/promptsecret/promptsecret
 
 # Vim
 *.sw*
+Session.vim
