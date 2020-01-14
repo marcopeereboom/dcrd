@@ -903,6 +903,16 @@ func TestStringifyClass(t *testing.T) {
 			stringed: "nulldata",
 		},
 		{
+			name:     "treasuryadd",
+			class:    TreasuryAddTy,
+			stringed: "treasuryadd",
+		},
+		{
+			name:     "treasuryspend",
+			class:    TreasurySpendTy,
+			stringed: "treasuryspend",
+		},
+		{
 			name:     "broken",
 			class:    ScriptClass(255),
 			stringed: "Invalid",
