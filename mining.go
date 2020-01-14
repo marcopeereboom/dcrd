@@ -668,47 +668,6 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool 
 	return !missingInput
 }
 
-// maybeInsertTAdd checks to make sure that a tx is a valid TAdd
-// from the perspective of the mainchain (not necessarily
-// the mempool or block) before inserting into a tx tree.
-// If it fails the check, it returns false; otherwise true.
-func maybeInsertTAdd(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool {
-	missingInput := false
-
-	view, err := bm.cfg.Chain.FetchUtxoView(stx, treeValid)
-	if err != nil {
-		minrLog.Warnf("Unable to fetch transaction store for "+
-			"tadd %s: %v", stx.Hash(), err)
-		return false
-	}
-	mstx := stx.MsgTx()
-	//isTAdd := stake.IsTAdd(mstx)
-	for _, txIn := range mstx.TxIn {
-		// Evaluate if this is a stakebase input or not. If it
-		// is, continue without evaluation of the input.
-		// if isStakeBase
-		//if isSSGen && (i == 0) {
-		//	txIn.BlockHeight = wire.NullBlockHeight
-		//	txIn.BlockIndex = wire.NullBlockIndex
-
-		//	continue
-		//}
-
-		originHash := &txIn.PreviousOutPoint.Hash
-		utxIn := view.LookupEntry(originHash)
-		if utxIn == nil {
-			missingInput = true
-			break
-		} else {
-			originIdx := txIn.PreviousOutPoint.Index
-			txIn.ValueIn = utxIn.AmountByIndex(originIdx)
-			txIn.BlockHeight = uint32(utxIn.BlockHeight())
-			txIn.BlockIndex = utxIn.BlockIndex()
-		}
-	}
-	return !missingInput
-}
-
 // handleTooFewVoters handles the situation in which there are too few voters on
 // of the blockchain. If there are too few voters and a cached parent template to
 // work off of is present, it will return a copy of that template to pass to the
@@ -1427,9 +1386,6 @@ mempoolLoop:
 		if isSSGen {
 			foundWinningTickets[tx.MsgTx().TxIn[1].PreviousOutPoint.Hash] = true
 		}
-		//if isTAdd {
-		//	numTreasury++
-		//}
 
 		txFeesMap[*tx.Hash()] = prioItem.fee
 		txSigOpCountsMap[*tx.Hash()] = numSigOps
@@ -1614,13 +1570,12 @@ mempoolLoop:
 	for _, tx := range blockTxns {
 		msgTx := tx.MsgTx()
 		if tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx) {
-			var wasTAdd bool
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
 				blockTxnsStake = append(blockTxnsStake, txCopy)
-				wasTAdd = true
+				minrLog.Tracef("maybeInsertStakeTx TADD %v ",
+					tx.Hash())
 			}
-			minrLog.Tracef("maybeInsertTAdd %v %v", tx.Hash(), wasTAdd)
 		}
 	}
 
@@ -1872,9 +1827,14 @@ mempoolLoop:
 		}
 	}
 
+	totalTreasuryOps := 0
 	for _, tx := range blockTxnsStake {
 		if err := msgBlock.AddSTransaction(tx.MsgTx()); err != nil {
 			return nil, miningRuleError(ErrTransactionAppend, err.Error())
+		}
+		// While in this loop count treasury operations
+		if stake.IsTAdd(tx.MsgTx()) {
+			totalTreasuryOps++
 		}
 	}
 
@@ -1916,11 +1876,13 @@ mempoolLoop:
 		return nil, miningRuleError(ErrCheckConnectBlock, str)
 	}
 
+	// XXX treasury fees are NOT included yet
 	minrLog.Debugf("Created new block template (%d transactions, %d "+
-		"stake transactions, %d in fees, %d signature operations, "+
-		"%d bytes, target difficulty %064x, stake difficulty %v)",
+		"stake transactions, %d treasury transactions, %d in fees,"+
+		"%d signature operations, %d bytes, target difficulty %064x,"+
+		" stake difficulty %v)",
 		len(msgBlock.Transactions), len(msgBlock.STransactions),
-		totalFees, blockSigOps, blockSize,
+		totalTreasuryOps, totalFees, blockSigOps, blockSize,
 		standalone.CompactToBig(msgBlock.Header.Bits),
 		dcrutil.Amount(msgBlock.Header.SBits).ToCoin())
 

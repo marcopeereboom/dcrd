@@ -2451,6 +2451,7 @@ func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool) int {
 		if isSSGen && i == 0 {
 			continue
 		}
+		// XXX ad TGen here
 
 		numSigOps := txscript.GetSigOpCount(txIn.SignatureScript)
 		totalSigOps += numSigOps
