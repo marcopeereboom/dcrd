@@ -799,14 +799,10 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// A block must not contain anything other than ticket purchases prior to
 	// stake validation height.
 	//
-	// NOTE: This case is impossible to hit at this point at the time this
-	// comment was written since the votes and revocations have already been
-	// proven to be zero before stake validation height and the only other
-	// type at the current time is ticket purchases, however, if another
-	// stake type is ever added, consensus would break without this check.
-	// It's better to be safe and it's a cheap check.
+	// Note that we allow treasury operationsbefore stakeValidationHeight.
 	if header.Height < stakeValidationHeight {
-		if int64(len(msgBlock.STransactions)) != totalTickets {
+		if int64(len(msgBlock.STransactions)) != totalTickets &&
+			int64(len(msgBlock.STransactions)) != totalTreasury {
 			errStr := fmt.Sprintf("block contains stake "+
 				"transactions other than ticket purchases before "+
 				"stake validation height %d (total: %d, expected %d)",
