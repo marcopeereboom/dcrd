@@ -1832,7 +1832,7 @@ mempoolLoop:
 		if err := msgBlock.AddSTransaction(tx.MsgTx()); err != nil {
 			return nil, miningRuleError(ErrTransactionAppend, err.Error())
 		}
-		// While in this loop count treasury operations
+		// While in this loop count treasury operations.
 		if stake.IsTAdd(tx.MsgTx()) {
 			totalTreasuryOps++
 		}

@@ -1145,6 +1145,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 			// Ignore the error here since an error means the script
 			// couldn't parse and there is no additional information
 			// about it anyways.
+			// XXX teach ExtractPkScriptAddrs about TADD
 			var sc txscript.ScriptClass
 			sc, addrs, reqSigs, _ = txscript.ExtractPkScriptAddrs(
 				v.Version, v.PkScript, chainParams)

@@ -996,6 +996,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		tx.SetTree(wire.TxTreeStake)
 	}
 	isVote := txType == stake.TxTypeSSGen
+	isTSpend := txType == stake.TxTypeTSpend
 
 	// Choose whether or not to accept transactions with sequence locks enabled.
 	//
@@ -1029,6 +1030,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			"block height %d)", stakeValidationHeight, nextBlockHeight)
 		return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
 	}
+	// XXX add check for TSPEN/TADD here too.
 
 	// Reject revocations before they can possibly be valid.  A vote must be
 	// missed for a revocation to be valid and votes are not allowed until stake
@@ -1169,7 +1171,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Transaction is an orphan if any of the inputs don't exist.
 	var missingParents []*chainhash.Hash
 	for i, txIn := range msgTx.TxIn {
-		if i == 0 && isVote {
+		if i == 0 && isVote || isTSpend /* XXX this is wrong */ {
 			continue
 		}
 
