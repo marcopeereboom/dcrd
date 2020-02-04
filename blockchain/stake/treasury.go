@@ -57,8 +57,8 @@ func IsTAdd(tx *wire.MsgTx) bool {
 func checkTSpend(mtx *wire.MsgTx) error {
 	// XXX this is not right but we need a stub
 
-	// A TSPEND consists of one OP_TSPEND in TxIn[0].SignatureScript and
-	// least P2SH TxOut script.
+	// A TSPEND consists of one OP_TSPEND in TxIn[0].SignatureScript,
+	// one OP_RETURN transaction hash and at least one P2PH TxOut script.
 	if len(mtx.TxIn) != 1 || len(mtx.TxOut) <= 0 {
 		return stakeRuleError(ErrTreasuryTAddInvalid,
 			"invalid TSPEND script")
@@ -79,12 +79,23 @@ func checkTSpend(mtx *wire.MsgTx) error {
 			"invalid TSPEND script")
 	}
 
-	// Verify that the TxOut's contains P2SH scripts.
-	for _, txOut := range mtx.TxOut {
+	// Verify that the TxOut's contains P2PH scripts.
+	for k, txOut := range mtx.TxOut {
+		if k == 0 {
+			// Check for OP_RETURN
+			if txscript.GetScriptClass(txOut.Version, txOut.PkScript) !=
+				txscript.NullDataTy {
+				return stakeRuleError(ErrSSGenNoReference,
+					"First TSPEND output should have been "+
+						"an OP_RETURN data push, but "+
+						"was not")
+			}
+			continue
+		}
 		sc := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
 		if !(sc == txscript.ScriptHashTy || sc == txscript.PubKeyHashTy) {
 			return stakeRuleError(ErrTreasuryTSpendInvalid,
-				"Output is not P2SH")
+				"Output is not P2PH")
 		}
 	}
 
