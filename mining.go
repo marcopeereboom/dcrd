@@ -1082,6 +1082,8 @@ mempoolLoop:
 			}
 		}
 
+		isTSpend := txDesc.Type == stake.TxTypeTSpend
+
 		// Fetch all of the utxos referenced by the this transaction.
 		// NOTE: This intentionally does not fetch inputs from the
 		// mempool since a transaction which depends on other
@@ -1101,7 +1103,7 @@ mempoolLoop:
 			// Evaluate if this is a stakebase input or not. If it is, continue
 			// without evaluation of the input.
 			// if isStakeBase
-			if isSSGen && (i == 0) {
+			if (i == 0 && isSSGen) || isTSpend {
 				continue
 			}
 
@@ -1208,6 +1210,9 @@ mempoolLoop:
 
 		// Store if this is an SSRtx or not.
 		isTAdd := prioItem.txType == stake.TxTypeTAdd
+
+		// Store if this is an SSRtx or not.
+		isTSpend := prioItem.txType == stake.TxTypeTSpend
 
 		// Grab the list of transactions which depend on this one (if any).
 		deps := dependers[*tx.Hash()]
@@ -1390,9 +1395,10 @@ mempoolLoop:
 		txFeesMap[*tx.Hash()] = prioItem.fee
 		txSigOpCountsMap[*tx.Hash()] = numSigOps
 
-		minrLog.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f isTAdd %v)",
+		minrLog.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f "+
+			"isTAdd %v isTSpend %v)",
 			prioItem.tx.Hash(), prioItem.priority, prioItem.feePerKB,
-			isTAdd)
+			isTAdd, isTSpend)
 
 		// Add transactions which depend on this one (and also do not
 		// have any other unsatisfied dependencies) to the priority
@@ -1834,6 +1840,8 @@ mempoolLoop:
 		}
 		// While in this loop count treasury operations.
 		if stake.IsTAdd(tx.MsgTx()) {
+			totalTreasuryOps++
+		} else if stake.IsTSpend(tx.MsgTx()) {
 			totalTreasuryOps++
 		}
 	}
