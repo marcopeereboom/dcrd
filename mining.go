@@ -642,11 +642,12 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool 
 	}
 	mstx := stx.MsgTx()
 	isSSGen := stake.IsSSGen(mstx)
+	isTSpend := stake.IsTSpend(mstx)
 	for i, txIn := range mstx.TxIn {
 		// Evaluate if this is a stakebase input or not. If it
 		// is, continue without evaluation of the input.
 		// if isStakeBase
-		if isSSGen && (i == 0) {
+		if (i == 0 && isSSGen) || isTSpend {
 			txIn.BlockHeight = wire.NullBlockHeight
 			txIn.BlockIndex = wire.NullBlockIndex
 
@@ -1572,14 +1573,25 @@ mempoolLoop:
 		}
 	}
 
-	// Insert TAdd transactions.
-	for _, tx := range blockTxns {
+	// Insert TAdd/TSpend transactions.
+	for k, tx := range blockTxns {
 		msgTx := tx.MsgTx()
+		minrLog.Tracef("%v: %v %v", k,
+			tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx),
+			tx.Tree() == wire.TxTreeStake && stake.IsTSpend(msgTx))
+
 		if tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx) {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
 				blockTxnsStake = append(blockTxnsStake, txCopy)
 				minrLog.Tracef("maybeInsertStakeTx TADD %v ",
+					tx.Hash())
+			}
+		} else if tx.Tree() == wire.TxTreeStake && stake.IsTSpend(msgTx) {
+			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
+				blockTxnsStake = append(blockTxnsStake, txCopy)
+				minrLog.Tracef("maybeInsertStakeTx TSPEND %v ",
 					tx.Hash())
 			}
 		}
