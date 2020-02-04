@@ -804,7 +804,8 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) error {
 	for i, txIn := range tx.MsgTx().TxIn {
 		// We don't care about double spends of stake bases.
-		if i == 0 && (txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx) {
+		if (i == 0 && (txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx)) ||
+			txType == stake.TxTypeTSpend {
 			continue
 		}
 
@@ -1171,7 +1172,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Transaction is an orphan if any of the inputs don't exist.
 	var missingParents []*chainhash.Hash
 	for i, txIn := range msgTx.TxIn {
-		if i == 0 && isVote || isTSpend /* XXX this is wrong */ {
+		if (i == 0 && isVote) || isTSpend {
 			continue
 		}
 
