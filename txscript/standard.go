@@ -1329,11 +1329,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return TreasuryAddTy, nil, 0, nil
 	}
 
-	// Check for TSPEND
-	if isTreasurySpendScript(version, pkScript) {
-		return TreasurySpendTy, nil, 0, nil
-	}
-
 	// Don't attempt to extract addresses or required signatures for nonstandard
 	// transactions.
 	return NonStandardTy, nil, 0, nil
