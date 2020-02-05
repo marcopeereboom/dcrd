@@ -66,7 +66,7 @@ func IsPushOnlyScript(script []byte) bool {
 // opcodes. This includes treasury opcodes.
 func isStakeOpcode(op byte) bool {
 	return (op >= OP_SSTX && op <= OP_SSTXCHANGE) ||
-		(op == OP_TADD || op == OP_TSPEND)
+		(op == OP_TADD || op == OP_TSPEND || op == OP_TGEN)
 }
 
 // extractScriptHash extracts the script hash from the passed script if it is a
@@ -151,6 +151,7 @@ func hasP2SHScriptSigStakeOpCodes(version uint16, scriptSig, scriptPubKey []byte
 
 // HasTreasuryOpCodes returns an error if the script contains treasury opcodes.
 func HasTreasuryOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
+	// XXX this is incorrect
 	class := GetScriptClass(version, scriptPubKey)
 	switch class {
 	case TreasuryAddTy:
@@ -182,6 +183,8 @@ func HasTreasuryOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
 		//	str := "stake opcodes were found in a p2sh script"
 		//	return scriptError(ErrP2SHStakeOpCodes, str)
 		//}
+	case TreasuryGenerateTy:
+		// XXX verify if there are illegal opcodes
 	}
 
 	return nil

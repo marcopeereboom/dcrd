@@ -313,7 +313,8 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	isTicket := !isVote && stake.IsSStx(tx)
 	isRevocation := !isVote && !isTicket && stake.IsSSRtx(tx)
 	isTAdd := !isRevocation && stake.IsTAdd(tx)
-	isStakeTx := isVote || isTicket || isRevocation || isTAdd
+	isTSpend := !isTAdd && stake.IsTSpend(tx)
+	isStakeTx := isVote || isTicket || isRevocation || isTAdd || isTSpend
 	var totalAtom int64
 	for txOutIdx, txOut := range tx.TxOut {
 		atom := txOut.Value
@@ -344,10 +345,12 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 			return ruleError(ErrBadTxOutValue, str)
 		}
 
-		// Ensure that non-stake transactions have no outputs with opcodes
-		// OP_SSTX, OP_SSRTX, OP_SSGEN, or OP_SSTX_CHANGE.
+		// Ensure that non-stake transactions have no outputs with
+		// opcodes OP_SSTX, OP_SSRTX, OP_SSGEN, OP_SSTX_CHANGE,
+		// OP_TADD, or OP_TGEN.
 		//
-		// Note that OP_TADD is a valid output for a regular transaction.
+		// Note that OP_TADD is a valid output for a regular
+		// transaction.
 		if !isStakeTx {
 			hasOp, err := txscript.ContainsStakeOpCodes(txOut.PkScript)
 			if err != nil {

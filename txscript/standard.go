@@ -31,39 +31,41 @@ type ScriptClass byte
 
 // Classes of script payment known about in the blockchain.
 const (
-	NonStandardTy     ScriptClass = iota // None of the recognized forms.
-	PubKeyTy                             // Pay pubkey.
-	PubKeyHashTy                         // Pay pubkey hash.
-	ScriptHashTy                         // Pay to script hash.
-	MultiSigTy                           // Multi signature.
-	NullDataTy                           // Empty data-only (provably prunable).
-	StakeSubmissionTy                    // Stake submission.
-	StakeGenTy                           // Stake generation
-	StakeRevocationTy                    // Stake revocation.
-	StakeSubChangeTy                     // Change for stake submission tx.
-	PubkeyAltTy                          // Alternative signature pubkey.
-	PubkeyHashAltTy                      // Alternative signature pubkey hash.
-	TreasuryAddTy                        // Add value to treasury
-	TreasurySpendTy                      // Spend from treasury
+	NonStandardTy      ScriptClass = iota // None of the recognized forms.
+	PubKeyTy                              // Pay pubkey.
+	PubKeyHashTy                          // Pay pubkey hash.
+	ScriptHashTy                          // Pay to script hash.
+	MultiSigTy                            // Multi signature.
+	NullDataTy                            // Empty data-only (provably prunable).
+	StakeSubmissionTy                     // Stake submission.
+	StakeGenTy                            // Stake generation
+	StakeRevocationTy                     // Stake revocation.
+	StakeSubChangeTy                      // Change for stake submission tx.
+	PubkeyAltTy                           // Alternative signature pubkey.
+	PubkeyHashAltTy                       // Alternative signature pubkey hash.
+	TreasuryAddTy                         // Add value to treasury
+	TreasurySpendTy                       // Spend from treasury
+	TreasuryGenerateTy                    // Generate coins from treasury
 )
 
 // scriptClassToName houses the human-readable strings which describe each
 // script class.
 var scriptClassToName = []string{
-	NonStandardTy:     "nonstandard",
-	PubKeyTy:          "pubkey",
-	PubkeyAltTy:       "pubkeyalt",
-	PubKeyHashTy:      "pubkeyhash",
-	PubkeyHashAltTy:   "pubkeyhashalt",
-	ScriptHashTy:      "scripthash",
-	MultiSigTy:        "multisig",
-	NullDataTy:        "nulldata",
-	StakeSubmissionTy: "stakesubmission",
-	StakeGenTy:        "stakegen",
-	StakeRevocationTy: "stakerevoke",
-	StakeSubChangeTy:  "sstxchange",
-	TreasuryAddTy:     "treasuryadd",
-	TreasurySpendTy:   "treasuryspend",
+	NonStandardTy:      "nonstandard",
+	PubKeyTy:           "pubkey",
+	PubkeyAltTy:        "pubkeyalt",
+	PubKeyHashTy:       "pubkeyhash",
+	PubkeyHashAltTy:    "pubkeyhashalt",
+	ScriptHashTy:       "scripthash",
+	MultiSigTy:         "multisig",
+	NullDataTy:         "nulldata",
+	StakeSubmissionTy:  "stakesubmission",
+	StakeGenTy:         "stakegen",
+	StakeRevocationTy:  "stakerevoke",
+	StakeSubChangeTy:   "sstxchange",
+	TreasuryAddTy:      "treasuryadd",
+	TreasurySpendTy:    "treasuryspend",
+	TreasuryGenerateTy: "treasurygenerate",
 }
 
 // String implements the Stringer interface by returning the name of
@@ -542,6 +544,11 @@ func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 		return false
 	}
 
+	// XXX this is completly wrong
+	// We will support 2 OP_TADD variants. One where a user sends utxo from
+	// wallet to treasury and one where part of the block reward will be
+	// credited to the treasury.
+	// XXX This code needs to reflect that.
 	if len(script) != 1 || script[0] != OP_TADD {
 		return false
 	}
@@ -562,7 +569,27 @@ func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
 		return false
 	}
 
+	// XXX this is completly wrong as well.
 	if len(script) != 1 || script[0] != OP_TSPEND {
+		return false
+	}
+
+	return true
+}
+
+// isTreasuryGenerateScript returns whether or not the passed script is a
+// supported spend treasury script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func isTreasuryGenerateScript(scriptVersion uint16, script []byte) bool {
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// XXX this is completly wrong as well.
+	if len(script) != 1 || script[0] != OP_TGEN {
 		return false
 	}
 
@@ -606,6 +633,8 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return TreasuryAddTy
 	case isTreasurySpendScript(scriptVersion, script):
 		return TreasurySpendTy
+	case isTreasuryGenerateScript(scriptVersion, script):
+		return TreasuryGenerateTy
 	}
 
 	return NonStandardTy
@@ -635,6 +664,7 @@ func isStakeOutput(pkScript []byte) bool {
 		class == StakeGenTy ||
 		class == StakeRevocationTy ||
 		class == StakeSubChangeTy
+	// XXX we probably need to add TADD/TSPEND here
 }
 
 // GetStakeOutSubclass extracts the subclass (P2PKH or P2SH)

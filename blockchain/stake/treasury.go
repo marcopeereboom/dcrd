@@ -92,7 +92,12 @@ func checkTSpend(mtx *wire.MsgTx) error {
 			}
 			continue
 		}
-		sc := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+		// All tx outs are prefixed with OP_TGEN
+		if txOut.PkScript[0] != txscript.OP_TGEN {
+			return stakeRuleError(ErrTreasuryTSpendInvalid,
+				"Output is not prefixed with OP_TGEN")
+		}
+		sc := txscript.GetScriptClass(txOut.Version, txOut.PkScript[1:])
 		if !(sc == txscript.ScriptHashTy || sc == txscript.PubKeyHashTy) {
 			return stakeRuleError(ErrTreasuryTSpendInvalid,
 				"Output is not P2PH")
