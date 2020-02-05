@@ -1574,12 +1574,8 @@ mempoolLoop:
 	}
 
 	// Insert TAdd/TSpend transactions.
-	for k, tx := range blockTxns {
+	for _, tx := range blockTxns {
 		msgTx := tx.MsgTx()
-		minrLog.Tracef("%v: %v %v", k,
-			tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx),
-			tx.Tree() == wire.TxTreeStake && stake.IsTSpend(msgTx))
-
 		if tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx) {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
@@ -1896,7 +1892,6 @@ mempoolLoop:
 		return nil, miningRuleError(ErrCheckConnectBlock, str)
 	}
 
-	// XXX treasury fees are NOT included yet
 	minrLog.Debugf("Created new block template (%d transactions, %d "+
 		"stake transactions, %d treasury transactions, %d in fees,"+
 		"%d signature operations, %d bytes, target difficulty %064x,"+
