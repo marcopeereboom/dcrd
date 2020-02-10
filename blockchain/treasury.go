@@ -188,14 +188,12 @@ func (b *BlockChain) writeTreasury(dbTx database.Tx, block *dcrutil.Block, node 
 			// that TxOut[1], if it exists, contains the change
 			// output. We have to ignore change.
 			ts.Values = append(ts.Values, v.TxOut[0].Value)
-			continue
-		}
-		if stake.IsTSpend(v) {
-			// This is a TSpend, pull values out of block.
-			for _, vv := range v.TxOut {
+		} else if stake.IsTSpend(v) {
+			// This is a TSpend, pull values out of block. Skip
+			// first TxOut since it is an OP_RETURN.
+			for _, vv := range v.TxOut[1:] {
 				ts.Values = append(ts.Values, -vv.Value)
 			}
-			continue
 		}
 	}
 
