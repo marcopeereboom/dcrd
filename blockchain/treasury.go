@@ -182,16 +182,22 @@ func (b *BlockChain) writeTreasury(dbTx database.Tx, block *dcrutil.Block, node 
 		Balance: balance,
 		Values:  make([]int64, 0, len(msgBlock.Transactions)*2),
 	}
+	trsyLog.Tracef("writeTreasury: %v start balance %v", node.hash.String(),
+		balance)
 	for _, v := range msgBlock.STransactions {
 		if stake.IsTAdd(v) {
 			// This is a TAdd, pull amount out of TxOut[0].  Note
 			// that TxOut[1], if it exists, contains the change
 			// output. We have to ignore change.
 			ts.Values = append(ts.Values, v.TxOut[0].Value)
+			trsyLog.Tracef("  writeTreasury: balance TADD %v",
+				v.TxOut[0].Value)
 		} else if stake.IsTSpend(v) {
 			// This is a TSpend, pull values out of block. Skip
 			// first TxOut since it is an OP_RETURN.
 			for _, vv := range v.TxOut[1:] {
+				trsyLog.Tracef("  writeTreasury: balance "+
+					"TSPEND %v", -vv.Value)
 				ts.Values = append(ts.Values, -vv.Value)
 			}
 		}
