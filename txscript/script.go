@@ -149,45 +149,33 @@ func hasP2SHScriptSigStakeOpCodes(version uint16, scriptSig, scriptPubKey []byte
 	return nil
 }
 
-// HasTreasuryOpCodes returns an error if the script contains treasury opcodes.
-func HasTreasuryOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
-	// XXX this is incorrect
-	class := GetScriptClass(version, scriptPubKey)
-	switch class {
-	case TreasuryAddTy:
-		// XXX verify if there are illegal opcodes
-	case TreasurySpendTy:
-		// XXX verify if there are illegal opcodes
+// hasTreasuryOpCodes returns an error if the script contains treasury opcodes.
+func hasTreasuryOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
+	// Determine if this is a tagged OP_TADD script.
+	if isTreasuryAddScript(version, scriptPubKey) {
+		// XXX check inputs here
+		// Variant 1: normal inputs
+		// Variant 2: coinbase input
 
-		//// Obtain the embedded pkScript from the scriptSig of the
-		//// current transaction. Then, ensure that it does not use
-		//// any stake tagging OP codes.
-		//pData, err := PushedData(scriptSig)
-		//if err != nil {
-		//	return err
-		//}
-		//if len(pData) == 0 {
-		//	str := "script has no pushed data"
-		//	return scriptError(ErrNotPushOnly, str)
-		//}
+		// XXX we ALSO need to make sure that the inputs match the
+		// output forms.
+		// Variant 1:is OP_TADD/OP_SSTXCHANGE
+		// Variant 2:is OP_TADD/OP_RETURN
+		str := "treasury add opcodes were found in script"
+		return scriptError(ErrTreasuryOpCodes, str)
+	}
 
-		//// The pay-to-hash-script is the final data push of the
-		//// signature script.
-		//shScript := pData[len(pData)-1]
-
-		//hasStakeOpCodes, err := ContainsStakeOpCodes(shScript)
-		//if err != nil {
-		//	return err
-		//}
-		//if hasStakeOpCodes {
-		//	str := "stake opcodes were found in a p2sh script"
-		//	return scriptError(ErrP2SHStakeOpCodes, str)
-		//}
-	case TreasuryGenerateTy:
-		// XXX verify if there are illegal opcodes
+	// Determine if this is a tagged OP_TSPEND/OP_TGEN script.
+	if isTreasurySpendScript(version, scriptPubKey) {
+		// Make sure that there is a single OP_TSPEND in the input.
+		if isTreasurySpendInputScript(version, scriptSig) {
+			str := "treasury spend opcodes were found in script"
+			return scriptError(ErrTreasuryOpCodes, str)
+		}
 	}
 
 	return nil
+
 }
 
 // DisasmString formats a disassembled script for one line printing.  When the

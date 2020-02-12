@@ -31,41 +31,39 @@ type ScriptClass byte
 
 // Classes of script payment known about in the blockchain.
 const (
-	NonStandardTy      ScriptClass = iota // None of the recognized forms.
-	PubKeyTy                              // Pay pubkey.
-	PubKeyHashTy                          // Pay pubkey hash.
-	ScriptHashTy                          // Pay to script hash.
-	MultiSigTy                            // Multi signature.
-	NullDataTy                            // Empty data-only (provably prunable).
-	StakeSubmissionTy                     // Stake submission.
-	StakeGenTy                            // Stake generation
-	StakeRevocationTy                     // Stake revocation.
-	StakeSubChangeTy                      // Change for stake submission tx.
-	PubkeyAltTy                           // Alternative signature pubkey.
-	PubkeyHashAltTy                       // Alternative signature pubkey hash.
-	TreasuryAddTy                         // Add value to treasury
-	TreasurySpendTy                       // Spend from treasury
-	TreasuryGenerateTy                    // Generate coins from treasury
+	NonStandardTy     ScriptClass = iota // None of the recognized forms.
+	PubKeyTy                             // Pay pubkey.
+	PubKeyHashTy                         // Pay pubkey hash.
+	ScriptHashTy                         // Pay to script hash.
+	MultiSigTy                           // Multi signature.
+	NullDataTy                           // Empty data-only (provably prunable).
+	StakeSubmissionTy                    // Stake submission.
+	StakeGenTy                           // Stake generation
+	StakeRevocationTy                    // Stake revocation.
+	StakeSubChangeTy                     // Change for stake submission tx.
+	PubkeyAltTy                          // Alternative signature pubkey.
+	PubkeyHashAltTy                      // Alternative signature pubkey hash.
+	TreasuryAddTy                        // Add value to treasury
+	TreasurySpendTy                      // Spend from treasury
 )
 
 // scriptClassToName houses the human-readable strings which describe each
 // script class.
 var scriptClassToName = []string{
-	NonStandardTy:      "nonstandard",
-	PubKeyTy:           "pubkey",
-	PubkeyAltTy:        "pubkeyalt",
-	PubKeyHashTy:       "pubkeyhash",
-	PubkeyHashAltTy:    "pubkeyhashalt",
-	ScriptHashTy:       "scripthash",
-	MultiSigTy:         "multisig",
-	NullDataTy:         "nulldata",
-	StakeSubmissionTy:  "stakesubmission",
-	StakeGenTy:         "stakegen",
-	StakeRevocationTy:  "stakerevoke",
-	StakeSubChangeTy:   "sstxchange",
-	TreasuryAddTy:      "treasuryadd",
-	TreasurySpendTy:    "treasuryspend",
-	TreasuryGenerateTy: "treasurygenerate",
+	NonStandardTy:     "nonstandard",
+	PubKeyTy:          "pubkey",
+	PubkeyAltTy:       "pubkeyalt",
+	PubKeyHashTy:      "pubkeyhash",
+	PubkeyHashAltTy:   "pubkeyhashalt",
+	ScriptHashTy:      "scripthash",
+	MultiSigTy:        "multisig",
+	NullDataTy:        "nulldata",
+	StakeSubmissionTy: "stakesubmission",
+	StakeGenTy:        "stakegen",
+	StakeRevocationTy: "stakerevoke",
+	StakeSubChangeTy:  "sstxchange",
+	TreasuryAddTy:     "treasuryadd",
+	TreasurySpendTy:   "treasuryspend",
 }
 
 // String implements the Stringer interface by returning the name of
@@ -533,63 +531,126 @@ func isStakeChangeScript(scriptVersion uint16, script []byte) bool {
 		extractStakeScriptHash(script, stakeOpcode) != nil
 }
 
-// isTreasuryAddScript returns whether or not the passed script is a supported
-// add treasury script.
+// isTreasuryAddScript returns whether or not the passed OUTPUT script is a
+// supported add treasury script.
 //
 // NOTE: This function is only valid for version 0 scripts.  It will always
 // return false for other script versions.
 func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
+	// We will support 2 OP_TADD variants. One where a user sends utxo from
+	// wallet to treasury and one where part of the block reward will be
+	// credited to the treasury.
+
 	// The only currently supported script version is 0.
 	if scriptVersion != 0 {
 		return false
 	}
 
-	// XXX this is completly wrong
-	// We will support 2 OP_TADD variants. One where a user sends utxo from
-	// wallet to treasury and one where part of the block reward will be
-	// credited to the treasury.
-	// XXX This code needs to reflect that.
-	if len(script) != 1 || script[0] != OP_TADD {
+	// First opcode must be an OP_ADD
+	tokenizer := MakeScriptTokenizer(scriptVersion, script)
+	if tokenizer.Next() {
+		if tokenizer.Opcode() != OP_TADD {
+			return false
+		}
+	} else {
 		return false
 	}
 
-	// XXX Should script_tests line 1945 not fail?
+	// The following opcode is optional and must be either an OP_RETURN or
+	// an OP_SSTXCHANGE.
+	if tokenizer.Next() {
+		if !(tokenizer.Opcode() == OP_RETURN ||
+			tokenizer.Opcode() == OP_SSTXCHANGE) {
+			return false
+		}
+	} else {
+		return false
+	}
+
+	// Make sure there is no trailing stuff.
+	if !tokenizer.Done() {
+		return false
+	}
+
+	// make sure there was no error either.
+	if tokenizer.Err() != nil {
+		return false
+	}
 
 	return true
 }
 
 // isTreasurySpendScript returns whether or not the passed script is a
-// supported spend treasury script.
+// supported spend treasury OUTPUT script. Since we do not get to see the
+// inputs we cannot assert that there is a valid OP_TSPEND. Only call this
+// function when it has been asserted that the inputs contain a valid OP_TSPEND
+// construct.
 //
 // NOTE: This function is only valid for version 0 scripts.  It will always
 // return false for other script versions.
 func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
+	// An OP_TSPEND OUTPUT script consists of one or more OP_TGEN +
+	// paytopubkeyhash or paytoscripthash scripts.
+
 	// The only currently supported script version is 0.
 	if scriptVersion != 0 {
 		return false
 	}
 
-	// XXX this is completly wrong as well.
-	if len(script) != 1 || script[0] != OP_TSPEND {
+	// The length of a pyatopubkeyhash is 25 per extractPubKeyHash. Add one
+	// for the OP_TGEN prefix and the script must be 26 modulo equals 0.
+	if len(script)%26 != 0 {
+		// XXX deal with P2SH here.
 		return false
+	}
+
+	// Go through all OP_TGEN paytopubkeyhash scripts.
+	for i := 0; i < len(script); i += 26 {
+		// Verify the script is prefixed with OP_TGEN.
+		if script[i] != OP_TGEN {
+			return false
+		}
+		if !isPubKeyHashScript(script[i+1:]) {
+			return false
+		}
 	}
 
 	return true
 }
 
-// isTreasuryGenerateScript returns whether or not the passed script is a
-// supported spend treasury script.
-//
-// NOTE: This function is only valid for version 0 scripts.  It will always
-// return false for other script versions.
-func isTreasuryGenerateScript(scriptVersion uint16, script []byte) bool {
+func isTreasurySpendInputScript(scriptVersion uint16, script []byte) bool {
 	// The only currently supported script version is 0.
 	if scriptVersion != 0 {
 		return false
 	}
 
-	// XXX this is completly wrong as well.
-	if len(script) != 1 || script[0] != OP_TGEN {
+	// First opcode must be an OP_TSPEND
+	tokenizer := MakeScriptTokenizer(scriptVersion, script)
+	if tokenizer.Next() {
+		if tokenizer.Opcode() != OP_TSPEND {
+			return false
+		}
+	} else {
+		return false
+	}
+
+	// The following opcode must be an OP_DATA_32
+	// XXX this is going to change but for now we use random data.
+	if tokenizer.Next() {
+		if tokenizer.Opcode() == OP_DATA_32 {
+			return false
+		}
+	} else {
+		return false
+	}
+
+	// Make sure there is no trailing stuff.
+	if !tokenizer.Done() {
+		return false
+	}
+
+	// make sure there was no error either.
+	if tokenizer.Err() != nil {
 		return false
 	}
 
@@ -597,7 +658,8 @@ func isTreasuryGenerateScript(scriptVersion uint16, script []byte) bool {
 }
 
 // scriptType returns the type of the script being inspected from the known
-// standard types.
+// standard types. It is important to note that this function will only be
+// called with output scripts.
 //
 // NOTE:  All scripts that are not version 0 are currently considered non
 // standard.
@@ -633,8 +695,6 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return TreasuryAddTy
 	case isTreasurySpendScript(scriptVersion, script):
 		return TreasurySpendTy
-	case isTreasuryGenerateScript(scriptVersion, script):
-		return TreasuryGenerateTy
 	}
 
 	return NonStandardTy
@@ -652,7 +712,8 @@ func GetScriptClass(version uint16, script []byte) ScriptClass {
 	return typeOfScript(version, script)
 }
 
-// isStakeOutput returns true is a script output is a stake type.
+// isStakeOutput returns true is a script output is a stake type. This includes
+// treasury scripts.
 //
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
@@ -663,8 +724,9 @@ func isStakeOutput(pkScript []byte) bool {
 	return class == StakeSubmissionTy ||
 		class == StakeGenTy ||
 		class == StakeRevocationTy ||
-		class == StakeSubChangeTy
-	// XXX we probably need to add TADD/TSPEND here
+		class == StakeSubChangeTy ||
+		class == TreasuryAddTy ||
+		class == TreasurySpendTy
 }
 
 // GetStakeOutSubclass extracts the subclass (P2PKH or P2SH)
@@ -1100,6 +1162,11 @@ func GenerateProvablyPruneableOut(data []byte) ([]byte, error) {
 	}
 
 	return NewScriptBuilder().AddOp(OP_RETURN).AddData(data).Script()
+}
+
+// PayToTreasury returns a script that credits the treasury from UTxOs.
+func PayToTreasury() ([]byte, error) {
+	return NewScriptBuilder().AddOp(OP_TADD).Script()
 }
 
 // PayToAddrScript creates a new script to pay a transaction output to a the

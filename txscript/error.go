@@ -216,6 +216,10 @@ const (
 	// for a shift.
 	ErrOverflowShift
 
+	// ErrTreasuryOpCodes is returned when one or more treasury opcodes are
+	// found in a script.
+	ErrTreasuryOpCodes
+
 	// ---------------------------------
 	// Failures related to malleability.
 	// ---------------------------------
