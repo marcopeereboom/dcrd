@@ -949,7 +949,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 
 		// Treasury scripts are not allowed if the script is version 0.
 		if vm.hasFlag(ScriptVerifyTreasury) {
-			err = HasTreasuryOpCodes(scriptVersion, scriptSig, scriptPubKey)
+			err = hasTreasuryOpCodes(scriptVersion, scriptSig, scriptPubKey)
 			if err != nil {
 				return nil, err
 			}
