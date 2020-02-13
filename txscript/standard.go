@@ -563,8 +563,6 @@ func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 			tokenizer.Opcode() == OP_SSTXCHANGE) {
 			return false
 		}
-	} else {
-		return false
 	}
 
 	// Make sure there is no trailing stuff.
@@ -596,6 +594,8 @@ func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
 	if scriptVersion != 0 {
 		return false
 	}
+
+	// XXX this is no longer correct
 
 	// The length of a pyatopubkeyhash is 25 per extractPubKeyHash. Add one
 	// for the OP_TGEN prefix and the script must be 26 modulo equals 0.
