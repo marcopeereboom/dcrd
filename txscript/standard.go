@@ -657,7 +657,7 @@ func isTreasurySpendInputScript(scriptVersion uint16, script []byte) bool {
 	return true
 }
 
-// scriptType returns the type of the script being inspected from the known
+// typeOfScript returns the type of the script being inspected from the known
 // standard types. It is important to note that this function will only be
 // called with output scripts.
 //
@@ -710,23 +710,6 @@ func GetScriptClass(version uint16, script []byte) ScriptClass {
 	}
 
 	return typeOfScript(version, script)
-}
-
-// isStakeOutput returns true is a script output is a stake type. This includes
-// treasury scripts.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func isStakeOutput(pkScript []byte) bool {
-	const scriptVersion = 0
-	class := typeOfScript(scriptVersion, pkScript)
-	return class == StakeSubmissionTy ||
-		class == StakeGenTy ||
-		class == StakeRevocationTy ||
-		class == StakeSubChangeTy ||
-		class == TreasuryAddTy ||
-		class == TreasurySpendTy
 }
 
 // GetStakeOutSubclass extracts the subclass (P2PKH or P2SH)

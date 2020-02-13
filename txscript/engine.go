@@ -898,7 +898,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 	}
 
 	if scriptVersion == 0 {
-		err := hasP2SHScriptSigStakeOpCodes(scriptVersion, scriptSig,
+		err := hasP2SHRedeemScriptStakeOpCodes(scriptVersion, scriptSig,
 			scriptPubKey)
 		if err != nil {
 			return nil, err
