@@ -56,6 +56,7 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrOverflowRotation, "ErrOverflowRotation"},
 		{ErrDivideByZero, "ErrDivideByZero"},
 		{ErrNegativeShift, "ErrNegativeShift"},
+		{ErrP2SHTreasuryOpCodes, "ErrP2SHTreasuryOpCodes"},
 		{ErrOverflowShift, "ErrOverflowShift"},
 		{ErrMinimalData, "ErrMinimalData"},
 		{ErrInvalidSigHashType, "ErrInvalidSigHashType"},
