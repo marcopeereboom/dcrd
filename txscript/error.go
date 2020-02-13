@@ -216,9 +216,9 @@ const (
 	// for a shift.
 	ErrOverflowShift
 
-	// ErrTreasuryOpCodes is returned when one or more treasury opcodes are
-	// found in a script.
-	ErrTreasuryOpCodes
+	// ErrP2SHTreasuryOpCodes is returned when one or more treasury opcodes
+	// are found in the redeem script of a pay-to-script-hash script.
+	ErrP2SHTreasuryOpCodes
 
 	// ---------------------------------
 	// Failures related to malleability.
