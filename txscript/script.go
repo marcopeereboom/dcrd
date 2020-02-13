@@ -190,52 +190,23 @@ func hasP2SHRedeemScriptTreasuryOpCodes(version uint16, sigScript, pkScript []by
 	// Extract the redeem script from the signature script.
 	redeemScript := finalOpcodeData(version, sigScript)
 	if len(redeemScript) == 0 {
-		str := "p2sh signature script has no pushed data"
-		return scriptError(ErrNotPushOnly, str) // XXX
+		str := "treasury p2sh signature script has no pushed data"
+		return scriptError(ErrNotPushOnly, str)
 	}
 
-	// Ensure the redeem script does not contain any stake opcodes as their use
-	// is prohibited outside of the very specific circumstances permitted by
-	// the staking system.
+	// Ensure the redeem script does not contain any treasury opcodes as
+	// their use is prohibited outside of the very specific circumstances
+	// permitted by the treasury system.
 	hasStakeOpCodes, err := ContainsTreasuryOpCodes(redeemScript)
 	if err != nil {
 		return err
 	}
 	if hasStakeOpCodes {
-		str := "stake opcodes were found in a p2sh script"
-		return scriptError(ErrP2SHStakeOpCodes, str) // XXX
+		str := "treasury opcodes were found in a p2sh script"
+		return scriptError(ErrP2SHTreasuryOpCodes, str)
 	}
 
 	return nil
-}
-
-// hasTreasuryOpCodes returns an error if the script contains treasury opcodes.
-func hasTreasuryOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
-	// Determine if this is a tagged OP_TADD script.
-	if isTreasuryAddScript(version, scriptPubKey) {
-		// XXX check inputs here
-		// Variant 1: normal inputs
-		// Variant 2: coinbase input
-
-		// XXX we ALSO need to make sure that the inputs match the
-		// output forms.
-		// Variant 1:is OP_TADD/OP_SSTXCHANGE
-		// Variant 2:is OP_TADD/OP_RETURN
-		str := "treasury add opcodes were found in script"
-		return scriptError(ErrTreasuryOpCodes, str)
-	}
-
-	// Determine if this is a tagged OP_TSPEND/OP_TGEN script.
-	if isTreasurySpendScript(version, scriptPubKey) {
-		// Make sure that there is a single OP_TSPEND in the input.
-		if isTreasurySpendInputScript(version, scriptSig) {
-			str := "treasury spend opcodes were found in script"
-			return scriptError(ErrTreasuryOpCodes, str)
-		}
-	}
-
-	return nil
-
 }
 
 // DisasmString formats a disassembled script for one line printing.  When the
