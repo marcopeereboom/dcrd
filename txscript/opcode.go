@@ -538,7 +538,7 @@ var opcodeArray = [256]opcode{
 	// treasury opcodes.
 	OP_TADD:   {OP_TADD, "OP_TADD", 1, opcodeTAdd},
 	OP_TSPEND: {OP_TSPEND, "OP_TSPEND", 1, opcodeTSpend},
-	OP_TGEN:   {OP_TGEN, "OP_TGEN", 1, opcodeNop},
+	OP_TGEN:   {OP_TGEN, "OP_TGEN", 1, opcodeTGen},
 
 	// Undefined opcodes.
 	OP_UNKNOWN196: {OP_UNKNOWN196, "OP_UNKNOWN196", 1, opcodeNop},
@@ -2917,6 +2917,21 @@ func opcodeTSpend(op *opcode, data []byte, vm *Engine) error {
 		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
 			return scriptError(ErrDiscourageUpgradableNOPs,
 				"OP_UNKNOWN194 reserved for upgrades")
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// opcodeTGen generated balance from treasury.
+func opcodeTGen(op *opcode, data []byte, vm *Engine) error {
+	// Treat the opcode as OP_UNKNOWN195 if the flag to interpret it as the
+	// TGEN opcode is not set.
+	if !vm.hasFlag(ScriptVerifyTreasury) {
+		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
+			return scriptError(ErrDiscourageUpgradableNOPs,
+				"OP_UNKNOWN195 reserved for upgrades")
 		}
 		return nil
 	}
