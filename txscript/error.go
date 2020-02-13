@@ -384,6 +384,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrDivideByZero:              "ErrDivideByZero",
 	ErrNegativeShift:             "ErrNegativeShift",
 	ErrOverflowShift:             "ErrOverflowShift",
+	ErrP2SHTreasuryOpCodes:       "ErrP2SHTreasuryOpCodes",
 	ErrMinimalData:               "ErrMinimalData",
 	ErrInvalidSigHashType:        "ErrInvalidSigHashType",
 	ErrSigTooShort:               "ErrSigTooShort",
