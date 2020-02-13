@@ -588,73 +588,16 @@ func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 // return false for other script versions.
 func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
 	// An OP_TSPEND OUTPUT script consists of one or more OP_TGEN +
-	// paytopubkeyhash or paytoscripthash scripts.
-
 	// The only currently supported script version is 0.
 	if scriptVersion != 0 {
 		return false
 	}
 
-	// XXX this is no longer correct
-
-	// The length of a pyatopubkeyhash is 25 per extractPubKeyHash. Add one
-	// for the OP_TGEN prefix and the script must be 26 modulo equals 0.
-	if len(script)%26 != 0 {
-		// XXX deal with P2SH here.
-		return false
-	}
-
-	// Go through all OP_TGEN paytopubkeyhash scripts.
-	for i := 0; i < len(script); i += 26 {
-		// Verify the script is prefixed with OP_TGEN.
-		if script[i] != OP_TGEN {
-			return false
-		}
-		if !isPubKeyHashScript(script[i+1:]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func isTreasurySpendInputScript(scriptVersion uint16, script []byte) bool {
-	// The only currently supported script version is 0.
-	if scriptVersion != 0 {
-		return false
-	}
-
-	// First opcode must be an OP_TSPEND
-	tokenizer := MakeScriptTokenizer(scriptVersion, script)
-	if tokenizer.Next() {
-		if tokenizer.Opcode() != OP_TSPEND {
-			return false
-		}
-	} else {
-		return false
-	}
-
-	// The following opcode must be an OP_DATA_32
-	// XXX this is going to change but for now we use random data.
-	if tokenizer.Next() {
-		if tokenizer.Opcode() == OP_DATA_32 {
-			return false
-		}
-	} else {
-		return false
-	}
-
-	// Make sure there is no trailing stuff.
-	if !tokenizer.Done() {
-		return false
-	}
-
-	// make sure there was no error either.
-	if tokenizer.Err() != nil {
-		return false
-	}
-
-	return true
+	// The only supported stake generation scripts are pay-to-pubkey-hash and
+	// pay-to-script-hash tagged with the stake submission opcode.
+	const stakeOpcode = OP_TGEN
+	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
+		extractStakeScriptHash(script, stakeOpcode) != nil
 }
 
 // typeOfScript returns the type of the script being inspected from the known
@@ -728,7 +671,9 @@ func GetStakeOutSubclass(pkScript []byte) (ScriptClass, error) {
 	isStake := class == StakeSubmissionTy ||
 		class == StakeGenTy ||
 		class == StakeRevocationTy ||
-		class == StakeSubChangeTy
+		class == StakeSubChangeTy ||
+		class == TreasuryAddTy ||
+		class == TreasurySpendTy
 
 	subClass := ScriptClass(0)
 	if isStake {
