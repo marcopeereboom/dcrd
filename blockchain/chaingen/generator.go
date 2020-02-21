@@ -6,6 +6,7 @@ package chaingen
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -571,7 +572,9 @@ type AddressAmountTuple struct {
 // outputs.
 //
 // The transaction consists of the following outputs:
-// - First output is an OP_TSPEND
+// - First output is an OP_RETURN <32 byte data>
+// - Second and other outputs are OP_TGEN P2PH/P2SH
+// - First input is an OP_TSPEND
 // XXX this is incomplete and incorrect but is used for no to validate treasury
 // accounting.
 func (g *Generator) CreateTreasuryTSpend(payouts []AddressAmountTuple, fee dcrutil.Amount) *wire.MsgTx {
@@ -596,10 +599,27 @@ func (g *Generator) CreateTreasuryTSpend(payouts []AddressAmountTuple, fee dcrut
 	})
 
 	// Create output TX' for all payouts.
-	// XXX add address
+	// Start with OP_RETURN
+	payload := make([]byte, chainhash.HashSize)
+	_, err := rand.Read(payload)
+	if err != nil {
+		panic(err)
+	}
+	builder := txscript.NewScriptBuilder()
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddData(payload)
+	or, err := builder.Script()
+	if err != nil {
+		panic(err)
+	}
+	tx.AddTxOut(wire.NewTxOut(0, or))
+
+	// Add amounts and OP_TGEN
 	for _, v := range payouts {
-		tx.AddTxOut(wire.NewTxOut(int64(v.Amount),
-			g.p2shOpTrueScript))
+		script := make([]byte, len(g.p2shOpTrueScript)+1)
+		script[0] = txscript.OP_TGEN
+		copy(script[1:], g.p2shOpTrueScript)
+		tx.AddTxOut(wire.NewTxOut(int64(v.Amount), script))
 	}
 	return tx
 }
