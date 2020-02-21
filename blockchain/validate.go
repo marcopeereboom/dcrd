@@ -2974,8 +2974,12 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	// Check that the coinbase pays the treasury, if applicable.
-	err := coinbasePaysTreasury(b.subsidyCache, block.Transactions()[0],
-		node.height, node.voters, b.chainParams)
+	treasuryBaseEnabled, err := b.isTreasuryAgendaActive(node)
+	if err != nil {
+		return err
+	}
+	err = coinbasePaysTreasury(b.subsidyCache, block.Transactions()[0],
+		node.height, node.voters, b.chainParams, treasuryBaseEnabled)
 	if err != nil {
 		return err
 	}
