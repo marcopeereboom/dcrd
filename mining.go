@@ -483,7 +483,7 @@ func calcBlockCommitmentRootV1(block *wire.MsgBlock, prevScripts blockcf2.PrevSc
 //
 // See the comment for NewBlockTemplate for more information about why the nil
 // address handling is useful.
-func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
+func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params, treasuryEnabled bool) (*dcrutil.Tx, error) {
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
 		// Coinbase transactions have no inputs, so previous outpoint is
@@ -517,9 +517,21 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 
 	// Treasury output.
 	if params.BlockTaxProportion > 0 {
+		var (
+			script []byte
+			err    error
+		)
+		if treasuryEnabled {
+			script, err = txscript.PayToTreasury()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			script = params.OrganizationPkScript
+		}
 		tx.AddTxOut(&wire.TxOut{
 			Value:    treasurySubsidy,
-			PkScript: params.OrganizationPkScript,
+			PkScript: script,
 		})
 	} else {
 		// Treasury disabled.
@@ -674,7 +686,7 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool 
 // work off of is present, it will return a copy of that template to pass to the
 // miner.
 // Safe for concurrent access.
-func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
+func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager, treasuryEnabled bool) (*BlockTemplate, error) {
 	timeSource := bm.cfg.TimeSource
 	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
 
@@ -710,7 +722,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		}
 		coinbaseTx, err := createCoinbaseTx(subsidyCache, coinbaseScript,
 			opReturnPkScript, topBlock.Height(), miningAddress,
-			tipHeader.Voters, bm.cfg.ChainParams)
+			tipHeader.Voters, bm.cfg.ChainParams, treasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -958,6 +970,11 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	nextBlockHeight := best.Height + 1
 	stakeValidationHeight := g.chainParams.StakeValidationHeight
 
+	treasuryEnabled, err := g.chain.IsTreasuryAgendaActive()
+	if err != nil {
+		return nil, err
+	}
+
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
 		children, err := g.blockManager.TipGeneration()
@@ -974,7 +991,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 			minrLog.Debugf("Too few voters found on any HEAD block, " +
 				"recycling a parent block to mine on")
 			return handleTooFewVoters(g.subsidyCache, nextBlockHeight,
-				payToAddress, g.blockManager)
+				payToAddress, g.blockManager, treasuryEnabled)
 		}
 
 		minrLog.Debugf("Found eligible parent %v with enough votes to build "+
@@ -1624,7 +1641,8 @@ mempoolLoop:
 		nextBlockHeight,
 		payToAddress,
 		uint16(voters),
-		g.chainParams)
+		g.chainParams,
+		treasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -1726,7 +1744,7 @@ mempoolLoop:
 		minrLog.Warnf("incongruent number of voters in mempool " +
 			"vs mempool.voters; not enough voters found")
 		return handleTooFewVoters(g.subsidyCache, nextBlockHeight, payToAddress,
-			g.blockManager)
+			g.blockManager, treasuryEnabled)
 	}
 
 	// Correct transaction index fraud proofs for any transactions that
