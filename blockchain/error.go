@@ -221,6 +221,10 @@ const (
 	// is not a coinbase transaction.
 	ErrFirstTxNotCoinbase
 
+	// ErrFirstTxNotOpReturn indicates the first transaction in a block
+	// is not an OP_RETURN.
+	ErrFirstTxNotOpReturn
+
 	// ErrCoinbaseHeight indicates that the encoded height in the coinbase
 	// is incorrect.
 	ErrCoinbaseHeight
@@ -539,6 +543,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrBadFees:                "ErrBadFees",
 	ErrTooManySigOps:          "ErrTooManySigOps",
 	ErrFirstTxNotCoinbase:     "ErrFirstTxNotCoinbase",
+	ErrFirstTxNotOpReturn:     "ErrFirstTxNotOpReturn",
 	ErrCoinbaseHeight:         "ErrCoinbaseHeight",
 	ErrMultipleCoinbases:      "ErrMultipleCoinbases",
 	ErrStakeTxInRegularTree:   "ErrStakeTxInRegularTree",
