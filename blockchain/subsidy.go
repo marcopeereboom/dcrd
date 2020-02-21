@@ -165,19 +165,6 @@ func coinbasePaysToTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrut
 	return nil
 }
 
-// coinbasePaysToTreasuryAddress checks to see if a given block's coinbase
-// correctly pays the treasury. This function either calls the old or the new
-// treasury payout mode based on the treasuryBaseEnabled parameter.
-func coinbasePaysTreasury(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params, treasuryBaseEnabled bool) error {
-	if treasuryBaseEnabled {
-		return coinbasePaysToTreasuryBase(subsidyCache, tx, height,
-			voters, params)
-	} else {
-		return coinbasePaysToTreasuryAddress(subsidyCache, tx, height,
-			voters, params)
-	}
-}
-
 // calculateAddedSubsidy calculates the amount of subsidy added by a block
 // and its parent. The blocks passed to this function MUST be valid blocks
 // that have already been confirmed to abide by the consensus rules of the

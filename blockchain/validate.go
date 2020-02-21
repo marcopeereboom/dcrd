@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -1057,7 +1058,12 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 		// Check that the coinbase contains at minimum the block
 		// height in output 1.
 		if blockHeight > 1 {
-			err := checkCoinbaseUniqueHeight(blockHeight, block)
+			stakebaseEnabled, err := b.isTreasuryAgendaActive(prevNode)
+			if err != nil {
+				return err
+			}
+			err = checkCoinbaseUniqueHeight(blockHeight, block,
+				stakebaseEnabled)
 			if err != nil {
 				return err
 			}
@@ -1149,10 +1155,11 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 	return nil
 }
 
-// checkCoinbaseUniqueHeight checks to ensure that for all blocks height > 1 the
-// coinbase contains the height encoding to make coinbase hash collisions
-// impossible.
-func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block) error {
+// checkCoinbaseUniqueHeightWithAddress checks to ensure that for all blocks
+// height > 1 the coinbase contains the height encoding to make coinbase hash
+// collisions impossible. This is the old function that assumes a treasury
+// address.
+func checkCoinbaseUniqueHeightWithAddress(blockHeight int64, block *dcrutil.Block) error {
 	// Coinbase output 0 is the project subsidy, and output 1 is height +
 	// extranonce, so at least two outputs must exist.
 	const minReqOutputs = 2
@@ -1223,6 +1230,108 @@ func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block) error {
 	}
 
 	return nil
+}
+
+// checkCoinbaseUniqueHeightWithStakebase checks to ensure that for all blocks
+// height > 1 the coinbase contains the height encoding to make coinbase hash
+// collisions impossible. This is the new function that assumes that there is
+// no treasury address.
+func checkCoinbaseUniqueHeightWithStakebase(blockHeight int64, block *dcrutil.Block) error {
+
+	if len(block.MsgBlock().STransactions) == 0 {
+		panic(fmt.Sprintf(
+			"checkCoinbaseUniqueHeightWithStakebase: %v",
+			spew.Sdump(block)))
+		return AssertError(fmt.Sprintf(
+			"checkCoinbaseUniqueHeightWithStakebase: %v",
+			spew.Sdump(block)))
+	}
+
+	// Coinbase output 0 is height + extranonce, so at least one outputs
+	// must exist.
+	const minReqOutputs = 1
+	stakebaseTx := block.MsgBlock().STransactions[0]
+	if len(stakebaseTx.TxOut) < minReqOutputs {
+		str := fmt.Sprintf("block %s is missing required OP_RETURN "+
+			"output (num outputs: %d, min required: %d) ",
+			block.Hash(), len(stakebaseTx.TxOut), minReqOutputs)
+		return ruleError(ErrFirstTxNotOpReturn, str)
+	}
+
+	// Only version 0 scripts are currently valid.
+	const scriptVersion = 0
+	nullDataOut := stakebaseTx.TxOut[0]
+	if nullDataOut.Version != scriptVersion {
+		str := fmt.Sprintf("block %s coinbase output 0 script "+
+			"version %d is not the required version %d",
+			block.Hash(), nullDataOut.Version, scriptVersion)
+		return ruleError(ErrFirstTxNotOpReturn, str)
+	}
+
+	// The nulldata in the coinbase must be a single OP_RETURN followed by
+	// a data push up to maxUniqueCoinbaseNullDataSize bytes and the first
+	// 4 bytes of that data must be the encoded height of the block so that
+	// every coinbase created has a unique transaction hash.
+	//
+	// NOTE: This is intentionally not using GetScriptClass and the related
+	// functions because those are specifically for standardness checks
+	// which can change over time and this function is enforces consensus
+	// rules.
+	//
+	// Also of note is that technically normal nulldata scripts support
+	// encoding numbers via small opcodes, however, for legacy reasons, the
+	// consensus rules require the block height to be encoded as a 4-byte
+	// little-endian uint32 pushed via a normal data push, as opposed to
+	// using the normal number handling semantics of scripts, so this is
+	// specialized to accommodate that.
+	var nullData []byte
+	pkScript := nullDataOut.PkScript
+	if len(pkScript) > 1 && pkScript[0] == txscript.OP_RETURN {
+		tokenizer := txscript.MakeScriptTokenizer(scriptVersion,
+			pkScript[1:])
+		if tokenizer.Next() && tokenizer.Done() &&
+			tokenizer.Opcode() <=
+				txscript.OP_PUSHDATA4 {
+			nullData = tokenizer.Data()
+		}
+	}
+	if len(nullData) > maxUniqueCoinbaseNullDataSize {
+		str := fmt.Sprintf("block %s coinbase output 0 pushes %d "+
+			"bytes which is more than allowed value of %d",
+			block.Hash(), len(nullData),
+			maxUniqueCoinbaseNullDataSize)
+		return ruleError(ErrFirstTxNotOpReturn, str)
+	}
+	if len(nullData) < 4 {
+		str := fmt.Sprintf("block %s coinbase output 0 pushes %d "+
+			"bytes which is too short to encode height",
+			block.Hash(), len(nullData))
+		return ruleError(ErrFirstTxNotOpReturn, str)
+	}
+
+	// Check the height and ensure it is correct.
+	cbHeight := binary.LittleEndian.Uint32(nullData[0:4])
+	if cbHeight != uint32(blockHeight) {
+		header := &block.MsgBlock().Header
+		str := fmt.Sprintf("block %s coinbase output 0 encodes "+
+			"height %d instead of expected height %d (prev block: "+
+			"%s, header height %d)", block.Hash(), cbHeight,
+			uint32(blockHeight), header.PrevBlock, header.Height)
+		return ruleError(ErrCoinbaseHeight, str)
+	}
+
+	return nil
+}
+
+// checkCoinbaseUniqueHeightchecks to ensure that for all blocks height > 1 the
+// coinbase contains the height encoding to make coinbase hash collisions
+// impossible.
+func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasuryStakeEnabled bool) error {
+	if treasuryStakeEnabled {
+		return checkCoinbaseUniqueHeightWithStakebase(blockHeight, block)
+	} else {
+		return checkCoinbaseUniqueHeightWithAddress(blockHeight, block)
+	}
 }
 
 // checkAllowedVotes performs validation of all votes in the block to ensure
@@ -2978,10 +3087,23 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	if err != nil {
 		return err
 	}
-	err = coinbasePaysTreasury(b.subsidyCache, block.Transactions()[0],
-		node.height, node.voters, b.chainParams, treasuryBaseEnabled)
-	if err != nil {
-		return err
+	if treasuryBaseEnabled {
+		if len(block.STransactions()) == 0 {
+			return AssertError("invalid STransactions length")
+		}
+		err = coinbasePaysToTreasuryBase(b.subsidyCache,
+			block.STransactions()[0], node.height, node.voters,
+			b.chainParams)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = coinbasePaysToTreasuryAddress(b.subsidyCache,
+			block.Transactions()[0], node.height, node.voters,
+			b.chainParams)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Don't run scripts if this node is before the latest known good

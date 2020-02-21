@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/blockchain/v3"
@@ -483,7 +484,7 @@ func calcBlockCommitmentRootV1(block *wire.MsgBlock, prevScripts blockcf2.PrevSc
 //
 // See the comment for NewBlockTemplate for more information about why the nil
 // address handling is useful.
-func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params, treasuryEnabled bool) (*dcrutil.Tx, error) {
+func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
 		// Coinbase transactions have no inputs, so previous outpoint is
@@ -517,21 +518,9 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 
 	// Treasury output.
 	if params.BlockTaxProportion > 0 {
-		var (
-			script []byte
-			err    error
-		)
-		if treasuryEnabled {
-			script, err = txscript.PayToTreasury()
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			script = params.OrganizationPkScript
-		}
 		tx.AddTxOut(&wire.TxOut{
 			Value:    treasurySubsidy,
-			PkScript: script,
+			PkScript: params.OrganizationPkScript,
 		})
 	} else {
 		// Treasury disabled.
@@ -541,7 +530,7 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 			return nil, err
 		}
 		tx.AddTxOut(&wire.TxOut{
-			Value:    treasurySubsidy,
+			Value:    0,
 			PkScript: trueScript,
 		})
 	}
@@ -576,6 +565,53 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 		Value:    workSubsidy,
 		PkScript: pksSubsidy,
 	})
+
+	return dcrutil.NewTx(tx), nil
+}
+
+// createStakebaseTx returns a coinbase transaction paying an appropriate subsidy
+// based on the passed block height to the treasury.
+func createStakebaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
+	tx := wire.NewMsgTx()
+	tx.AddTxIn(&wire.TxIn{
+		// Stakebase transactions have no inputs, so previous outpoint
+		// is zero hash and max index.
+		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+			wire.MaxPrevOutIndex, wire.TxTreeRegular),
+		Sequence:        wire.MaxTxInSequenceNum,
+		BlockHeight:     wire.NullBlockHeight,
+		BlockIndex:      wire.NullBlockIndex,
+		SignatureScript: coinbaseScript,
+	})
+
+	// Create a stakebase with correct block subsidy and extranonce.
+	treasurySubsidy := subsidyCache.CalcTreasurySubsidy(nextBlockHeight, voters)
+
+	// Treasury output.
+	if params.BlockTaxProportion > 0 {
+		tx.AddTxOut(&wire.TxOut{
+			Value:    treasurySubsidy,
+			PkScript: []byte{txscript.OP_TADD},
+		})
+	} else {
+		// Treasury disabled.
+		scriptBuilder := txscript.NewScriptBuilder()
+		trueScript, err := scriptBuilder.AddOp(txscript.OP_TRUE).Script()
+		if err != nil {
+			return nil, err
+		}
+		tx.AddTxOut(&wire.TxOut{
+			Value:    0,
+			PkScript: trueScript,
+		})
+	}
+	// Extranonce.
+	tx.AddTxOut(&wire.TxOut{
+		Value:    0,
+		PkScript: opReturnPkScript,
+	})
+	// ValueIn.
+	tx.TxIn[0].ValueIn = treasurySubsidy
 
 	return dcrutil.NewTx(tx), nil
 }
@@ -720,13 +756,24 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		if err != nil {
 			return nil, err
 		}
-		coinbaseTx, err := createCoinbaseTx(subsidyCache, coinbaseScript,
-			opReturnPkScript, topBlock.Height(), miningAddress,
-			tipHeader.Voters, bm.cfg.ChainParams, treasuryEnabled)
+		coinbaseTx, err := createCoinbaseTx(subsidyCache,
+			coinbaseScript, opReturnPkScript, topBlock.Height(),
+			miningAddress, tipHeader.Voters, bm.cfg.ChainParams)
 		if err != nil {
 			return nil, err
 		}
 		block.AddTransaction(coinbaseTx.MsgTx())
+
+		if treasuryEnabled {
+			stakebaseTx, err := createStakebaseTx(subsidyCache,
+				coinbaseScript, opReturnPkScript,
+				topBlock.Height(), tipHeader.Voters,
+				bm.cfg.ChainParams)
+			if err != nil {
+				return nil, err
+			}
+			block.AddSTransaction(stakebaseTx.MsgTx())
+		}
 
 		// Copy all of the stake transactions over.
 		for _, stx := range topBlock.STransactions() {
@@ -1434,13 +1481,78 @@ mempoolLoop:
 	// Build tx list for stake tx.
 	blockTxnsStake := make([]*dcrutil.Tx, 0, len(blockTxns))
 
+	// Create a standard coinbase transaction paying to the provided
+	// address.  NOTE: The coinbase value will be updated to include the
+	// fees from the selected transactions later after they have actually
+	// been selected.  It is created here to detect any errors early
+	// before potentially doing a lot of work below.  The extra nonce helps
+	// ensure the transaction is not a duplicate transaction (paying the
+	// same value to the same public key address would otherwise be an
+	// identical transaction for block version 1).
+	// Decred: We need to move this downwards because of the requirements
+	// to incorporate voters and potential voters.
+	//
+	// NOTE: we have to do this early to deal with stakebase.
+	coinbaseScript := []byte{0x00, 0x00}
+	coinbaseScript = append(coinbaseScript, []byte(coinbaseFlags)...)
+
+	// Add a random coinbase nonce to ensure that tx prefix hash
+	// so that our merkle root is unique for lookups needed for
+	// getwork, etc.
+	rand, err := wire.RandomUint64()
+	if err != nil {
+		return nil, err
+	}
+	opReturnPkScript, err := standardCoinbaseOpReturn(uint32(nextBlockHeight),
+		rand)
+	if err != nil {
+		return nil, err
+	}
+
 	// Stake tx ordering in stake tree:
-	// 1. SSGen (votes).
-	// 2. SStx (fresh stake tickets).
-	// 3. SSRtx (revocations for missed tickets).
+	// 1. Stakebase
+	// 2. SSGen (votes).
+	// 3. SStx (fresh stake tickets).
+	// 4. SSRtx (revocations for missed tickets).
+	// 5. Stuff treasury payout in stake tree.
+
+	// We have to figure out how many voters we have before adding the
+	// stakebase tranasction.
+	voters := 0
+	if nextBlockHeight >= stakeValidationHeight {
+		for _, tx := range blockTxns {
+			msgTx := tx.MsgTx()
+			if stake.IsSSGen(msgTx) {
+				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+				if maybeInsertStakeTx(g.blockManager, txCopy,
+					!knownDisapproved) {
+					voters++
+				}
+			}
+
+			// Don't let this overflow, although probably it's impossible.
+			if voters >= math.MaxUint16 {
+				break
+			}
+		}
+	}
+
+	if treasuryEnabled {
+		stakebaseTx, err := createStakebaseTx(g.subsidyCache,
+			coinbaseScript,
+			opReturnPkScript,
+			nextBlockHeight,
+			uint16(voters),
+			g.chainParams)
+		if err != nil {
+			return nil, err
+		}
+		stakebaseTx.SetTree(wire.TxTreeStake)
+		minrLog.Tracef("stakebaseTx %v", spew.Sdump(stakebaseTx))
+		blockTxnsStake = append(blockTxnsStake, stakebaseTx)
+	}
 
 	// Get the block votes (SSGen tx) and store them and their number.
-	voters := 0
 	var voteBitsVoters []uint16
 
 	// Have SSGen should be present after this height.
@@ -1610,44 +1722,18 @@ mempoolLoop:
 		}
 	}
 
-	// Create a standard coinbase transaction paying to the provided
-	// address.  NOTE: The coinbase value will be updated to include the
-	// fees from the selected transactions later after they have actually
-	// been selected.  It is created here to detect any errors early
-	// before potentially doing a lot of work below.  The extra nonce helps
-	// ensure the transaction is not a duplicate transaction (paying the
-	// same value to the same public key address would otherwise be an
-	// identical transaction for block version 1).
-	// Decred: We need to move this downwards because of the requirements
-	// to incorporate voters and potential voters.
-	coinbaseScript := []byte{0x00, 0x00}
-	coinbaseScript = append(coinbaseScript, []byte(coinbaseFlags)...)
-
-	// Add a random coinbase nonce to ensure that tx prefix hash
-	// so that our merkle root is unique for lookups needed for
-	// getwork, etc.
-	rand, err := wire.RandomUint64()
-	if err != nil {
-		return nil, err
-	}
-	opReturnPkScript, err := standardCoinbaseOpReturn(uint32(nextBlockHeight),
-		rand)
-	if err != nil {
-		return nil, err
-	}
 	coinbaseTx, err := createCoinbaseTx(g.subsidyCache,
 		coinbaseScript,
 		opReturnPkScript,
 		nextBlockHeight,
 		payToAddress,
 		uint16(voters),
-		g.chainParams,
-		treasuryEnabled)
+		g.chainParams)
+
 	if err != nil {
 		return nil, err
 	}
-
-	coinbaseTx.SetTree(wire.TxTreeRegular) // Coinbase only in regular tx tree
+	coinbaseTx.SetTree(wire.TxTreeRegular)
 
 	numCoinbaseSigOps := int64(blockchain.CountSigOps(coinbaseTx, true, false))
 	blockSize += uint32(coinbaseTx.MsgTx().SerializeSize())
@@ -1718,10 +1804,15 @@ mempoolLoop:
 	// block size for the real transaction count and coinbase value with
 	// the total fees accordingly.
 	if nextBlockHeight > 1 {
+		idx := 2
+		if treasuryEnabled {
+			// We no longer pay out treasury to an address.
+			idx = 1
+		}
 		blockSize -= wire.MaxVarIntPayload -
 			uint32(wire.VarIntSerializeSize(uint64(len(blockTxnsRegular))+
 				uint64(len(blockTxnsStake))))
-		coinbaseTx.MsgTx().TxOut[2].Value += totalFees
+		coinbaseTx.MsgTx().TxOut[idx].Value += totalFees
 		txFees[0] = -totalFees
 	}
 
@@ -2567,6 +2658,9 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason Templa
 		payToAddr := g.miningAddrs[prng.Intn(len(g.miningAddrs))]
 		template, err := g.tg.NewBlockTemplate(payToAddr)
 		// NOTE: err is handled below.
+		if err != nil {
+			minrLog.Tracef("NewBlockTemplate: %v", err)
+		}
 
 		// Don't update the state or notify subscribers when the template
 		// generation was cancelled.
