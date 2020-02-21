@@ -1537,8 +1537,9 @@ mempoolLoop:
 		}
 	}
 
+	var stakebaseTx *dcrutil.Tx
 	if treasuryEnabled {
-		stakebaseTx, err := createStakebaseTx(g.subsidyCache,
+		stakebaseTx, err = createStakebaseTx(g.subsidyCache,
 			coinbaseScript,
 			opReturnPkScript,
 			nextBlockHeight,
@@ -1740,6 +1741,11 @@ mempoolLoop:
 	blockSigOps += numCoinbaseSigOps
 	txFeesMap[*coinbaseTx.Hash()] = 0
 	txSigOpCountsMap[*coinbaseTx.Hash()] = numCoinbaseSigOps
+	if stakebaseTx != nil {
+		txFeesMap[*stakebaseTx.Hash()] = 0
+		n := int64(blockchain.CountSigOps(stakebaseTx, true, false))
+		txSigOpCountsMap[*stakebaseTx.Hash()] = n
+	}
 
 	// Build tx lists for regular tx.
 	blockTxnsRegular := make([]*dcrutil.Tx, 0, len(blockTxns)+1)
