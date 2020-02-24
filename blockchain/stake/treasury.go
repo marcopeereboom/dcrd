@@ -21,7 +21,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	// Verify all TxOut script versions.
 	for k := range mtx.TxOut {
 		if mtx.TxOut[k].Version != consensusVersion {
-			return stakeRuleError(ErrTreasuryTSpendInvalid,
+			return stakeRuleError(ErrTreasuryTAddInvalid,
 				"invalid script version found in TADD TxOut")
 		}
 	}
@@ -33,11 +33,12 @@ func checkTAdd(mtx *wire.MsgTx) error {
 			"invalid TADD script")
 	}
 
-	// only 1 stake change output allowed.
+	// only 1 stake change or op_return output allowed.
 	if len(mtx.TxOut) == 2 {
 		tx := mtx.TxOut[1]
-		if txscript.GetScriptClass(tx.Version, tx.PkScript) !=
-			txscript.StakeSubChangeTy {
+		if !(txscript.GetScriptClass(tx.Version, tx.PkScript) ==
+			txscript.StakeSubChangeTy ||
+			mtx.TxOut[1].PkScript[0] == txscript.OP_RETURN) {
 			return stakeRuleError(ErrTreasuryTAddInvalid,
 				"invalid TADD script")
 		}
