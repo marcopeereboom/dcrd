@@ -683,8 +683,6 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		// transaction tree.
 		txType := stake.DetermineTxType(stx)
 		if txType == stake.TxTypeRegular {
-			// XXX add stake.TxTypeStakeBase
-			panic(spew.Sdump(stx))
 			errStr := fmt.Sprintf("block contains regular "+
 				"transaction in stake transaction tree at "+
 				"index %d", txIdx)
