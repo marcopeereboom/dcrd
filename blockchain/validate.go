@@ -2604,6 +2604,7 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		originTxIndex := txIn.PreviousOutPoint.Index
 		utxoEntry := view.LookupEntry(originTxHash)
 		if utxoEntry == nil || utxoEntry.IsOutputSpent(originTxIndex) {
+			panic(spew.Sdump(tx.MsgTx()))
 			str := fmt.Sprintf("output %v referenced from "+
 				"transaction %s:%d either does not exist or "+
 				"has already been spent", txIn.PreviousOutPoint,
@@ -2707,8 +2708,9 @@ func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool,
 	// optimization for the flag to countP2SHSigOps for whether or not the
 	// transaction is a coinbase transaction rather than having to do a
 	// full coinbase check again.
+	isTreasuryBase := stake.IsTreasuryBase(msgTx)
 	numP2SHSigOps, err := CountP2SHSigOps(tx, (index == 0) && txTree,
-		isSSGen, view)
+		isTreasuryBase, view)
 	if err != nil {
 		log.Tracef("CountP2SHSigOps failed; error returned %v", err)
 		return 0, err

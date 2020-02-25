@@ -484,7 +484,7 @@ func calcBlockCommitmentRootV1(block *wire.MsgBlock, prevScripts blockcf2.PrevSc
 //
 // See the comment for NewBlockTemplate for more information about why the nil
 // address handling is useful.
-func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
+func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params, treasuryEnabled bool) (*dcrutil.Tx, error) {
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
 		// Coinbase transactions have no inputs, so previous outpoint is
@@ -514,31 +514,42 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 
 	// Create a coinbase with correct block subsidy and extranonce.
 	workSubsidy := subsidyCache.CalcWorkSubsidy(nextBlockHeight, voters)
-	treasurySubsidy := subsidyCache.CalcTreasurySubsidy(nextBlockHeight, voters)
+	treasurySubsidy := int64(0)
 
-	// Treasury output.
-	if params.BlockTaxProportion > 0 {
-		tx.AddTxOut(&wire.TxOut{
-			Value:    treasurySubsidy,
-			PkScript: params.OrganizationPkScript,
-		})
+	if treasuryEnabled {
+		// Stakebase enabled so zero out treasurySubsidy since it is
+		// cincluded in the satke tree.
+
+		// DO NOTHING
 	} else {
-		// Treasury disabled.
-		scriptBuilder := txscript.NewScriptBuilder()
-		trueScript, err := scriptBuilder.AddOp(txscript.OP_TRUE).Script()
-		if err != nil {
-			return nil, err
+		treasurySubsidy = subsidyCache.CalcTreasurySubsidy(
+			nextBlockHeight, voters)
+		// Treasuryoutput to address.
+		if params.BlockTaxProportion > 0 {
+			tx.AddTxOut(&wire.TxOut{
+				Value:    treasurySubsidy,
+				PkScript: params.OrganizationPkScript,
+			})
+		} else {
+			// Treasury disabled.
+			scriptBuilder := txscript.NewScriptBuilder()
+			trueScript, err := scriptBuilder.AddOp(
+				txscript.OP_TRUE).Script()
+			if err != nil {
+				return nil, err
+			}
+			tx.AddTxOut(&wire.TxOut{
+				Value:    0,
+				PkScript: trueScript,
+			})
 		}
+		// Extranonce.
 		tx.AddTxOut(&wire.TxOut{
 			Value:    0,
-			PkScript: trueScript,
+			PkScript: opReturnPkScript,
 		})
 	}
-	// Extranonce.
-	tx.AddTxOut(&wire.TxOut{
-		Value:    0,
-		PkScript: opReturnPkScript,
-	})
+
 	// ValueIn.
 	tx.TxIn[0].ValueIn = workSubsidy + treasurySubsidy
 
@@ -752,13 +763,15 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		}
 		coinbaseScript := make([]byte, len(coinbaseFlags)+2)
 		copy(coinbaseScript[2:], coinbaseFlags)
-		opReturnPkScript, err := standardCoinbaseOpReturn(tipHeader.Height, rand)
+		opReturnPkScript, err := standardCoinbaseOpReturn(tipHeader.Height,
+			rand)
 		if err != nil {
 			return nil, err
 		}
 		coinbaseTx, err := createCoinbaseTx(subsidyCache,
 			coinbaseScript, opReturnPkScript, topBlock.Height(),
-			miningAddress, tipHeader.Voters, bm.cfg.ChainParams)
+			miningAddress, tipHeader.Voters, bm.cfg.ChainParams,
+			treasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -1723,14 +1736,9 @@ mempoolLoop:
 		}
 	}
 
-	coinbaseTx, err := createCoinbaseTx(g.subsidyCache,
-		coinbaseScript,
-		opReturnPkScript,
-		nextBlockHeight,
-		payToAddress,
-		uint16(voters),
-		g.chainParams)
-
+	coinbaseTx, err := createCoinbaseTx(g.subsidyCache, coinbaseScript,
+		opReturnPkScript, nextBlockHeight, payToAddress, uint16(voters),
+		g.chainParams, treasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -1810,15 +1818,10 @@ mempoolLoop:
 	// block size for the real transaction count and coinbase value with
 	// the total fees accordingly.
 	if nextBlockHeight > 1 {
-		idx := 2
-		if treasuryEnabled {
-			// We no longer pay out treasury to an address.
-			idx = 1
-		}
 		blockSize -= wire.MaxVarIntPayload -
 			uint32(wire.VarIntSerializeSize(uint64(len(blockTxnsRegular))+
 				uint64(len(blockTxnsStake))))
-		coinbaseTx.MsgTx().TxOut[idx].Value += totalFees
+		coinbaseTx.MsgTx().TxOut[2].Value += totalFees
 		txFees[0] = -totalFees
 	}
 
