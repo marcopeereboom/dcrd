@@ -2818,6 +2818,7 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 		msgTx := tx.MsgTx()
 		isSSGen := stake.IsSSGen(msgTx)
 		isTSpend := stake.IsTSpend(msgTx)
+		isTreasuryBase := stake.IsTreasuryBase(msgTx)
 
 		for i, in := range msgTx.TxIn {
 			// Ignore stakebases.
@@ -2827,6 +2828,11 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 
 			// Ignore TSpend.
 			if isTSpend && i == 0 {
+				continue
+			}
+
+			// Ignore treasury base.
+			if isTreasuryBase && i == 0 {
 				continue
 			}
 
