@@ -114,3 +114,39 @@ func checkTSpend(mtx *wire.MsgTx) error {
 func IsTSpend(tx *wire.MsgTx) bool {
 	return checkTSpend(tx) == nil
 }
+
+// checkTreasuryBase verifies that the provided MsgTx is a treasury base.
+func checkTreasuryBase(mtx *wire.MsgTx) error {
+	// Reused checkTAdd for the output side since it supports bot TADD
+	// variants.
+	err := checkTAdd(mtx)
+	if err != nil {
+		return err
+	}
+
+	// We have a valid TADD so not chec the input side and determine if
+	// this is stakebase.
+	// A coin base must only have one transaction input.
+	if len(mtx.TxIn) != 1 {
+		return stakeRuleError(ErrStakeBaseInvalid,
+			"Input is not a stakebase")
+	}
+
+	// The previous output of a coin base must have a max value index and a
+	// zero hash.
+	// XXX fix this
+	//prevOut := &mtx.TxIn[0].PreviousOutPoint
+	//if prevOut.Index != math.MaxUint32 || prevOut.Hash != *zeroHash ||
+	//	prevOut.Tree != wire.TxTreeStake {
+	//	return stakeRuleError(ErrStakeBaseInvalid,
+	//		"Previous out point is not a stakebase")
+	//}
+
+	return nil
+}
+
+// IsTreasuryBase returns true if the provided transaction is a treasury base
+// transaction.
+func IsTreasuryBase(tx *wire.MsgTx) bool {
+	return checkTreasuryBase(tx) == nil
+}
