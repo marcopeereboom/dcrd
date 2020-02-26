@@ -1239,9 +1239,6 @@ func checkCoinbaseUniqueHeightWithAddress(blockHeight int64, block *dcrutil.Bloc
 func checkCoinbaseUniqueHeightWithStakebase(blockHeight int64, block *dcrutil.Block) error {
 
 	if len(block.MsgBlock().STransactions) == 0 {
-		panic(fmt.Sprintf(
-			"checkCoinbaseUniqueHeightWithStakebase: %v",
-			spew.Sdump(block)))
 		return AssertError(fmt.Sprintf(
 			"checkCoinbaseUniqueHeightWithStakebase: %v",
 			spew.Sdump(block)))
@@ -1260,7 +1257,7 @@ func checkCoinbaseUniqueHeightWithStakebase(blockHeight int64, block *dcrutil.Bl
 
 	// Only version 0 scripts are currently valid.
 	const scriptVersion = 0
-	nullDataOut := stakebaseTx.TxOut[0]
+	nullDataOut := stakebaseTx.TxOut[1]
 	if nullDataOut.Version != scriptVersion {
 		str := fmt.Sprintf("block %s coinbase output 0 script "+
 			"version %d is not the required version %d",
@@ -2865,10 +2862,13 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 		if isTSpend {
 			totalOutputs -= msgTx.TxIn[0].ValueIn
 		}
+
+		if isTreasuryBase {
+			totalOutputs -= msgTx.TxIn[0].ValueIn
+		}
 	}
 
 	if totalInputs < totalOutputs {
-		panic(fmt.Sprintf("in %v out %v", totalInputs, totalOutputs))
 		str := fmt.Sprintf("negative cumulative fees found in stake " +
 			"tx tree")
 		return 0, ruleError(ErrStakeFees, str)

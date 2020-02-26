@@ -580,9 +580,9 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 	return dcrutil.NewTx(tx), nil
 }
 
-// createStakebaseTx returns a coinbase transaction paying an appropriate subsidy
+// createTreasuryBaseTx returns a coinbase transaction paying an appropriate subsidy
 // based on the passed block height to the treasury.
-func createStakebaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
+func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
 		// Stakebase transactions have no inputs, so previous outpoint
@@ -624,7 +624,9 @@ func createStakebaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []b
 	// ValueIn.
 	tx.TxIn[0].ValueIn = treasurySubsidy
 
-	return dcrutil.NewTx(tx), nil
+	retTx := dcrutil.NewTx(tx)
+	retTx.SetTree(wire.TxTreeStake)
+	return retTx, nil
 }
 
 // spendTransaction updates the passed view by marking the inputs to the passed
@@ -778,14 +780,14 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		block.AddTransaction(coinbaseTx.MsgTx())
 
 		if treasuryEnabled {
-			stakebaseTx, err := createStakebaseTx(subsidyCache,
+			treasuryBase, err := createTreasuryBaseTx(subsidyCache,
 				coinbaseScript, opReturnPkScript,
 				topBlock.Height(), tipHeader.Voters,
 				bm.cfg.ChainParams)
 			if err != nil {
 				return nil, err
 			}
-			block.AddSTransaction(stakebaseTx.MsgTx())
+			block.AddSTransaction(treasuryBase.MsgTx())
 		}
 
 		// Copy all of the stake transactions over.
@@ -1550,9 +1552,9 @@ mempoolLoop:
 		}
 	}
 
-	var stakebaseTx *dcrutil.Tx
+	var treasuryBase *dcrutil.Tx
 	if treasuryEnabled {
-		stakebaseTx, err = createStakebaseTx(g.subsidyCache,
+		treasuryBase, err = createTreasuryBaseTx(g.subsidyCache,
 			coinbaseScript,
 			opReturnPkScript,
 			nextBlockHeight,
@@ -1561,9 +1563,8 @@ mempoolLoop:
 		if err != nil {
 			return nil, err
 		}
-		stakebaseTx.SetTree(wire.TxTreeStake)
-		minrLog.Tracef("stakebaseTx %v", spew.Sdump(stakebaseTx))
-		blockTxnsStake = append(blockTxnsStake, stakebaseTx)
+		minrLog.Tracef("treasuryBase %v", spew.Sdump(treasuryBase))
+		blockTxnsStake = append(blockTxnsStake, treasuryBase)
 	}
 
 	// Get the block votes (SSGen tx) and store them and their number.
@@ -1749,10 +1750,10 @@ mempoolLoop:
 	blockSigOps += numCoinbaseSigOps
 	txFeesMap[*coinbaseTx.Hash()] = 0
 	txSigOpCountsMap[*coinbaseTx.Hash()] = numCoinbaseSigOps
-	if stakebaseTx != nil {
-		txFeesMap[*stakebaseTx.Hash()] = 0
-		n := int64(blockchain.CountSigOps(stakebaseTx, true, false))
-		txSigOpCountsMap[*stakebaseTx.Hash()] = n
+	if treasuryBase != nil {
+		txFeesMap[*treasuryBase.Hash()] = 0
+		n := int64(blockchain.CountSigOps(treasuryBase, true, false))
+		txSigOpCountsMap[*treasuryBase.Hash()] = n
 	}
 
 	// Build tx lists for regular tx.
@@ -1818,11 +1819,13 @@ mempoolLoop:
 	// block size for the real transaction count and coinbase value with
 	// the total fees accordingly.
 	if nextBlockHeight > 1 {
-		blockSize -= wire.MaxVarIntPayload -
-			uint32(wire.VarIntSerializeSize(uint64(len(blockTxnsRegular))+
-				uint64(len(blockTxnsStake))))
-		coinbaseTx.MsgTx().TxOut[2].Value += totalFees
-		txFees[0] = -totalFees
+		if !treasuryEnabled {
+			blockSize -= wire.MaxVarIntPayload -
+				uint32(wire.VarIntSerializeSize(uint64(len(blockTxnsRegular))+
+					uint64(len(blockTxnsStake))))
+			coinbaseTx.MsgTx().TxOut[2].Value += totalFees
+			txFees[0] = -totalFees
+		}
 	}
 
 	// Calculate the required difficulty for the block.  The timestamp
