@@ -542,6 +542,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block) {
+		//panic(spew.Sdump(block))
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
 			"outputs", len(stxos), node.hash, node.height,
 			countSpentOutputs(block))
@@ -885,6 +886,11 @@ func countSpentStakeOutputs(block *dcrutil.Block) int {
 
 		// Exclude TSpend.
 		if stake.IsTSpend(stx) {
+			continue
+		}
+
+		// Exclude TreasuryBase
+		if stake.IsTreasuryBase(stx) {
 			continue
 		}
 
