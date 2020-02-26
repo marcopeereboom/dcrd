@@ -2882,6 +2882,11 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 // After ensuring the transaction is valid, the transaction is connected to the
 // UTXO viewpoint.  TxTree true == Regular, false == Stake
 func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint, stxos *[]spentTxOut, txTree bool) error {
+	isTreasuryAgendaActive, err := b.isTreasuryAgendaActive(node)
+	if err != nil {
+		return err
+	}
+
 	// Perform several checks on the inputs for each transaction.  Also
 	// accumulate the total fees.  This could technically be combined with
 	// the loop above instead of running another loop over the
@@ -2954,9 +2959,15 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		} else {
 			subsidyWork := b.subsidyCache.CalcWorkSubsidy(node.height,
 				node.voters)
-			subsidyTax := b.subsidyCache.CalcTreasurySubsidy(node.height,
-				node.voters)
-			expAtomOut = subsidyWork + subsidyTax + totalFees
+			if isTreasuryAgendaActive {
+				// When TreasuryBase is enabled the subsidyTax
+				// lives in STransactions.
+				expAtomOut = subsidyWork + totalFees
+			} else {
+				subsidyTax := b.subsidyCache.CalcTreasurySubsidy(node.height,
+					node.voters)
+				expAtomOut = subsidyWork + subsidyTax + totalFees
+			}
 		}
 
 		// AmountIn for the input should be equal to the subsidy.
