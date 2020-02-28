@@ -471,6 +471,7 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 			txType = stake.DetermineTxType(msgTx)
 		}
 		isVote := txType == stake.TxTypeSSGen
+		isTreasury := txType == stake.TxTypeTAdd
 
 		// Clear this transaction from the view if it already exists or create a
 		// new empty entry for when it does not.  This is done because the code
@@ -497,9 +498,14 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 			if isVote && txInIdx == 0 {
 				continue
 			}
+			// Ignore stakebase since it has no input.
+			if isTreasury && txInIdx == 0 {
+				continue
+			}
 
 			// Ensure the spent txout index is decremented to stay in sync with
 			// the transaction input.
+			// XXX skip treasurybase transactions here
 			stxo := &stxos[stxoIdx]
 			stxoIdx--
 
