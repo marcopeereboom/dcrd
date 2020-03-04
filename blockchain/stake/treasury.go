@@ -5,6 +5,9 @@
 package stake
 
 import (
+	"bytes"
+	"math"
+
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -117,14 +120,14 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 	// A TADD consists of one OP_TADD in PkScript[0] followed by an
 	// OP_RETURN <random> in  PkScript[1].
 	if len(mtx.TxOut) != 2 {
-		return stakeRuleError(ErrTreasuryTAddInvalid,
-			"invalid treasurybase script")
+		return stakeRuleError(ErrTreasuryBaseInvalid,
+			"invalid treasurybase out script count")
 	}
 
 	// Verify all TxOut script versions.
 	for k := range mtx.TxOut {
 		if mtx.TxOut[k].Version != consensusVersion {
-			return stakeRuleError(ErrTreasuryTAddInvalid,
+			return stakeRuleError(ErrTreasuryBaseInvalid,
 				"invalid script version found in treasurybase")
 		}
 	}
@@ -132,13 +135,13 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 	// First output must be a TADD
 	if len(mtx.TxOut[0].PkScript) != 1 ||
 		mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
-		return stakeRuleError(ErrTreasuryTAddInvalid,
+		return stakeRuleError(ErrTreasuryBaseInvalid,
 			"first treasurybase output must be a TADD")
 	}
 
 	// only 1 stake change  output allowed.
 	if mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN {
-		return stakeRuleError(ErrTreasuryTAddInvalid,
+		return stakeRuleError(ErrTreasuryBaseInvalid,
 			"second output must be an OP_RETURN script")
 	}
 
@@ -148,12 +151,26 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 	if tokenizer.Next() && tokenizer.Done() &&
 		tokenizer.Opcode() != txscript.OP_DATA_32 &&
 		len(tokenizer.Data()) != 32 {
-		return stakeRuleError(ErrTreasuryTAddInvalid,
+		return stakeRuleError(ErrTreasuryBaseInvalid,
 			"second output must be an OP_RETURN script followed "+
 				"by 32 bytes")
 	}
 
 	// Make sure chainhash etc is treasurybase.
+	// A treasury base must only have one transaction input.
+	if len(mtx.TxIn) != 1 {
+		return stakeRuleError(ErrTreasuryBaseInvalid,
+			"invalid treasurybase in script count")
+	}
+
+	// The previous output of a coin base must have a max value index and a
+	// zero hash.
+	prevOut := &mtx.TxIn[0].PreviousOutPoint
+	if prevOut.Index != math.MaxUint32 ||
+		!bytes.Equal(prevOut.Hash[:], zeroHash[:]) {
+		return stakeRuleError(ErrTreasuryBaseInvalid,
+			"invalid treasurybase constants")
+	}
 
 	return nil
 }
