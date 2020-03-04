@@ -60,9 +60,9 @@ func checkTSpend(mtx *wire.MsgTx) error {
 
 	// A TSPEND consists of one OP_TSPEND in TxIn[0].SignatureScript,
 	// one OP_RETURN transaction hash and at least one P2PH TxOut script.
-	if len(mtx.TxIn) != 1 || len(mtx.TxOut) <= 0 {
+	if len(mtx.TxIn) != 1 || len(mtx.TxOut) < 2 {
 		return stakeRuleError(ErrTreasuryTAddInvalid,
-			"invalid TSPEND script")
+			"invalid TSPEND script lengths")
 	}
 
 	// Check to make sure that all output scripts are the consensus version.
@@ -77,7 +77,7 @@ func checkTSpend(mtx *wire.MsgTx) error {
 	if len(mtx.TxIn[0].SignatureScript) != 1 ||
 		mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND {
 		return stakeRuleError(ErrTreasuryTSpendInvalid,
-			"invalid TSPEND script")
+			"first opcode must contain a TSPEND script")
 	}
 
 	// Verify that the TxOut's contains P2PH scripts.
@@ -139,7 +139,7 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 			"first treasurybase output must be a TADD")
 	}
 
-	// only 1 stake change  output allowed.
+	// Required OP_RETURN
 	if mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN {
 		return stakeRuleError(ErrTreasuryBaseInvalid,
 			"second output must be an OP_RETURN script")
