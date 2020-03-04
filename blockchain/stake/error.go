@@ -185,9 +185,9 @@ const (
 	// invalid TSPEND script.
 	ErrTreasuryTSpendInvalid
 
-	// ErrStakeBaseInvalid indicates that this transaction contains an
+	// ErrTreasuryBaseInvalid indicates that this transaction contains an
 	// invalid stakebase script.
-	ErrStakeBaseInvalid
+	ErrTreasuryBaseInvalid
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -233,7 +233,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrUnknownTicketSpent:    "ErrUnknownTicketSpent",
 	ErrTreasuryTAddInvalid:   "ErrTreasuryTAddInvalid",
 	ErrTreasuryTSpendInvalid: "ErrTreasuryTSpendInvalid",
-	ErrStakeBaseInvalid:      "ErrStakeBaseInvalid",
+	ErrTreasuryBaseInvalid:   "ErrTreasuryBaseInvalid",
 }
 
 // String returns the ErrorCode as a human-readable name.
