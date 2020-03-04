@@ -81,6 +81,22 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					panic(err)
 				}
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
+
+				// treasurybase
+				coinbaseFlags := "/dcrd/"
+				coinbaseScript := make([]byte, len(coinbaseFlags)+2)
+				copy(coinbaseScript[2:], coinbaseFlags)
+				msgTx.AddTxIn(&wire.TxIn{
+					// Stakebase transactions have no
+					// inputs, so previous outpoint is zero
+					// hash and max index.
+					PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+						wire.MaxPrevOutIndex, wire.TxTreeRegular),
+					Sequence:        wire.MaxTxInSequenceNum,
+					BlockHeight:     wire.NullBlockHeight,
+					BlockIndex:      wire.NullBlockIndex,
+					SignatureScript: coinbaseScript,
+				})
 				return msgTx
 			},
 			is:       IsTAdd,
@@ -99,7 +115,8 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx := wire.NewMsgTx()
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
-				p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE}, chaincfg.MainNetParams())
+				p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE},
+					chaincfg.MainNetParams())
 				if err != nil {
 					panic(err)
 				}
@@ -115,7 +132,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 			check:    checkTAdd,
 		},
 		{
-			name: "tadd from stakebase",
+			name: "tadd from treasurybase",
 			createTx: func() *wire.MsgTx {
 				builder := txscript.NewScriptBuilder()
 				builder.AddOp(txscript.OP_TADD)
