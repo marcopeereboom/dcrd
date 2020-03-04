@@ -19,17 +19,19 @@ import (
 // TestTreasuryIsFunctions goes through all valid treasury opcode combinations.
 //
 // == User sends to treasury ==
-// In:  Normal TxIn signature script
-// Out: OP_TADD and optional OP_SSTXCHANGE
+// TxIn:  Normal TxIn signature script
+// TxOut[0] OP_TADD
+// TxOut[1] optional OP_SSTXCHANGE
 //
 // == Treasurybase add ==
-// In:  Stakebase
-// Out: OP_TADD, OP_RETURN <random>
+// TxIn:  Stakebase
+// TxOut[0] OP_TADD
+// TxOut[1] OP_RETURN <random>
 //
 // == Spend from treasury ==
-// In:  OP_TSPEND OP_PUSH <random>
-// Out: one or more OP_TGEN <paytopubkeyhash || paytoscripthash>
-//
+// TxIn[0]     OP_TSPEND
+// TxOut[0]    OP_RETURN <random>
+// TxOut[1..N] OP_TGEN <paytopubkeyhash || paytoscripthash>
 func TestTreasuryIsFunctions(t *testing.T) {
 	tests := []struct {
 		name     string
