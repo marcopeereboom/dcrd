@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -97,14 +99,15 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx := wire.NewMsgTx()
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
-				builder = txscript.NewScriptBuilder()
-				builder.AddOp(txscript.OP_SSTXCHANGE)
-				// XXX add stake change here
-				script, err = builder.Script()
+				p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE}, chaincfg.MainNetParams())
 				if err != nil {
 					panic(err)
 				}
-				msgTx.AddTxOut(wire.NewTxOut(0, script))
+				changeScript, err := txscript.PayToSStxChange(p2shOpTrueAddr)
+				if err != nil {
+					panic(err)
+				}
+				msgTx.AddTxOut(wire.NewTxOut(0, changeScript))
 				return msgTx
 			},
 			is:       IsTAdd,
