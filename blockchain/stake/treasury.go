@@ -10,6 +10,7 @@ import (
 )
 
 // checkTAdd verifies that the provided MsgTx is a valid TADD.
+// Note: this function does not recognize treasurybase TADDs.
 func checkTAdd(mtx *wire.MsgTx) error {
 	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or 1
 	// stake change outputs.
@@ -33,18 +34,14 @@ func checkTAdd(mtx *wire.MsgTx) error {
 			"first output must be a TADD")
 	}
 
-	// only 1 stake change or op_return output allowed.
+	// only 1 stake change  output allowed.
 	if len(mtx.TxOut) == 2 {
-		tx := mtx.TxOut[1]
-		if !(txscript.GetScriptClass(tx.Version, tx.PkScript) ==
-			txscript.StakeSubChangeTy ||
-			mtx.TxOut[1].PkScript[0] == txscript.OP_RETURN) {
+		if txscript.GetScriptClass(mtx.TxOut[1].Version,
+			mtx.TxOut[1].PkScript) != txscript.StakeSubChangeTy {
 			return stakeRuleError(ErrTreasuryTAddInvalid,
-				"second output must be OP_RETURN or OP_SSTXCHANGE")
+				"second output must be an OP_SSTXCHANGE script")
 		}
 	}
-
-	// XXX add more rules here
 
 	return nil
 }
@@ -117,30 +114,46 @@ func IsTSpend(tx *wire.MsgTx) bool {
 
 // checkTreasuryBase verifies that the provided MsgTx is a treasury base.
 func checkTreasuryBase(mtx *wire.MsgTx) error {
-	// Reused checkTAdd for the output side since it supports bot TADD
-	// variants.
-	err := checkTAdd(mtx)
-	if err != nil {
-		return err
+	// A TADD consists of one OP_TADD in PkScript[0] followed by an
+	// OP_RETURN <random> in  PkScript[1].
+	if len(mtx.TxOut) != 2 {
+		return stakeRuleError(ErrTreasuryTAddInvalid,
+			"invalid treasurybase script")
 	}
 
-	// We have a valid TADD so not chec the input side and determine if
-	// this is stakebase.
-	// A coin base must only have one transaction input.
-	if len(mtx.TxIn) != 1 {
-		return stakeRuleError(ErrStakeBaseInvalid,
-			"Input is not a stakebase")
+	// Verify all TxOut script versions.
+	for k := range mtx.TxOut {
+		if mtx.TxOut[k].Version != consensusVersion {
+			return stakeRuleError(ErrTreasuryTAddInvalid,
+				"invalid script version found in treasurybase")
+		}
 	}
 
-	// The previous output of a coin base must have a max value index and a
-	// zero hash.
-	// XXX fix this
-	//prevOut := &mtx.TxIn[0].PreviousOutPoint
-	//if prevOut.Index != math.MaxUint32 || prevOut.Hash != *zeroHash ||
-	//	prevOut.Tree != wire.TxTreeStake {
-	//	return stakeRuleError(ErrStakeBaseInvalid,
-	//		"Previous out point is not a stakebase")
-	//}
+	// First output must be a TADD
+	if len(mtx.TxOut[0].PkScript) != 1 ||
+		mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
+		return stakeRuleError(ErrTreasuryTAddInvalid,
+			"first treasurybase output must be a TADD")
+	}
+
+	// only 1 stake change  output allowed.
+	if mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN {
+		return stakeRuleError(ErrTreasuryTAddInvalid,
+			"second output must be an OP_RETURN script")
+	}
+
+	// Look for random 32 byte value.
+	tokenizer := txscript.MakeScriptTokenizer(mtx.TxOut[1].Version,
+		mtx.TxOut[1].PkScript[1:])
+	if tokenizer.Next() && tokenizer.Done() &&
+		tokenizer.Opcode() != txscript.OP_DATA_32 &&
+		len(tokenizer.Data()) != 32 {
+		return stakeRuleError(ErrTreasuryTAddInvalid,
+			"second output must be an OP_RETURN script followed "+
+				"by 32 bytes")
+	}
+
+	// Make sure chainhash etc is treasurybase.
 
 	return nil
 }

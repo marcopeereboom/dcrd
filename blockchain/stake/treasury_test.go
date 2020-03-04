@@ -5,8 +5,10 @@
 package stake
 
 import (
+	"math/rand"
 	"testing"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -51,6 +53,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 			check:    checkTAdd,
 		},
 		{
+			// This is a valid stakebase but NOT a valid TADD.
 			name: "tadd from user, with OP_RETURN",
 			createTx: func() *wire.MsgTx {
 				builder := txscript.NewScriptBuilder()
@@ -62,8 +65,15 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx := wire.NewMsgTx()
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
+				// OP_RETURN <data>
+				payload := make([]byte, chainhash.HashSize)
+				_, err = rand.Read(payload)
+				if err != nil {
+					panic(err)
+				}
 				builder = txscript.NewScriptBuilder()
 				builder.AddOp(txscript.OP_RETURN)
+				builder.AddData(payload)
 				script, err = builder.Script()
 				if err != nil {
 					panic(err)
@@ -72,7 +82,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				return msgTx
 			},
 			is:       IsTAdd,
-			expected: true,
+			expected: false,
 			check:    checkTAdd,
 		},
 		{
@@ -89,6 +99,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 
 				builder = txscript.NewScriptBuilder()
 				builder.AddOp(txscript.OP_SSTXCHANGE)
+				// XXX add stake change here
 				script, err = builder.Script()
 				if err != nil {
 					panic(err)
