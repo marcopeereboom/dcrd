@@ -30,7 +30,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	if len(mtx.TxOut[0].PkScript) != 1 ||
 		mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
 		return stakeRuleError(ErrTreasuryTAddInvalid,
-			"invalid TADD script")
+			"first output must be a TADD")
 	}
 
 	// only 1 stake change or op_return output allowed.
@@ -40,7 +40,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 			txscript.StakeSubChangeTy ||
 			mtx.TxOut[1].PkScript[0] == txscript.OP_RETURN) {
 			return stakeRuleError(ErrTreasuryTAddInvalid,
-				"invalid TADD script")
+				"second output must be OP_RETURN or OP_SSTXCHANGE")
 		}
 	}
 
