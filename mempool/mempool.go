@@ -997,7 +997,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		tx.SetTree(wire.TxTreeStake)
 	}
 	isVote := txType == stake.TxTypeSSGen
-	isTSpend := txType == stake.TxTypeTSpend
+	isTreasury := txType == stake.TxTypeTSpend ||
+		txType == stake.TxTypeTreasuryBase
 
 	// Choose whether or not to accept transactions with sequence locks enabled.
 	//
@@ -1172,7 +1173,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Transaction is an orphan if any of the inputs don't exist.
 	var missingParents []*chainhash.Hash
 	for i, txIn := range msgTx.TxIn {
-		if (i == 0 && isVote) || isTSpend {
+		if (i == 0 && isVote) || isTreasury {
 			continue
 		}
 
