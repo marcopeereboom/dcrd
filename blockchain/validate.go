@@ -844,7 +844,9 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		msgTx := tx.MsgTx()
 		isCoinBase := standalone.IsCoinBaseTx(msgTx)
 		isSSGen := stake.IsSSGen(msgTx)
-		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen)
+		isTreasuryBase := stake.IsTreasuryBase(msgTx)
+		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen,
+			isTreasuryBase)
 		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
 			str := fmt.Sprintf("block contains too many signature "+
 				"operations - got %v, max %v", totalSigOps,
@@ -2539,7 +2541,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 // input and output scripts in the provided transaction.  This uses the
 // quicker, but imprecise, signature operation counting mechanism from
 // txscript.
-func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool) int {
+func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool, isTreasuryBase bool) int {
 	msgTx := tx.MsgTx()
 
 	// Accumulate the number of signature operations in all transaction
@@ -2554,7 +2556,10 @@ func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool) int {
 		if isSSGen && i == 0 {
 			continue
 		}
-		// XXX ad TGen here
+		// Skip treasurybase inputs.
+		if isTreasuryBase && i == 0 {
+			continue
+		}
 
 		numSigOps := txscript.GetSigOpCount(txIn.SignatureScript)
 		totalSigOps += numSigOps
@@ -2588,6 +2593,15 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 
 	// TSpend has no additional inputs.
 	if stake.IsTSpend(tx.MsgTx()) {
+		panic("1")
+		return 0, nil
+	}
+	if stake.IsTAdd(tx.MsgTx()) {
+		panic("2")
+		return 0, nil
+	}
+	if stake.IsTreasuryBase(tx.MsgTx()) {
+		panic("3")
 		return 0, nil
 	}
 
@@ -2601,11 +2615,14 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		originTxIndex := txIn.PreviousOutPoint.Index
 		utxoEntry := view.LookupEntry(originTxHash)
 		if utxoEntry == nil || utxoEntry.IsOutputSpent(originTxIndex) {
-			panic(spew.Sdump(tx.MsgTx()))
 			str := fmt.Sprintf("output %v referenced from "+
 				"transaction %s:%d either does not exist or "+
 				"has already been spent", txIn.PreviousOutPoint,
 				tx.Hash(), txInIndex)
+			s, _ := txscript.DisasmString(txIn.SignatureScript)
+			fmt.Printf("%v %v\n", txInIndex, s)
+			fmt.Printf("%v\n", str)
+			panic(spew.Sdump(tx.MsgTx()))
 			return 0, ruleError(ErrMissingTxOut, str)
 		}
 
@@ -2698,16 +2715,18 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool, cumulativeSigOps int) (int, error) {
 	msgTx := tx.MsgTx()
 	isSSGen := stake.IsSSGen(msgTx)
-	numsigOps := CountSigOps(tx, (index == 0) && txTree, isSSGen)
+	isTreasuryBase := stake.IsTreasuryBase(msgTx)
+	numsigOps := CountSigOps(tx, (index == 0) && txTree, isSSGen,
+		isTreasuryBase)
 
 	// Since the first (and only the first) transaction has already been
 	// verified to be a coinbase transaction, use (i == 0) && TxTree as an
 	// optimization for the flag to countP2SHSigOps for whether or not the
 	// transaction is a coinbase transaction rather than having to do a
 	// full coinbase check again.
-	isTreasuryBase := stake.IsTreasuryBase(msgTx)
+	fmt.Printf("CountP2SHSigOps index %v %v %v\n", index, txTree, isTreasuryBase)
 	numP2SHSigOps, err := CountP2SHSigOps(tx, (index == 0) && txTree,
-		isTreasuryBase, view)
+		isSSGen, view)
 	if err != nil {
 		log.Tracef("CountP2SHSigOps failed; error returned %v", err)
 		return 0, err
