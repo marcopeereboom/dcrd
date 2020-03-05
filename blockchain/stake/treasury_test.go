@@ -147,7 +147,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				// OP_RETURN <data>
-				payload := make([]byte, chainhash.HashSize)
+				payload := make([]byte, 12) // extra nonce size
 				_, err = rand.Read(payload)
 				if err != nil {
 					panic(err)

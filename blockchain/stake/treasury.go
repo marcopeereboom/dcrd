@@ -145,15 +145,16 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 			"second output must be an OP_RETURN script")
 	}
 
-	// Look for random 32 byte value.
+	// Look for coinbase 12 byte extra nonce.
+	// XXX va;idate extra nonce.
 	tokenizer := txscript.MakeScriptTokenizer(mtx.TxOut[1].Version,
 		mtx.TxOut[1].PkScript[1:])
 	if tokenizer.Next() && tokenizer.Done() &&
-		tokenizer.Opcode() != txscript.OP_DATA_32 &&
-		len(tokenizer.Data()) != 32 {
+		tokenizer.Opcode() != txscript.OP_DATA_12 &&
+		len(tokenizer.Data()) != 12 {
 		return stakeRuleError(ErrTreasuryBaseInvalid,
 			"second output must be an OP_RETURN script followed "+
-				"by 32 bytes")
+				"by 12 bytes")
 	}
 
 	// Make sure chainhash etc is treasurybase.
@@ -173,6 +174,13 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 	}
 
 	return nil
+}
+
+// CheckTreasuryBase verifies that the provided MsgTx is a treasury base.
+// XXX this is an exported function for the time being. We probably do not want
+// to do that for release.
+func CheckTreasuryBase(mtx *wire.MsgTx) error {
+	return checkTreasuryBase(mtx)
 }
 
 // IsTreasuryBase returns true if the provided transaction is a treasury base
