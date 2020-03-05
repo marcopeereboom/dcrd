@@ -779,20 +779,10 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 	serialized := spendBucket.Get(block.Hash()[:])
 	msgBlock := block.MsgBlock()
 
-	var blockTxns []*wire.MsgTx
-	if stake.IsTreasuryBase(msgBlock.STransactions[0]) {
-		// Skip treasurybase transaction.
-		blockTxns = make([]*wire.MsgTx, 0,
-			len(msgBlock.STransactions[1:])+
-				len(msgBlock.Transactions[1:]))
-		blockTxns = append(blockTxns, msgBlock.STransactions[1:]...)
-		blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
-	} else {
-		blockTxns = make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
-			len(msgBlock.Transactions[1:]))
-		blockTxns = append(blockTxns, msgBlock.STransactions...)
-		blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
-	}
+	blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
+		len(msgBlock.Transactions[1:]))
+	blockTxns = append(blockTxns, msgBlock.STransactions...)
+	blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
 	if len(blockTxns) > 0 && len(serialized) == 0 {
 		panicf("missing spend journal data for %s", block.Hash())
 	}
