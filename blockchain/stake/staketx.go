@@ -33,6 +33,7 @@ const (
 	TxTypeSSRtx
 	TxTypeTAdd
 	TxTypeTSpend
+	TxTypeTreasuryBase
 )
 
 const (
@@ -998,6 +999,9 @@ func DetermineTxType(tx *wire.MsgTx) TxType {
 	}
 	if IsTSpend(tx) {
 		return TxTypeTSpend
+	}
+	if IsTreasuryBase(tx) {
+		return TxTypeTreasuryBase
 	}
 	return TxTypeRegular
 }
