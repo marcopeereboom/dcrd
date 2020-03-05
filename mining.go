@@ -442,7 +442,7 @@ func txIndexFromTxList(hash chainhash.Hash, list []*dcrutil.Tx) int {
 }
 
 // standardCoinbaseOpReturn creates a standard OP_RETURN output to insert into
-// coinbase to use as extranonces. The OP_RETURN pushes 32 bytes.
+// coinbase to use as extranonces. The OP_RETURN pushes 12 bytes.
 func standardCoinbaseOpReturn(height uint32, extraNonce uint64) ([]byte, error) {
 	enData := make([]byte, 12)
 	binary.LittleEndian.PutUint32(enData[0:4], height)
