@@ -694,6 +694,10 @@ func IsSStx(tx *wire.MsgTx) bool {
 // ...
 // SSGen-tagged output to address from SStx-tagged output's tx index output
 //     MaxInputsPerSStx [index MaxOutputsPerSSgen - 1]
+// OP_RETURN push of 2 bytes containing opcode designating what the remaining
+// data that is pushed is.
+// In the case of 'TV` it means a treasury YES vote for the following N TX
+// hashes. The length of the remaining data SHALL be %32==0.
 func CheckSSGen(tx *wire.MsgTx) error {
 	// Check to make sure there aren't too many inputs.
 	// CheckTransactionSanity already makes sure that number of inputs is
@@ -935,6 +939,8 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 	// Ensure the number of outputs is equal to the number of inputs found in
 	// the original SStx.
 	// TODO: Do this in validate, needs a DB and chain.
+
+	// XXX Verify 'TV' + N hashes here
 
 	return nil
 }
