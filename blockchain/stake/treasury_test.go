@@ -29,7 +29,7 @@ import (
 // TxOut[1] OP_RETURN <random>
 //
 // == Spend from treasury ==
-// TxIn[0]     OP_TSPEND
+// TxIn[0]     OP_TSPEND <pi compressed pub key>
 // TxOut[0]    OP_RETURN <random>
 // TxOut[1..N] OP_TGEN <paytopubkeyhash || paytoscripthash>
 func TestTreasuryIsFunctions(t *testing.T) {

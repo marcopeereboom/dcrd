@@ -58,8 +58,9 @@ func IsTAdd(tx *wire.MsgTx) bool {
 func checkTSpend(mtx *wire.MsgTx) error {
 	// XXX this is not right but we need a stub
 
-	// A TSPEND consists of one OP_TSPEND in TxIn[0].SignatureScript,
-	// one OP_RETURN transaction hash and at least one P2PH TxOut script.
+	// A TSPEND consists of one OP_TSPEND <pi compressed pubkey> in
+	// TxIn[0].SignatureScript, one OP_RETURN transaction hash and at least
+	// one P2PH TxOut script.
 	if len(mtx.TxIn) != 1 || len(mtx.TxOut) < 2 {
 		return stakeRuleError(ErrTreasuryTAddInvalid,
 			"invalid TSPEND script lengths")
@@ -79,6 +80,9 @@ func checkTSpend(mtx *wire.MsgTx) error {
 		return stakeRuleError(ErrTreasuryTSpendInvalid,
 			"first opcode must contain a TSPEND script")
 	}
+
+	// XXX Verify that data following TSPEND is followed by a 33 byte
+	// compressed pubkey.
 
 	// Verify that the TxOut's contains P2PH scripts.
 	for k, txOut := range mtx.TxOut {
