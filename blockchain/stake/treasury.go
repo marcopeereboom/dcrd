@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"math"
 
+	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -75,14 +76,34 @@ func checkTSpend(mtx *wire.MsgTx) error {
 	}
 
 	// Verify there is a TSPEND in SignatureScript.
-	if len(mtx.TxIn[0].SignatureScript) != 1 ||
-		mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND {
+	if len(mtx.TxIn[0].SignatureScript) != 35 {
+		return stakeRuleError(ErrTreasuryTSpendInvalid,
+			"invalid TSPEND length")
+	}
+
+	// Make sure script starts with OP_TSPEND.
+	if mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND {
 		return stakeRuleError(ErrTreasuryTSpendInvalid,
 			"first opcode must contain a TSPEND script")
 	}
 
-	// XXX Verify that data following TSPEND is followed by a 33 byte
+	// Verify that data following TSPEND is followed by a 33 byte
 	// compressed pubkey.
+	tokenizer := txscript.MakeScriptTokenizer(0, /* XXX */
+		mtx.TxIn[0].SignatureScript[1:])
+	if tokenizer.Next() && tokenizer.Done() &&
+		tokenizer.Opcode() != txscript.OP_DATA_33 &&
+		len(tokenizer.Data()) != secp256k1.PubKeyBytesLenCompressed {
+		return stakeRuleError(ErrTreasuryBaseInvalid,
+			"TSPEND must have a compressed pubkey")
+	}
+
+	// Verify pubkey is valid.
+	_, err := secp256k1.ParsePubKey(mtx.TxIn[0].SignatureScript[2:])
+	if err != nil {
+		return stakeRuleError(ErrTreasuryBaseInvalid,
+			"TSPEND invalid pubkey")
+	}
 
 	// Verify that the TxOut's contains P2PH scripts.
 	for k, txOut := range mtx.TxOut {
