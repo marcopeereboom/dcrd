@@ -11,6 +11,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
@@ -215,8 +216,13 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				// tspend
+				key, err := secp256k1.GeneratePrivateKey()
+				if err != nil {
+					panic(err)
+				}
 				builder = txscript.NewScriptBuilder()
 				builder.AddOp(txscript.OP_TSPEND)
+				builder.AddData(key.PubKey().Serialize())
 				tspendScript, err := builder.Script()
 				if err != nil {
 					panic(err)
