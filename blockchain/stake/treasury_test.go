@@ -257,3 +257,173 @@ func TestTreasuryIsFunctions(t *testing.T) {
 		}
 	}
 }
+
+// tspendTxInNoPubkey
+var tspendTxInNoPubkey = wire.TxIn{
+	PreviousOutPoint: wire.OutPoint{
+		Hash:  chainhash.Hash{},
+		Index: 0xffffffff,
+		Tree:  wire.TxTreeRegular,
+	},
+	SignatureScript: []byte{
+		0xc1,
+	},
+	BlockHeight: wire.NullBlockHeight,
+	BlockIndex:  wire.NullBlockIndex,
+	Sequence:    0xffffffff,
+}
+
+// tspendTxInNoPubkey
+var tspendTxInInvalidPubkey = wire.TxIn{
+	PreviousOutPoint: wire.OutPoint{
+		Hash:  chainhash.Hash{},
+		Index: 0xffffffff,
+		Tree:  wire.TxTreeRegular,
+	},
+	SignatureScript: []byte{
+		0xc1, // OP_TSPEND
+		0x23, // OP_DATA_35
+		0x03, // Valid pubkey version
+		0x00, // invalid compressed key
+	},
+	BlockHeight: wire.NullBlockHeight,
+	BlockIndex:  wire.NullBlockIndex,
+	Sequence:    0xffffffff,
+}
+
+// tspendInvalidInCount has an invalid TxIn count but a valid TxOut count.
+var tspendInvalidInCount = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{}, // 2 TxOuts is valid
+		&wire.TxOut{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidOutCount has a valid TxIn count but an invalid TxOut count.
+var tspendInvalidOutCount = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInNoPubkey,
+	},
+	TxOut:    []*wire.TxOut{},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidVersion has an invalid version in an out script
+var tspendInvalidVersion = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInNoPubkey,
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{Version: 0},
+		&wire.TxOut{Version: 1},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidSignature has an invalid version in the in script
+var tspendInvalidSignature = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInNoPubkey,
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{Version: 0},
+		&wire.TxOut{Version: 0},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidSignature2 has an invalid version in the in script
+var tspendInvalidSignature2 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInInvalidPubkey,
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{Version: 0},
+		&wire.TxOut{Version: 0},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+func TestTSpendErrors(t *testing.T) {
+	// Verify tspend TxIn counts
+	var test = dcrutil.NewTx(tspendInvalidOutCount)
+	test.SetTree(wire.TxTreeStake)
+	test.SetIndex(0)
+	err := checkTSpend(test.MsgTx())
+	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidLength {
+		t.Errorf("checkTSpend should have returned %v but instead returned %v",
+			ErrTreasuryTSpendInvalidLength, err)
+	}
+	if IsTSpend(test.MsgTx()) {
+		t.Errorf("IsTSpend claimed an invalid tspend is valid")
+	}
+
+	// Verify tspend TxIn counts
+	test = dcrutil.NewTx(tspendInvalidInCount)
+	test.SetTree(wire.TxTreeStake)
+	test.SetIndex(0)
+	err = checkTSpend(test.MsgTx())
+	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidLength {
+		t.Errorf("checkTSpend should have returned %v but instead returned %v",
+			ErrTreasuryTSpendInvalidLength, err)
+	}
+	if IsTSpend(test.MsgTx()) {
+		t.Errorf("IsTSpend claimed an invalid tspend is valid")
+	}
+
+	// Verify tspend version
+	test = dcrutil.NewTx(tspendInvalidVersion)
+	test.SetTree(wire.TxTreeStake)
+	test.SetIndex(0)
+	err = checkTSpend(test.MsgTx())
+	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidVersion {
+		t.Errorf("checkTSpend should have returned %v but instead returned %v",
+			ErrTreasuryTSpendInvalidVersion, err)
+	}
+	if IsTSpend(test.MsgTx()) {
+		t.Errorf("IsTSpend claimed an invalid tspend is valid")
+	}
+
+	// Verify tspend signature (no signature)
+	test = dcrutil.NewTx(tspendInvalidSignature)
+	test.SetTree(wire.TxTreeStake)
+	test.SetIndex(0)
+	err = checkTSpend(test.MsgTx())
+	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidSignature {
+		t.Errorf("checkTSpend should have returned %v but instead returned %v",
+			ErrTreasuryTSpendInvalidSignature, err)
+	}
+	if IsTSpend(test.MsgTx()) {
+		t.Errorf("IsTSpend claimed an invalid tspend is valid")
+	}
+
+	// Verify tspend signature (invalid signature)
+	test = dcrutil.NewTx(tspendInvalidSignature2)
+	test.SetTree(wire.TxTreeStake)
+	test.SetIndex(0)
+	err = checkTSpend(test.MsgTx())
+	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidSignature {
+		t.Errorf("checkTSpend should have returned %v but instead returned %v",
+			ErrTreasuryTSpendInvalidSignature, err)
+	}
+	if IsTSpend(test.MsgTx()) {
+		t.Errorf("IsTSpend claimed an invalid tspend is valid")
+	}
+}

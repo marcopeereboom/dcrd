@@ -6,6 +6,7 @@ package stake
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
@@ -62,23 +63,27 @@ func checkTSpend(mtx *wire.MsgTx) error {
 	// A TSPEND consists of one OP_TSPEND <pi compressed pubkey> in
 	// TxIn[0].SignatureScript, one OP_RETURN transaction hash and at least
 	// one P2PH TxOut script.
-	if len(mtx.TxIn) != 1 || len(mtx.TxOut) < 2 {
-		return stakeRuleError(ErrTreasuryTAddInvalid,
-			"invalid TSPEND script lengths")
+	if len(mtx.TxIn) != 1 ||
+		!(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
+		return stakeRuleError(ErrTreasuryTSpendInvalidLength,
+			fmt.Sprintf("invalid TSPEND script lengths in: %v "+
+				"out: %v", len(mtx.TxIn), len(mtx.TxOut)))
 	}
 
 	// Check to make sure that all output scripts are the consensus version.
-	for _, txOut := range mtx.TxOut {
+	for k, txOut := range mtx.TxOut {
 		if txOut.Version != consensusVersion {
-			return stakeRuleError(ErrTreasuryTSpendInvalid,
-				"invalid script version found in txOut")
+			return stakeRuleError(ErrTreasuryTSpendInvalidVersion,
+				fmt.Sprintf("invalid script version found in "+
+					"TxOut: %v", k))
 		}
 	}
 
 	// Verify expected length of SignatureScript.
 	if len(mtx.TxIn[0].SignatureScript) != 35 {
-		return stakeRuleError(ErrTreasuryTSpendInvalid,
-			"invalid TSPEND length")
+		return stakeRuleError(ErrTreasuryTSpendInvalidSignature,
+			fmt.Sprintf("invalid TSPEND signature length: %v",
+				len(mtx.TxIn[0].SignatureScript)))
 	}
 
 	// Make sure SignatureScript starts with OP_TSPEND.
