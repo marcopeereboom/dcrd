@@ -93,10 +93,17 @@ const (
 	// second output was corrupted in some way.
 	ErrSSGenBadVotePush
 
-	// ErrSSGenBadGenOuts indicates that the something was wrong with the
-	// stake generation outputs that were present after the first two
-	// OP_RETURN pushes in an SSGen tx.
+	// ErrSSGenBadGenOuts indicates that something was wrong with the stake
+	// generation outputs that were present after the first two OP_RETURN
+	// pushes in an SSGen tx.
 	ErrSSGenBadGenOuts
+
+	// ErrSSGenInvalidHashCount indicates that there was an invalid
+	// treasury spend hash count.
+	ErrSSGenInvalidHashCount
+
+	// ErrSSGenNoHash indicates that there was no treasury spend hash.
+	ErrSSGenNoHash
 
 	// ErrSSRtxWrongNumInputs indicates that a given SSRtx contains an
 	// invalid number of inputs.
@@ -212,6 +219,8 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrSSGenNoVotePush:       "ErrSSGenNoVotePush",
 	ErrSSGenBadVotePush:      "ErrSSGenBadVotePush",
 	ErrSSGenBadGenOuts:       "ErrSSGenBadGenOuts",
+	ErrSSGenInvalidHashCount: "ErrSSGenInvalidHashCount",
+	ErrSSGenNoHash:           "ErrSSGenNoHash",
 	ErrSSRtxWrongNumInputs:   "ErrSSRtxWrongNumInputs",
 	ErrSSRtxTooManyOutputs:   "ErrSSRtxTooManyOutputs",
 	ErrSSRtxNoOutputs:        "ErrSSRtxNoOutputs",

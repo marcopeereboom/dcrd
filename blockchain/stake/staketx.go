@@ -865,13 +865,43 @@ func CheckSSGen(tx *wire.MsgTx) error {
 			"had an invalid prefix")
 	}
 
+	// Check to see if the last output is an OP_RETURN followed by N
+	// hashes. If it is we need to decrease the count on OP_SSRTX tests by
+	// one.
+	txOutLen := len(tx.TxOut)
+	lastTxOut := tx.TxOut[len(tx.TxOut)-1]
+	if txscript.GetScriptClass(lastTxOut.Version, lastTxOut.PkScript) ==
+		txscript.NullDataTy {
+		txOutLen--
+
+		// Verify that the following data is 'TV' + N hashes.
+		tokenizer := txscript.MakeScriptTokenizer(lastTxOut.Version,
+			lastTxOut.PkScript[1:])
+		gotHashes := false
+		if tokenizer.Next() { //&& tokenizer.Done() {
+			gotHashes = true
+			data := tokenizer.Data()
+			if len(data)%32 != 0 {
+				str := fmt.Sprintf("last SSGen contains " +
+					"an invalid hash count")
+				return stakeRuleError(ErrSSGenInvalidHashCount,
+					str)
+			}
+		}
+		if !gotHashes {
+			str := fmt.Sprintf("last SSGen output contains no " +
+				"hash(es)")
+			return stakeRuleError(ErrSSGenNoHash, str)
+		}
+	}
+
 	// Ensure that the tx height given in the last 8 bytes is StakeMaturity
 	// many blocks ahead of the block in which that SStx appears, otherwise
 	// this ticket has failed to mature and the SStx must be invalid.
 	// TODO: This is validate level stuff, do this there.
 
 	// Ensure that the remaining outputs are OP_SSGEN tagged.
-	for outTxIndex := 2; outTxIndex < len(tx.TxOut); outTxIndex++ {
+	for outTxIndex := 2; outTxIndex < txOutLen; outTxIndex++ {
 		scrVersion := tx.TxOut[outTxIndex].Version
 		rawScript := tx.TxOut[outTxIndex].PkScript
 
@@ -915,7 +945,7 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 	// greater than 0, so no need to check that.
 	if len(tx.TxIn) != NumInputsPerSSRtx {
 		return stakeRuleError(ErrSSRtxWrongNumInputs, "SSRtx has an "+
-			" invalid number of inputs")
+			"invalid number of inputs")
 	}
 
 	// Check to make sure there aren't too many outputs.
@@ -976,8 +1006,6 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 	// Ensure the number of outputs is equal to the number of inputs found in
 	// the original SStx.
 	// TODO: Do this in validate, needs a DB and chain.
-
-	// XXX Verify 'TV' + N hashes here
 
 	return nil
 }

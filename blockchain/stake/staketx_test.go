@@ -643,6 +643,35 @@ func TestSSGenErrors(t *testing.T) {
 	if stake.IsSSGen(ssgentestGenOutputUntagged.MsgTx()) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
+
+	// ---------------------------------------------------------------------------
+	// Verify optional OP_RETURN with no hashes.
+	var ssgenNoHashes = dcrutil.NewTx(ssgenMsgTxNoTreasuryHashes)
+	ssgenNoHashes.SetTree(wire.TxTreeStake)
+	ssgenNoHashes.SetIndex(0)
+
+	err = stake.CheckSSGen(ssgenNoHashes.MsgTx())
+	if err.(stake.RuleError).GetCode() != stake.ErrSSGenNoHash {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			stake.ErrSSGenNoHash, err)
+	}
+	if stake.IsSSGen(ssgenNoHashes.MsgTx()) {
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
+
+	// Verify optional OP_RETURN with invalid hashes.
+	var ssgenInvalidHashes = dcrutil.NewTx(ssgenMsgTxInvalidTreasuryHashes)
+	ssgenInvalidHashes.SetTree(wire.TxTreeStake)
+	ssgenInvalidHashes.SetIndex(0)
+
+	err = stake.CheckSSGen(ssgenInvalidHashes.MsgTx())
+	if err.(stake.RuleError).GetCode() != stake.ErrSSGenInvalidHashCount {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			stake.ErrSSGenInvalidHashCount, err)
+	}
+	if stake.IsSSGen(ssgenInvalidHashes.MsgTx()) {
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
 }
 
 // SSRTX TESTING ------------------------------------------------------------------
@@ -1684,6 +1713,46 @@ var ssgenMsgTxWrongFirstOut = &wire.MsgTx{
 	Expiry:   0,
 }
 
+// ssgenMsgTxNoTreasuryHashes is a valid SSGen MsgTx with inputs/outputs and an
+// invalid OP_RETURN that has no hashes.
+var ssgenMsgTxNoTreasuryHashes = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&ssgenTxIn0,
+		&ssgenTxIn1,
+	},
+	TxOut: []*wire.TxOut{
+		&ssgenTxOut0,
+		&ssgenTxOut1,
+		&ssgenTxOut2,
+		&ssgenTxOut3,
+		&ssgenTxOutNoTreasuryHashes,
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// ssgenMsgTxInvalidTreasuryHashes is a valid SSGen MsgTx with inputs/outputs
+// and an invalid OP_RETURN that has and invalid number of hashes.
+var ssgenMsgTxInvalidTreasuryHashes = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&ssgenTxIn0,
+		&ssgenTxIn1,
+	},
+	TxOut: []*wire.TxOut{
+		&ssgenTxOut0,
+		&ssgenTxOut1,
+		&ssgenTxOut2,
+		&ssgenTxOut3,
+		&ssgenTxOutInvalidTreasuryHashes,
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
 // ssrtxTxIn is the 0th position input in a valid SSRtx tx used to test out the
 // IsSSRtx function
 var ssrtxTxIn = wire.TxIn{
@@ -1774,6 +1843,43 @@ var ssrtxTxOut2BadVer = wire.TxOut{
 		0xe7, 0x29, 0x75, 0x5e,
 		0xf7, 0xf5, 0x8b, 0x32,
 		0x87, // OP_EQUAL
+	},
+}
+
+// ssgenTxOutValidTreasury is valid TxOut with one treasury vote.
+var ssgenTxOutValidTreasury = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, 0x20, // OP_RETURN OP_DATA_32
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+	},
+}
+
+// ssgenTxOutNoTreasuryHashes is an OP_RETURN with no treasury vote hashes.
+var ssgenTxOutNoTreasuryHashes = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+	},
+}
+
+// ssgenTxOutInvalidTreasuryHashes is an OP_RETURN followed by a hash and an
+// invalid hash.
+var ssgenTxOutInvalidTreasuryHashes = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, 0x21, // OP_RETURN OP_DATA_33
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+		0xff, // Invalid hash
 	},
 }
 
