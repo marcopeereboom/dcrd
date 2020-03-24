@@ -75,13 +75,13 @@ func checkTSpend(mtx *wire.MsgTx) error {
 		}
 	}
 
-	// Verify there is a TSPEND in SignatureScript.
+	// Verify expected length of SignatureScript.
 	if len(mtx.TxIn[0].SignatureScript) != 35 {
 		return stakeRuleError(ErrTreasuryTSpendInvalid,
 			"invalid TSPEND length")
 	}
 
-	// Make sure script starts with OP_TSPEND.
+	// Make sure SignatureScript starts with OP_TSPEND.
 	if mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND {
 		return stakeRuleError(ErrTreasuryTSpendInvalid,
 			"first opcode must contain a TSPEND script")
