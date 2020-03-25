@@ -188,10 +188,6 @@ const (
 	// invalid TADD script.
 	ErrTreasuryTAddInvalid
 
-	// ErrTreasuryTSpendInvalid indicates that this transaction contains an
-	// invalid TSPEND script.
-	ErrTreasuryTSpendInvalid
-
 	// ErrTreasuryTSpendInvalidLength indicates that this transaction has
 	// an invalid number of inputs and/or outputs.
 	ErrTreasuryTSpendInvalidLength
@@ -212,6 +208,18 @@ const (
 	// contains an invalid public key.
 	ErrTreasuryTSpendInvalidPubkey
 
+	// ErrTreasuryTSpendInvalidTGen indicates that the TSPEND  transaction
+	// has outputs that are not tagged with OP_TGEN.
+	ErrTreasuryTSpendInvalidTGen
+
+	// ErrTreasuryTSpendInvalidTGenLength indicates that the TSPEND
+	// transaction has outputs that have a zero length script.
+	ErrTreasuryTSpendInvalidTGenLength
+
+	// ErrTreasuryTSpendInvalidP2SH indicates that this transaction contains an
+	// invalid P2SH script.
+	ErrTreasuryTSpendInvalidP2SH
+
 	// ErrTreasuryBaseInvalid indicates that this transaction contains an
 	// invalid stakebase script.
 	ErrTreasuryBaseInvalid
@@ -219,55 +227,57 @@ const (
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrSStxTooManyInputs:              "ErrSStxTooManyInputs",
-	ErrSStxTooManyOutputs:             "ErrSStxTooManyOutputs",
-	ErrSStxNoOutputs:                  "ErrSStxNoOutputs",
-	ErrSStxInvalidInputs:              "ErrSStxInvalidInputs",
-	ErrSStxInvalidOutputs:             "ErrSStxInvalidOutputs",
-	ErrSStxInOutProportions:           "ErrSStxInOutProportions",
-	ErrSStxBadCommitAmount:            "ErrSStxBadCommitAmount",
-	ErrSStxBadChangeAmts:              "ErrSStxBadChangeAmts",
-	ErrSStxVerifyCalcAmts:             "ErrSStxVerifyCalcAmts",
-	ErrSSGenWrongNumInputs:            "ErrSSGenWrongNumInputs",
-	ErrSSGenTooManyOutputs:            "ErrSSGenTooManyOutputs",
-	ErrSSGenNoOutputs:                 "ErrSSGenNoOutputs",
-	ErrSSGenWrongIndex:                "ErrSSGenWrongIndex",
-	ErrSSGenWrongTxTree:               "ErrSSGenWrongTxTree",
-	ErrSSGenNoStakebase:               "ErrSSGenNoStakebase",
-	ErrSSGenNoReference:               "ErrSSGenNoReference",
-	ErrSSGenBadReference:              "ErrSSGenBadReference",
-	ErrSSGenNoVotePush:                "ErrSSGenNoVotePush",
-	ErrSSGenBadVotePush:               "ErrSSGenBadVotePush",
-	ErrSSGenBadGenOuts:                "ErrSSGenBadGenOuts",
-	ErrSSGenInvalidHashCount:          "ErrSSGenInvalidHashCount",
-	ErrSSGenNoHash:                    "ErrSSGenNoHash",
-	ErrSSRtxWrongNumInputs:            "ErrSSRtxWrongNumInputs",
-	ErrSSRtxTooManyOutputs:            "ErrSSRtxTooManyOutputs",
-	ErrSSRtxNoOutputs:                 "ErrSSRtxNoOutputs",
-	ErrSSRtxWrongTxTree:               "ErrSSRtxWrongTxTree",
-	ErrSSRtxBadOuts:                   "ErrSSRtxBadOuts",
-	ErrVerSStxAmts:                    "ErrVerSStxAmts",
-	ErrVerifyInput:                    "ErrVerifyInput",
-	ErrVerifyOutType:                  "ErrVerifyOutType",
-	ErrVerifyTooMuchFees:              "ErrVerifyTooMuchFees",
-	ErrVerifySpendTooMuch:             "ErrVerifySpendTooMuch",
-	ErrVerifyOutputAmt:                "ErrVerifyOutputAmt",
-	ErrVerifyOutPkhs:                  "ErrVerifyOutPkhs",
-	ErrDatabaseCorrupt:                "ErrDatabaseCorrupt",
-	ErrMissingDatabaseTx:              "ErrMissingDatabaseTx",
-	ErrMemoryCorruption:               "ErrMemoryCorruption",
-	ErrFindTicketIdxs:                 "ErrFindTicketIdxs",
-	ErrMissingTicket:                  "ErrMissingTicket",
-	ErrDuplicateTicket:                "ErrDuplicateTicket",
-	ErrUnknownTicketSpent:             "ErrUnknownTicketSpent",
-	ErrTreasuryTAddInvalid:            "ErrTreasuryTAddInvalid",
-	ErrTreasuryTSpendInvalid:          "ErrTreasuryTSpendInvalid",
-	ErrTreasuryTSpendInvalidLength:    "ErrTreasuryTSpendInvalidLength",
-	ErrTreasuryTSpendInvalidVersion:   "ErrTreasuryTSpendInvalidVersion",
-	ErrTreasuryTSpendInvalidSignature: "ErrTreasuryTSpendInvalidSignature",
-	ErrTreasuryTSpendInvalidOpcode:    "ErrTreasuryTSpendInvalidOpcode",
-	ErrTreasuryTSpendInvalidPubkey:    "ErrTreasuryTSpendInvalidPubkey",
-	ErrTreasuryBaseInvalid:            "ErrTreasuryBaseInvalid",
+	ErrSStxTooManyInputs:               "ErrSStxTooManyInputs",
+	ErrSStxTooManyOutputs:              "ErrSStxTooManyOutputs",
+	ErrSStxNoOutputs:                   "ErrSStxNoOutputs",
+	ErrSStxInvalidInputs:               "ErrSStxInvalidInputs",
+	ErrSStxInvalidOutputs:              "ErrSStxInvalidOutputs",
+	ErrSStxInOutProportions:            "ErrSStxInOutProportions",
+	ErrSStxBadCommitAmount:             "ErrSStxBadCommitAmount",
+	ErrSStxBadChangeAmts:               "ErrSStxBadChangeAmts",
+	ErrSStxVerifyCalcAmts:              "ErrSStxVerifyCalcAmts",
+	ErrSSGenWrongNumInputs:             "ErrSSGenWrongNumInputs",
+	ErrSSGenTooManyOutputs:             "ErrSSGenTooManyOutputs",
+	ErrSSGenNoOutputs:                  "ErrSSGenNoOutputs",
+	ErrSSGenWrongIndex:                 "ErrSSGenWrongIndex",
+	ErrSSGenWrongTxTree:                "ErrSSGenWrongTxTree",
+	ErrSSGenNoStakebase:                "ErrSSGenNoStakebase",
+	ErrSSGenNoReference:                "ErrSSGenNoReference",
+	ErrSSGenBadReference:               "ErrSSGenBadReference",
+	ErrSSGenNoVotePush:                 "ErrSSGenNoVotePush",
+	ErrSSGenBadVotePush:                "ErrSSGenBadVotePush",
+	ErrSSGenBadGenOuts:                 "ErrSSGenBadGenOuts",
+	ErrSSGenInvalidHashCount:           "ErrSSGenInvalidHashCount",
+	ErrSSGenNoHash:                     "ErrSSGenNoHash",
+	ErrSSRtxWrongNumInputs:             "ErrSSRtxWrongNumInputs",
+	ErrSSRtxTooManyOutputs:             "ErrSSRtxTooManyOutputs",
+	ErrSSRtxNoOutputs:                  "ErrSSRtxNoOutputs",
+	ErrSSRtxWrongTxTree:                "ErrSSRtxWrongTxTree",
+	ErrSSRtxBadOuts:                    "ErrSSRtxBadOuts",
+	ErrVerSStxAmts:                     "ErrVerSStxAmts",
+	ErrVerifyInput:                     "ErrVerifyInput",
+	ErrVerifyOutType:                   "ErrVerifyOutType",
+	ErrVerifyTooMuchFees:               "ErrVerifyTooMuchFees",
+	ErrVerifySpendTooMuch:              "ErrVerifySpendTooMuch",
+	ErrVerifyOutputAmt:                 "ErrVerifyOutputAmt",
+	ErrVerifyOutPkhs:                   "ErrVerifyOutPkhs",
+	ErrDatabaseCorrupt:                 "ErrDatabaseCorrupt",
+	ErrMissingDatabaseTx:               "ErrMissingDatabaseTx",
+	ErrMemoryCorruption:                "ErrMemoryCorruption",
+	ErrFindTicketIdxs:                  "ErrFindTicketIdxs",
+	ErrMissingTicket:                   "ErrMissingTicket",
+	ErrDuplicateTicket:                 "ErrDuplicateTicket",
+	ErrUnknownTicketSpent:              "ErrUnknownTicketSpent",
+	ErrTreasuryTAddInvalid:             "ErrTreasuryTAddInvalid",
+	ErrTreasuryTSpendInvalidLength:     "ErrTreasuryTSpendInvalidLength",
+	ErrTreasuryTSpendInvalidVersion:    "ErrTreasuryTSpendInvalidVersion",
+	ErrTreasuryTSpendInvalidSignature:  "ErrTreasuryTSpendInvalidSignature",
+	ErrTreasuryTSpendInvalidOpcode:     "ErrTreasuryTSpendInvalidOpcode",
+	ErrTreasuryTSpendInvalidPubkey:     "ErrTreasuryTSpendInvalidPubkey",
+	ErrTreasuryTSpendInvalidTGen:       "ErrTreasuryTSpendInvalidTGen",
+	ErrTreasuryTSpendInvalidTGenLength: "ErrTreasuryTSpendInvalidTGenLength",
+	ErrTreasuryTSpendInvalidP2SH:       "ErrTreasuryTSpendInvalidP2SH",
+	ErrTreasuryBaseInvalid:             "ErrTreasuryBaseInvalid",
 }
 
 // String returns the ErrorCode as a human-readable name.
