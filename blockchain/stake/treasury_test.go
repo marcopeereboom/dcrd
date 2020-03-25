@@ -273,7 +273,7 @@ var tspendTxInNoPubkey = wire.TxIn{
 	Sequence:    0xffffffff,
 }
 
-// tspendTxInNoPubkey
+// tspendTxInInvalidPubkey is a TxIn with an invalid key on the OP_TSPEND.
 var tspendTxInInvalidPubkey = wire.TxIn{
 	PreviousOutPoint: wire.OutPoint{
 		Hash:  chainhash.Hash{},
@@ -362,68 +362,51 @@ var tspendInvalidSignature2 = &wire.MsgTx{
 }
 
 func TestTSpendErrors(t *testing.T) {
-	// Verify tspend TxIn counts
-	var test = dcrutil.NewTx(tspendInvalidOutCount)
-	test.SetTree(wire.TxTreeStake)
-	test.SetIndex(0)
-	err := checkTSpend(test.MsgTx())
-	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidLength {
-		t.Errorf("checkTSpend should have returned %v but instead returned %v",
-			ErrTreasuryTSpendInvalidLength, err)
+	tests := []struct {
+		name     string
+		tx       *wire.MsgTx
+		expected error
+	}{
+		{
+			name:     "tspendInvalidOutCount",
+			tx:       tspendInvalidOutCount,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidLength},
+		},
+		{
+			name:     "tspendInvalidInCount",
+			tx:       tspendInvalidInCount,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidLength},
+		},
+		{
+			name:     "tspendInvalidVersion",
+			tx:       tspendInvalidVersion,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidVersion},
+		},
+		{
+			name:     "tspendInvalidSignature",
+			tx:       tspendInvalidSignature,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidSignature},
+		},
+		{
+			name:     "tspendInvalidSignature2",
+			tx:       tspendInvalidSignature2,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidSignature},
+		},
 	}
-	if IsTSpend(test.MsgTx()) {
-		t.Errorf("IsTSpend claimed an invalid tspend is valid")
-	}
-
-	// Verify tspend TxIn counts
-	test = dcrutil.NewTx(tspendInvalidInCount)
-	test.SetTree(wire.TxTreeStake)
-	test.SetIndex(0)
-	err = checkTSpend(test.MsgTx())
-	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidLength {
-		t.Errorf("checkTSpend should have returned %v but instead returned %v",
-			ErrTreasuryTSpendInvalidLength, err)
-	}
-	if IsTSpend(test.MsgTx()) {
-		t.Errorf("IsTSpend claimed an invalid tspend is valid")
-	}
-
-	// Verify tspend version
-	test = dcrutil.NewTx(tspendInvalidVersion)
-	test.SetTree(wire.TxTreeStake)
-	test.SetIndex(0)
-	err = checkTSpend(test.MsgTx())
-	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidVersion {
-		t.Errorf("checkTSpend should have returned %v but instead returned %v",
-			ErrTreasuryTSpendInvalidVersion, err)
-	}
-	if IsTSpend(test.MsgTx()) {
-		t.Errorf("IsTSpend claimed an invalid tspend is valid")
-	}
-
-	// Verify tspend signature (no signature)
-	test = dcrutil.NewTx(tspendInvalidSignature)
-	test.SetTree(wire.TxTreeStake)
-	test.SetIndex(0)
-	err = checkTSpend(test.MsgTx())
-	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidSignature {
-		t.Errorf("checkTSpend should have returned %v but instead returned %v",
-			ErrTreasuryTSpendInvalidSignature, err)
-	}
-	if IsTSpend(test.MsgTx()) {
-		t.Errorf("IsTSpend claimed an invalid tspend is valid")
-	}
-
-	// Verify tspend signature (invalid signature)
-	test = dcrutil.NewTx(tspendInvalidSignature2)
-	test.SetTree(wire.TxTreeStake)
-	test.SetIndex(0)
-	err = checkTSpend(test.MsgTx())
-	if err.(RuleError).GetCode() != ErrTreasuryTSpendInvalidSignature {
-		t.Errorf("checkTSpend should have returned %v but instead returned %v",
-			ErrTreasuryTSpendInvalidSignature, err)
-	}
-	if IsTSpend(test.MsgTx()) {
-		t.Errorf("IsTSpend claimed an invalid tspend is valid")
+	for i, tt := range tests {
+		test := dcrutil.NewTx(tt.tx)
+		test.SetTree(wire.TxTreeStake)
+		test.SetIndex(0)
+		err := checkTSpend(test.MsgTx())
+		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
+			t.Errorf("%v: checkTSpend should have returned %v but "+
+				"instead returned %v: %v",
+				tt.name, tt.expected.(RuleError).GetCode(),
+				err.(RuleError).GetCode(), err)
+		}
+		if IsTSpend(test.MsgTx()) {
+			t.Errorf("IsTSpend claimed an invalid tspend is valid"+
+				" %v %v", i, tt.name)
+		}
 	}
 }
