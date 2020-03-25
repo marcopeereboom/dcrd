@@ -17,6 +17,35 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+// Private and public keys for tests.
+var (
+	// Serialized private key.
+	privateKey []byte = []byte{
+		0x76, 0x87, 0x56, 0x13, 0x94, 0xcc, 0xc6, 0x11,
+		0x01, 0x51, 0xbd, 0x9f, 0x26, 0xd4, 0x22, 0x8e,
+		0xb2, 0xd5, 0x7b, 0xe1, 0x28, 0xc0, 0x36, 0x12,
+		0xe3, 0x9a, 0x84, 0x4a, 0x3e, 0xcd, 0x3c, 0xcf,
+	}
+	// Serialized compressed public key
+	publicKey []byte = []byte{
+		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
+		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
+		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
+		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
+		0x2c,
+	}
+	// OP_TSPEND OP_DATA_33 publicKey
+	tspendValidKey []byte = []byte{
+		0xc2, // OP_TSPEND
+		0x21, // OP_DATA_33
+		0x02, 0xa4, 0xf6, 0x45, 0x86, 0xe1, 0x72, 0xc3,
+		0xd9, 0xa2, 0x0c, 0xfa, 0x6c, 0x7a, 0xc8, 0xfb,
+		0x12, 0xf0, 0x11, 0x5b, 0x3f, 0x69, 0xc3, 0xc3,
+		0x5a, 0xec, 0x93, 0x3a, 0x4c, 0x47, 0xc7, 0xd9,
+		0x2c,
+	}
+)
+
 // TestTreasuryIsFunctions goes through all valid treasury opcode combinations.
 //
 // == User sends to treasury ==
@@ -311,7 +340,7 @@ var tspendTxInInvalidOpcode = wire.TxIn{
 	Sequence:    0xffffffff,
 }
 
-// tspendTxInInvalidPubkey2 is a TxIn with an invalid public keu on the
+// tspendTxInInvalidPubkey2 is a TxIn with an invalid public key on the
 // OP_TSPEND.
 var tspendTxInInvalidPubkey2 = wire.TxIn{
 	PreviousOutPoint: wire.OutPoint{
@@ -332,6 +361,32 @@ var tspendTxInInvalidPubkey2 = wire.TxIn{
 	BlockHeight: wire.NullBlockHeight,
 	BlockIndex:  wire.NullBlockIndex,
 	Sequence:    0xffffffff,
+}
+
+var tspendTxOutValidReturn = wire.TxOut{
+	Value:   500000000,
+	Version: 0,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+		0x20, // OP_DATA_32
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	},
+}
+
+// tspendTxInValidPubkey is a TxIn with a public key on the OP_TSPEND.
+var tspendTxInValidPubkey = wire.TxIn{
+	PreviousOutPoint: wire.OutPoint{
+		Hash:  chainhash.Hash{},
+		Index: 0xffffffff,
+		Tree:  wire.TxTreeRegular,
+	},
+	SignatureScript: tspendValidKey,
+	BlockHeight:     wire.NullBlockHeight,
+	BlockIndex:      wire.NullBlockIndex,
+	Sequence:        0xffffffff,
 }
 
 // tspendInvalidInCount has an invalid TxIn count but a valid TxOut count.
@@ -434,6 +489,59 @@ var tspendInvalidPubkey = &wire.MsgTx{
 	Expiry:   0,
 }
 
+// tspendInvalidTGenLength has an invalid TxOut that has a zero length.
+var tspendInvalidTGenLength = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInValidPubkey,
+	},
+	TxOut: []*wire.TxOut{
+		&tspendTxOutValidReturn,
+		&wire.TxOut{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidTGen has an invalid TxOut that isn't tagged with an OP_TGEN.
+var tspendInvalidTGen = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInValidPubkey,
+	},
+	TxOut: []*wire.TxOut{
+		&tspendTxOutValidReturn,
+		&wire.TxOut{
+			PkScript: []byte{
+				0x6a, // OP_RETURN instead of OP_TGEN
+			}},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidP2SH has an invalid TxOut that doesn't have a valid P2SH
+// script.
+var tspendInvalidP2SH = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInValidPubkey,
+	},
+	TxOut: []*wire.TxOut{
+		&tspendTxOutValidReturn,
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc3, // OP_TGEN
+				0x00, // Invalid P2SH
+			}},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
 func TestTSpendErrors(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -474,6 +582,21 @@ func TestTSpendErrors(t *testing.T) {
 			name:     "tspendInvalidPubkey",
 			tx:       tspendInvalidPubkey,
 			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidPubkey},
+		},
+		{
+			name:     "tspendInvalidTGenLength",
+			tx:       tspendInvalidTGenLength,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidTGenLength},
+		},
+		{
+			name:     "tspendInvalidTGen",
+			tx:       tspendInvalidTGen,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidTGen},
+		},
+		{
+			name:     "tspendInvalidP2SH",
+			tx:       tspendInvalidP2SH,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidP2SH},
 		},
 	}
 	for i, tt := range tests {
