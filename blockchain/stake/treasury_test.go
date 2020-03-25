@@ -266,7 +266,7 @@ var tspendTxInNoPubkey = wire.TxIn{
 		Tree:  wire.TxTreeRegular,
 	},
 	SignatureScript: []byte{
-		0xc1,
+		0xc2, // OP_TSPEND
 	},
 	BlockHeight: wire.NullBlockHeight,
 	BlockIndex:  wire.NullBlockIndex,
@@ -281,10 +281,53 @@ var tspendTxInInvalidPubkey = wire.TxIn{
 		Tree:  wire.TxTreeRegular,
 	},
 	SignatureScript: []byte{
-		0xc1, // OP_TSPEND
+		0xc2, // OP_TSPEND
 		0x23, // OP_DATA_35
 		0x03, // Valid pubkey version
 		0x00, // invalid compressed key
+	},
+	BlockHeight: wire.NullBlockHeight,
+	BlockIndex:  wire.NullBlockIndex,
+	Sequence:    0xffffffff,
+}
+
+// tspendTxInInvalidOpcode is a TxIn with an invalid opcode where OP_TSPEND was
+// supposed to be.
+var tspendTxInInvalidOpcode = wire.TxIn{
+	PreviousOutPoint: wire.OutPoint{
+		Hash:  chainhash.Hash{},
+		Index: 0xffffffff,
+		Tree:  wire.TxTreeRegular,
+	},
+	SignatureScript: []byte{
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 35 bytes
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00,
+	},
+	BlockHeight: wire.NullBlockHeight,
+	BlockIndex:  wire.NullBlockIndex,
+	Sequence:    0xffffffff,
+}
+
+// tspendTxInInvalidPubkey2 is a TxIn with an invalid public keu on the
+// OP_TSPEND.
+var tspendTxInInvalidPubkey2 = wire.TxIn{
+	PreviousOutPoint: wire.OutPoint{
+		Hash:  chainhash.Hash{},
+		Index: 0xffffffff,
+		Tree:  wire.TxTreeRegular,
+	},
+	SignatureScript: []byte{
+		0xc2, // OP_TSPEND
+		0x21, // OP_DATA_33
+
+		0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // pubkey
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00,
 	},
 	BlockHeight: wire.NullBlockHeight,
 	BlockIndex:  wire.NullBlockIndex,
@@ -339,8 +382,8 @@ var tspendInvalidSignature = &wire.MsgTx{
 		&tspendTxInNoPubkey,
 	},
 	TxOut: []*wire.TxOut{
-		&wire.TxOut{Version: 0},
-		&wire.TxOut{Version: 0},
+		&wire.TxOut{},
+		&wire.TxOut{},
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -354,8 +397,38 @@ var tspendInvalidSignature2 = &wire.MsgTx{
 		&tspendTxInInvalidPubkey,
 	},
 	TxOut: []*wire.TxOut{
-		&wire.TxOut{Version: 0},
-		&wire.TxOut{Version: 0},
+		&wire.TxOut{},
+		&wire.TxOut{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidOpcode has an invalid opcode in the first TxIn.
+var tspendInvalidOpcode = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInInvalidOpcode,
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{},
+		&wire.TxOut{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidPubkey has an invalid public key on the TSPEND.
+var tspendInvalidPubkey = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInInvalidPubkey2,
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{},
+		&wire.TxOut{},
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -392,6 +465,16 @@ func TestTSpendErrors(t *testing.T) {
 			tx:       tspendInvalidSignature2,
 			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidSignature},
 		},
+		{
+			name:     "tspendInvalidOpcode",
+			tx:       tspendInvalidOpcode,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidOpcode},
+		},
+		{
+			name:     "tspendInvalidPubkey",
+			tx:       tspendInvalidPubkey,
+			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidPubkey},
+		},
 	}
 	for i, tt := range tests {
 		test := dcrutil.NewTx(tt.tx)
@@ -399,6 +482,7 @@ func TestTSpendErrors(t *testing.T) {
 		test.SetIndex(0)
 		err := checkTSpend(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
+			spew.Dump(tt.tx)
 			t.Errorf("%v: checkTSpend should have returned %v but "+
 				"instead returned %v: %v",
 				tt.name, tt.expected.(RuleError).GetCode(),

@@ -87,27 +87,20 @@ func checkTSpend(mtx *wire.MsgTx) error {
 	}
 
 	// Make sure SignatureScript starts with OP_TSPEND.
-	if mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND {
-		return stakeRuleError(ErrTreasuryTSpendInvalid,
-			"first opcode must contain a TSPEND script")
-	}
-
-	// Verify that data following TSPEND is followed by a 33 byte
-	// compressed pubkey.
-	tokenizer := txscript.MakeScriptTokenizer(0, /* XXX */
-		mtx.TxIn[0].SignatureScript[1:])
-	if tokenizer.Next() && tokenizer.Done() &&
-		tokenizer.Opcode() != txscript.OP_DATA_33 &&
-		len(tokenizer.Data()) != secp256k1.PubKeyBytesLenCompressed {
-		return stakeRuleError(ErrTreasuryBaseInvalid,
-			"TSPEND must have a compressed pubkey")
+	if mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND ||
+		mtx.TxIn[0].SignatureScript[1] != txscript.OP_DATA_33 {
+		return stakeRuleError(ErrTreasuryTSpendInvalidOpcode,
+			fmt.Sprintf("first script must start with an "+
+				"OP_TSPEND followed by OP_DATA_33 but got %x %x",
+				mtx.TxIn[0].SignatureScript[0],
+				mtx.TxIn[0].SignatureScript[1]))
 	}
 
 	// Verify pubkey is valid.
 	_, err := secp256k1.ParsePubKey(mtx.TxIn[0].SignatureScript[2:])
 	if err != nil {
-		return stakeRuleError(ErrTreasuryBaseInvalid,
-			"TSPEND invalid pubkey")
+		return stakeRuleError(ErrTreasuryTSpendInvalidPubkey,
+			fmt.Sprintf("TSPEND invalid pubkey: %v", err))
 	}
 
 	// Verify that the TxOut's contains P2PH scripts.
