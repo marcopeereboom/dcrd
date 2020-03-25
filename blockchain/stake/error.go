@@ -204,6 +204,14 @@ const (
 	// an invalid signature in the input script.
 	ErrTreasuryTSpendInvalidSignature
 
+	// ErrTreasuryTSpendInvalidOpcode indicates that this transaction does
+	// not have a TSPEND opcode.
+	ErrTreasuryTSpendInvalidOpcode
+
+	// ErrTreasuryTSpendInvalidPubkey indicates that this transaction
+	// contains an invalid public key.
+	ErrTreasuryTSpendInvalidPubkey
+
 	// ErrTreasuryBaseInvalid indicates that this transaction contains an
 	// invalid stakebase script.
 	ErrTreasuryBaseInvalid
@@ -257,6 +265,8 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrTreasuryTSpendInvalidLength:    "ErrTreasuryTSpendInvalidLength",
 	ErrTreasuryTSpendInvalidVersion:   "ErrTreasuryTSpendInvalidVersion",
 	ErrTreasuryTSpendInvalidSignature: "ErrTreasuryTSpendInvalidSignature",
+	ErrTreasuryTSpendInvalidOpcode:    "ErrTreasuryTSpendInvalidOpcode",
+	ErrTreasuryTSpendInvalidPubkey:    "ErrTreasuryTSpendInvalidPubkey",
 	ErrTreasuryBaseInvalid:            "ErrTreasuryBaseInvalid",
 }
 
