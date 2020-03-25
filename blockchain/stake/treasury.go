@@ -20,30 +20,36 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or 1
 	// stake change outputs.
 	if !(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
-		return stakeRuleError(ErrTreasuryTAddInvalid,
-			"invalid TADD script")
+		return stakeRuleError(ErrTreasuryTAddInvalidCount,
+			fmt.Sprintf("invalid TADD script out count: %v",
+				len(mtx.TxOut)))
 	}
 
 	// Verify all TxOut script versions.
 	for k := range mtx.TxOut {
 		if mtx.TxOut[k].Version != consensusVersion {
-			return stakeRuleError(ErrTreasuryTAddInvalid,
-				"invalid script version found in TADD TxOut")
+			return stakeRuleError(ErrTreasuryTAddInvalidVersion,
+				fmt.Sprintf("invalid script version found "+
+					"in TADD TxOut: %v", k))
 		}
 	}
 
 	// First output must be a TADD
-	if len(mtx.TxOut[0].PkScript) != 1 ||
-		mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
-		return stakeRuleError(ErrTreasuryTAddInvalid,
-			"first output must be a TADD")
+	if len(mtx.TxOut[0].PkScript) != 1 {
+		return stakeRuleError(ErrTreasuryTAddInvalidLength,
+			"TADD 0 length script")
+	}
+	if mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
+		return stakeRuleError(ErrTreasuryTAddInvalidOpcode,
+			fmt.Sprintf("first output must be a TADD, got 0x%x",
+				mtx.TxOut[0].PkScript[0]))
 	}
 
 	// only 1 stake change  output allowed.
 	if len(mtx.TxOut) == 2 {
 		if txscript.GetScriptClass(mtx.TxOut[1].Version,
 			mtx.TxOut[1].PkScript) != txscript.StakeSubChangeTy {
-			return stakeRuleError(ErrTreasuryTAddInvalid,
+			return stakeRuleError(ErrTreasuryTAddInvalidChange,
 				"second output must be an OP_SSTXCHANGE script")
 		}
 	}

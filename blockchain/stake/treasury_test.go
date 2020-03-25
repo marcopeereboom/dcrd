@@ -617,3 +617,143 @@ func TestTSpendErrors(t *testing.T) {
 		}
 	}
 }
+
+// taddInvalidOutCount has a valid TxIn count but an invalid TxOut count.
+var taddInvalidOutCount = &wire.MsgTx{
+	SerType:  wire.TxSerializeFull,
+	Version:  1,
+	TxIn:     []*wire.TxIn{},
+	TxOut:    []*wire.TxOut{},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// taddInvalidOutCount2 has a valid TxIn count but an invalid TxOut count.
+var taddInvalidOutCount2 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{},
+		&wire.TxOut{},
+		&wire.TxOut{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// taddInvalidVersion has an invalid out script version.
+var taddInvalidVersion = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{Version: 0},
+		&wire.TxOut{Version: 2},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// taddInvalidLength has an invalid out script.
+var taddInvalidLength = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// taddInvalidLength has an invalid out script opcode.
+var taddInvalidOpcode = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc2, // OP_TSPEND instead of OP_TADD
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// taddInvalidChange has an invalid out chnage script.
+var taddInvalidChange = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc1, // OP_TADD
+			},
+		},
+		&wire.TxOut{
+			PkScript: []byte{},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+func TestTAddErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		tx       *wire.MsgTx
+		expected error
+	}{
+		{
+			name:     "taddInvalidOutCount",
+			tx:       taddInvalidOutCount,
+			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidCount},
+		},
+		{
+			name:     "taddInvalidOutCount2",
+			tx:       taddInvalidOutCount2,
+			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidCount},
+		},
+		{
+			name:     "taddInvalidVersion",
+			tx:       taddInvalidVersion,
+			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidVersion},
+		},
+		{
+			name:     "taddInvalidLength",
+			tx:       taddInvalidLength,
+			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidLength},
+		},
+		{
+			name:     "taddInvalidOpcode",
+			tx:       taddInvalidOpcode,
+			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidOpcode},
+		},
+		{
+			name:     "taddInvalidChange",
+			tx:       taddInvalidChange,
+			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidChange},
+		},
+	}
+	for i, tt := range tests {
+		test := dcrutil.NewTx(tt.tx)
+		test.SetTree(wire.TxTreeStake)
+		test.SetIndex(0)
+		err := checkTAdd(test.MsgTx())
+		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
+			spew.Dump(tt.tx)
+			t.Errorf("%v: checkTAdd should have returned %v but "+
+				"instead returned %v: %v",
+				tt.name, tt.expected.(RuleError).GetCode(),
+				err.(RuleError).GetCode(), err)
+		}
+		if IsTAdd(test.MsgTx()) {
+			t.Errorf("IsTAdd claimed an invalid tadd is valid"+
+				" %v %v", i, tt.name)
+		}
+	}
+}

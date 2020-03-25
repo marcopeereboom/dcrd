@@ -184,9 +184,25 @@ const (
 	// the block.
 	ErrUnknownTicketSpent
 
+	// ErrTreasuryTAddInvalidCount indicates that this transaction contains
+	// an invalid TADD script count.
+	ErrTreasuryTAddInvalidCount
+
+	// ErrTreasuryTAddInvalidVersion indicates that this transaction has
+	// an invalid version in an output script.
+	ErrTreasuryTAddInvalidVersion
+
+	// ErrTreasuryTAddInvalidLength indicates that this transaction has
+	// a zero length script.
+	ErrTreasuryTAddInvalidLength
+
+	// ErrTreasuryTAddInvalidOpcode indicates that this transaction does
+	// not have a TADD opcode.
+	ErrTreasuryTAddInvalidOpcode
+
 	// ErrTreasuryTAddInvalid indicates that this transaction contains an
-	// invalid TADD script.
-	ErrTreasuryTAddInvalid
+	// invalid change script.
+	ErrTreasuryTAddInvalidChange
 
 	// ErrTreasuryTSpendInvalidLength indicates that this transaction has
 	// an invalid number of inputs and/or outputs.
@@ -268,7 +284,11 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrMissingTicket:                   "ErrMissingTicket",
 	ErrDuplicateTicket:                 "ErrDuplicateTicket",
 	ErrUnknownTicketSpent:              "ErrUnknownTicketSpent",
-	ErrTreasuryTAddInvalid:             "ErrTreasuryTAddInvalid",
+	ErrTreasuryTAddInvalidCount:        "ErrTreasuryTAddInvalidCount",
+	ErrTreasuryTAddInvalidVersion:      "ErrTreasuryTAddInvalidVersion",
+	ErrTreasuryTAddInvalidLength:       "ErrTreasuryTAddInvalidLength",
+	ErrTreasuryTAddInvalidOpcode:       "ErrTreasuryTAddInvalidOpcode",
+	ErrTreasuryTAddInvalidChange:       "ErrTreasuryTAddInvalidChange",
 	ErrTreasuryTSpendInvalidLength:     "ErrTreasuryTSpendInvalidLength",
 	ErrTreasuryTSpendInvalidVersion:    "ErrTreasuryTSpendInvalidVersion",
 	ErrTreasuryTSpendInvalidSignature:  "ErrTreasuryTSpendInvalidSignature",
