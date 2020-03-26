@@ -551,52 +551,52 @@ func TestTSpendErrors(t *testing.T) {
 		{
 			name:     "tspendInvalidOutCount",
 			tx:       tspendInvalidOutCount,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidLength},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidLength},
 		},
 		{
 			name:     "tspendInvalidInCount",
 			tx:       tspendInvalidInCount,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidLength},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidLength},
 		},
 		{
 			name:     "tspendInvalidVersion",
 			tx:       tspendInvalidVersion,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidVersion},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidVersion},
 		},
 		{
 			name:     "tspendInvalidSignature",
 			tx:       tspendInvalidSignature,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidSignature},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidSignature},
 		},
 		{
 			name:     "tspendInvalidSignature2",
 			tx:       tspendInvalidSignature2,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidSignature},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidSignature},
 		},
 		{
 			name:     "tspendInvalidOpcode",
 			tx:       tspendInvalidOpcode,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidOpcode},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidOpcode},
 		},
 		{
 			name:     "tspendInvalidPubkey",
 			tx:       tspendInvalidPubkey,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidPubkey},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidPubkey},
 		},
 		{
 			name:     "tspendInvalidTGenLength",
 			tx:       tspendInvalidTGenLength,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidTGenLength},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidTGenLength},
 		},
 		{
 			name:     "tspendInvalidTGen",
 			tx:       tspendInvalidTGen,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidTGen},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidTGen},
 		},
 		{
 			name:     "tspendInvalidP2SH",
 			tx:       tspendInvalidP2SH,
-			expected: RuleError{ErrorCode: ErrTreasuryTSpendInvalidP2SH},
+			expected: RuleError{ErrorCode: ErrTSpendInvalidP2SH},
 		},
 	}
 	for i, tt := range tests {
@@ -711,32 +711,32 @@ func TestTAddErrors(t *testing.T) {
 		{
 			name:     "taddInvalidOutCount",
 			tx:       taddInvalidOutCount,
-			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidCount},
+			expected: RuleError{ErrorCode: ErrTAddInvalidCount},
 		},
 		{
 			name:     "taddInvalidOutCount2",
 			tx:       taddInvalidOutCount2,
-			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidCount},
+			expected: RuleError{ErrorCode: ErrTAddInvalidCount},
 		},
 		{
 			name:     "taddInvalidVersion",
 			tx:       taddInvalidVersion,
-			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidVersion},
+			expected: RuleError{ErrorCode: ErrTAddInvalidVersion},
 		},
 		{
 			name:     "taddInvalidLength",
 			tx:       taddInvalidLength,
-			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidLength},
+			expected: RuleError{ErrorCode: ErrTAddInvalidLength},
 		},
 		{
 			name:     "taddInvalidOpcode",
 			tx:       taddInvalidOpcode,
-			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidOpcode},
+			expected: RuleError{ErrorCode: ErrTAddInvalidOpcode},
 		},
 		{
 			name:     "taddInvalidChange",
 			tx:       taddInvalidChange,
-			expected: RuleError{ErrorCode: ErrTreasuryTAddInvalidChange},
+			expected: RuleError{ErrorCode: ErrTAddInvalidChange},
 		},
 	}
 	for i, tt := range tests {
