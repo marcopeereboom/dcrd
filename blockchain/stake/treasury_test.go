@@ -376,6 +376,19 @@ var tspendTxOutValidReturn = wire.TxOut{
 	},
 }
 
+var tspendTxOutInvalidReturn = wire.TxOut{
+	Value:   500000000,
+	Version: 0,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+		0x20, // OP_DATA_32
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 1 byte short
+	},
+}
+
 // tspendTxInValidPubkey is a TxIn with a public key on the OP_TSPEND.
 var tspendTxInValidPubkey = wire.TxIn{
 	PreviousOutPoint: wire.OutPoint{
@@ -489,8 +502,8 @@ var tspendInvalidPubkey = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// tspendInvalidTGenLength has an invalid TxOut that has a zero length.
-var tspendInvalidTGenLength = &wire.MsgTx{
+// tspendInvalidScriptLength has an invalid TxOut that has a zero length.
+var tspendInvalidScriptLength = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
 	TxIn: []*wire.TxIn{
@@ -499,6 +512,20 @@ var tspendInvalidTGenLength = &wire.MsgTx{
 	TxOut: []*wire.TxOut{
 		&tspendTxOutValidReturn,
 		&wire.TxOut{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// tspendInvalidTransaction has an invalid hash on the OP_RETURN.
+var tspendInvalidTransaction = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&tspendTxInValidPubkey,
+	},
+	TxOut: []*wire.TxOut{
+		&tspendTxOutInvalidReturn,
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -584,9 +611,14 @@ func TestTSpendErrors(t *testing.T) {
 			expected: RuleError{ErrorCode: ErrTSpendInvalidPubkey},
 		},
 		{
-			name:     "tspendInvalidTGenLength",
-			tx:       tspendInvalidTGenLength,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidTGenLength},
+			name:     "tspendInvalidScriptLength",
+			tx:       tspendInvalidScriptLength,
+			expected: RuleError{ErrorCode: ErrTSpendInvalidScriptLength},
+		},
+		{
+			name:     "tspendInvalidTransaction",
+			tx:       tspendInvalidTransaction,
+			expected: RuleError{ErrorCode: ErrTSpendInvalidTransaction},
 		},
 		{
 			name:     "tspendInvalidTGen",
@@ -655,13 +687,26 @@ var taddInvalidVersion = &wire.MsgTx{
 	Expiry:   0,
 }
 
+// taddInvalidScriptLength has a zero script length.
+var taddInvalidScriptLength = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{Version: 0},
+		&wire.TxOut{Version: 0},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
 // taddInvalidLength has an invalid out script.
 var taddInvalidLength = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
-		&wire.TxOut{},
+		&wire.TxOut{PkScript: []byte{0}}, // One byte to not fail prior test
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -722,6 +767,11 @@ func TestTAddErrors(t *testing.T) {
 			name:     "taddInvalidVersion",
 			tx:       taddInvalidVersion,
 			expected: RuleError{ErrorCode: ErrTAddInvalidVersion},
+		},
+		{
+			name:     "taddInvalidScriptLength",
+			tx:       taddInvalidScriptLength,
+			expected: RuleError{ErrorCode: ErrTAddInvalidScriptLength},
 		},
 		{
 			name:     "taddInvalidLength",
