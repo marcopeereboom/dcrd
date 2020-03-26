@@ -20,7 +20,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or 1
 	// stake change outputs.
 	if !(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
-		return stakeRuleError(ErrTreasuryTAddInvalidCount,
+		return stakeRuleError(ErrTAddInvalidCount,
 			fmt.Sprintf("invalid TADD script out count: %v",
 				len(mtx.TxOut)))
 	}
@@ -28,7 +28,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	// Verify all TxOut script versions.
 	for k := range mtx.TxOut {
 		if mtx.TxOut[k].Version != consensusVersion {
-			return stakeRuleError(ErrTreasuryTAddInvalidVersion,
+			return stakeRuleError(ErrTAddInvalidVersion,
 				fmt.Sprintf("invalid script version found "+
 					"in TADD TxOut: %v", k))
 		}
@@ -36,20 +36,22 @@ func checkTAdd(mtx *wire.MsgTx) error {
 
 	// First output must be a TADD
 	if len(mtx.TxOut[0].PkScript) != 1 {
-		return stakeRuleError(ErrTreasuryTAddInvalidLength,
+		return stakeRuleError(ErrTAddInvalidLength,
 			"TADD 0 length script")
 	}
 	if mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
-		return stakeRuleError(ErrTreasuryTAddInvalidOpcode,
+		return stakeRuleError(ErrTAddInvalidOpcode,
 			fmt.Sprintf("first output must be a TADD, got 0x%x",
 				mtx.TxOut[0].PkScript[0]))
 	}
 
 	// only 1 stake change  output allowed.
 	if len(mtx.TxOut) == 2 {
+		// XXX and len check here
+
 		if txscript.GetScriptClass(mtx.TxOut[1].Version,
 			mtx.TxOut[1].PkScript) != txscript.StakeSubChangeTy {
-			return stakeRuleError(ErrTreasuryTAddInvalidChange,
+			return stakeRuleError(ErrTAddInvalidChange,
 				"second output must be an OP_SSTXCHANGE script")
 		}
 	}
@@ -71,7 +73,7 @@ func checkTSpend(mtx *wire.MsgTx) error {
 	// one P2PH TxOut script.
 	if len(mtx.TxIn) != 1 ||
 		!(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
-		return stakeRuleError(ErrTreasuryTSpendInvalidLength,
+		return stakeRuleError(ErrTSpendInvalidLength,
 			fmt.Sprintf("invalid TSPEND script lengths in: %v "+
 				"out: %v", len(mtx.TxIn), len(mtx.TxOut)))
 	}
@@ -79,7 +81,7 @@ func checkTSpend(mtx *wire.MsgTx) error {
 	// Check to make sure that all output scripts are the consensus version.
 	for k, txOut := range mtx.TxOut {
 		if txOut.Version != consensusVersion {
-			return stakeRuleError(ErrTreasuryTSpendInvalidVersion,
+			return stakeRuleError(ErrTSpendInvalidVersion,
 				fmt.Sprintf("invalid script version found in "+
 					"TxOut: %v", k))
 		}
@@ -87,7 +89,7 @@ func checkTSpend(mtx *wire.MsgTx) error {
 
 	// Verify expected length of SignatureScript.
 	if len(mtx.TxIn[0].SignatureScript) != 35 {
-		return stakeRuleError(ErrTreasuryTSpendInvalidSignature,
+		return stakeRuleError(ErrTSpendInvalidSignature,
 			fmt.Sprintf("invalid TSPEND signature length: %v",
 				len(mtx.TxIn[0].SignatureScript)))
 	}
@@ -95,7 +97,7 @@ func checkTSpend(mtx *wire.MsgTx) error {
 	// Make sure SignatureScript starts with OP_TSPEND.
 	if mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND ||
 		mtx.TxIn[0].SignatureScript[1] != txscript.OP_DATA_33 {
-		return stakeRuleError(ErrTreasuryTSpendInvalidOpcode,
+		return stakeRuleError(ErrTSpendInvalidOpcode,
 			fmt.Sprintf("first script must start with an "+
 				"OP_TSPEND followed by OP_DATA_33 but got %x %x",
 				mtx.TxIn[0].SignatureScript[0],
@@ -105,16 +107,24 @@ func checkTSpend(mtx *wire.MsgTx) error {
 	// Verify pubkey is valid.
 	_, err := secp256k1.ParsePubKey(mtx.TxIn[0].SignatureScript[2:])
 	if err != nil {
-		return stakeRuleError(ErrTreasuryTSpendInvalidPubkey,
+		return stakeRuleError(ErrTSpendInvalidPubkey,
 			fmt.Sprintf("TSPEND invalid pubkey: %v", err))
 	}
 
 	// Verify that the TxOut's contains P2PH scripts.
 	for k, txOut := range mtx.TxOut {
+		// Make there is a script.
+		if len(txOut.PkScript) == 0 {
+			return stakeRuleError(ErrTSpendInvalidTGenLength,
+				fmt.Sprintf("TSPEND out script length is 0: %v",
+					len(txOut.PkScript)))
+		}
+
 		if k == 0 {
 			// Check for OP_RETURN
 			if txscript.GetScriptClass(txOut.Version, txOut.PkScript) !=
 				txscript.NullDataTy {
+				// XXX don't reuse the error
 				return stakeRuleError(ErrSSGenNoReference,
 					"First TSPEND output should have been "+
 						"an OP_RETURN data push, but "+
@@ -123,22 +133,15 @@ func checkTSpend(mtx *wire.MsgTx) error {
 			continue
 		}
 
-		// Make there is a script.
-		if len(txOut.PkScript) == 0 {
-			return stakeRuleError(ErrTreasuryTSpendInvalidTGenLength,
-				fmt.Sprintf("TSPEND out script length is 0: %v",
-					len(txOut.PkScript)))
-		}
-
 		// All tx outs are tagged with OP_TGEN
 		if txOut.PkScript[0] != txscript.OP_TGEN {
-			return stakeRuleError(ErrTreasuryTSpendInvalidTGen,
+			return stakeRuleError(ErrTSpendInvalidTGen,
 				fmt.Sprintf("Output is not tagged with "+
 					"OP_TGEN: %v", k))
 		}
 		sc := txscript.GetScriptClass(txOut.Version, txOut.PkScript[1:])
 		if !(sc == txscript.ScriptHashTy || sc == txscript.PubKeyHashTy) {
-			return stakeRuleError(ErrTreasuryTSpendInvalidP2SH,
+			return stakeRuleError(ErrTSpendInvalidP2SH,
 				fmt.Sprintf("Output is not P2PH: %v", k))
 		}
 	}
