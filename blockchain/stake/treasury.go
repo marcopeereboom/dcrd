@@ -185,19 +185,13 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 
 	// Required OP_RETURN, OP_DATA_12 + 12 bytes = 14 bytes total.
 	if len(mtx.TxOut[1].PkScript) != 14 ||
-		mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN {
+		mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN ||
+		mtx.TxOut[1].PkScript[1] != txscript.OP_DATA_12 {
 		return stakeRuleError(ErrTreasuryBaseInvalidOpcode1,
 			"second treasurybase output must be an OP_RETURN "+
-				"script")
+				" OP_DATA_12 script")
 	}
-
-	// Look for coinbase 12 byte extra nonce.
-	// XXX validate extra nonce.
-	if mtx.TxOut[1].PkScript[1] != txscript.OP_DATA_12 {
-		return stakeRuleError(ErrTreasuryBaseInvalidDataPush,
-			"second output must be an OP_RETURN script followed "+
-				"by 12 bytes")
-	}
+	// XXX validate extra nonce in OP_DATA_12 payload.
 
 	// The previous output of a coin base must have a max value index and a
 	// zero hash.
