@@ -747,6 +747,8 @@ var taddInvalidChange = &wire.MsgTx{
 	Expiry:   0,
 }
 
+// TestTAddErrors verifies that all TAdd errors can be hit and return the
+// propper error.
 func TestTAddErrors(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -804,6 +806,238 @@ func TestTAddErrors(t *testing.T) {
 		if IsTAdd(test.MsgTx()) {
 			t.Errorf("IsTAdd claimed an invalid tadd is valid"+
 				" %v %v", i, tt.name)
+		}
+	}
+}
+
+// treasurybaseInvalidInCount has an invalid TxIn count.
+var treasurybaseInvalidInCount = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{},
+		&wire.TxOut{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalidOutCount has an invalid TxOut count.
+var treasurybaseInvalidOutCount = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{},
+	},
+	TxOut:    []*wire.TxOut{},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalidVersion has an invalid out script version.
+var treasurybaseInvalidVersion = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{},
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{Version: 0},
+		&wire.TxOut{Version: 2},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalidOpcode0 has an invalid out script opcode.
+var treasurybaseInvalidOpcode0 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{},
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc2, // OP_TSPEND instead of OP_TADD
+			},
+		},
+		&wire.TxOut{
+			PkScript: []byte{
+				0x6a, // OP_RETURN
+				0x0c, // OP_DATA_12
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalidOpcode0Len has an invalid out script opcode length.
+var treasurybaseInvalidOpcode0Len = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{},
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: nil, // Invalid
+		},
+		&wire.TxOut{
+			PkScript: []byte{
+				0x6a, // OP_RETURN
+				0x0c, // OP_DATA_12
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalidOpcode1 has an invalid out script opcode.
+var treasurybaseInvalidOpcode1 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{},
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc1, // OP_TADD
+			},
+		},
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc1, // OP_TADD instead of OP_RETURN
+				0x0c, // OP_DATA_32
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalidOpcode1Len has an invalid out script opcode length.
+var treasurybaseInvalidOpcode1Len = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{},
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc1, // OP_TADD
+			},
+		},
+		&wire.TxOut{
+			PkScript: nil,
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalidOpcodeDataPush has an invalid out script data push in
+// script 1 opcode 1.
+var treasurybaseInvalidOpcodeDataPush = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{},
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc1, // OP_TADD
+			},
+		},
+		&wire.TxOut{
+			PkScript: []byte{
+				0x6a, // OP_RETURN
+				0x0d, // OP_DATA_13 instead of OP_DATA_12
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// TestTreasuryIsFunctions verifies that all TAdd errors can be hit and return the
+// propper error.
+func TestTreasuryBaseErrors(t *testing.T) {
+	tests := []struct {
+		name     string
+		tx       *wire.MsgTx
+		expected error
+	}{
+		{
+			name:     "treasurybaseInvalidInCount",
+			tx:       treasurybaseInvalidInCount,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidCount},
+		},
+		{
+			name:     "treasurybaseInvalidOutCount",
+			tx:       treasurybaseInvalidOutCount,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidCount},
+		},
+		{
+			name:     "treasurybaseInvalidVersion",
+			tx:       treasurybaseInvalidVersion,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidVersion},
+		},
+		{
+			name:     "treasurybaseInvalidOpcode0",
+			tx:       treasurybaseInvalidOpcode0,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode0},
+		},
+		{
+			name:     "treasurybaseInvalidOpcode0Len",
+			tx:       treasurybaseInvalidOpcode0Len,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode0},
+		},
+		{
+			name:     "treasurybaseInvalidOpcode1",
+			tx:       treasurybaseInvalidOpcode1,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode1},
+		},
+		{
+			name:     "treasurybaseInvalidOpcode1Len",
+			tx:       treasurybaseInvalidOpcode1Len,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode1},
+		},
+		{
+			name:     "treasurybaseInvalidDataPush",
+			tx:       treasurybaseInvalidOpcodeDataPush,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidDataPush},
+		},
+	}
+	for i, tt := range tests {
+		test := dcrutil.NewTx(tt.tx)
+		test.SetTree(wire.TxTreeStake)
+		test.SetIndex(0)
+		err := checkTreasuryBase(test.MsgTx())
+		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
+			spew.Dump(tt.tx)
+			t.Errorf("%v: checkTreasuryBase should have returned "+
+				"%v but instead returned %v: %v",
+				tt.name, tt.expected.(RuleError).GetCode(),
+				err.(RuleError).GetCode(), err)
+		}
+		if IsTreasuryBase(test.MsgTx()) {
+			t.Errorf("IsTreasuryBase claimed an invalid treasury "+
+				"base is valid %v %v", i, tt.name)
 		}
 	}
 }
