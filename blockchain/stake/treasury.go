@@ -161,49 +161,42 @@ func IsTSpend(tx *wire.MsgTx) bool {
 func checkTreasuryBase(mtx *wire.MsgTx) error {
 	// A TADD consists of one OP_TADD in PkScript[0] followed by an
 	// OP_RETURN <random> in  PkScript[1].
-	if len(mtx.TxOut) != 2 {
-		return stakeRuleError(ErrTreasuryBaseInvalid,
-			"invalid treasurybase out script count")
+	if len(mtx.TxIn) != 1 || len(mtx.TxOut) != 2 {
+		return stakeRuleError(ErrTreasuryBaseInvalidCount,
+			fmt.Sprintf("invalid treasurybase out script count: "+
+				"%v %v", len(mtx.TxIn), len(mtx.TxOut)))
 	}
 
 	// Verify all TxOut script versions.
 	for k := range mtx.TxOut {
 		if mtx.TxOut[k].Version != consensusVersion {
-			return stakeRuleError(ErrTreasuryBaseInvalid,
-				"invalid script version found in treasurybase")
+			return stakeRuleError(ErrTreasuryBaseInvalidVersion,
+				fmt.Sprintf("invalid script version found in "+
+					"treasurybase: %v", k))
 		}
 	}
 
 	// First output must be a TADD
 	if len(mtx.TxOut[0].PkScript) != 1 ||
 		mtx.TxOut[0].PkScript[0] != txscript.OP_TADD {
-		return stakeRuleError(ErrTreasuryBaseInvalid,
+		return stakeRuleError(ErrTreasuryBaseInvalidOpcode0,
 			"first treasurybase output must be a TADD")
 	}
 
-	// Required OP_RETURN
-	if mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN {
-		return stakeRuleError(ErrTreasuryBaseInvalid,
-			"second output must be an OP_RETURN script")
+	// Required OP_RETURN, OP_DATA_12 + 12 bytes = 14 bytes total.
+	if len(mtx.TxOut[1].PkScript) != 14 ||
+		mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN {
+		return stakeRuleError(ErrTreasuryBaseInvalidOpcode1,
+			"second treasurybase output must be an OP_RETURN "+
+				"script")
 	}
 
 	// Look for coinbase 12 byte extra nonce.
 	// XXX validate extra nonce.
-	tokenizer := txscript.MakeScriptTokenizer(mtx.TxOut[1].Version,
-		mtx.TxOut[1].PkScript[1:])
-	if tokenizer.Next() && tokenizer.Done() &&
-		tokenizer.Opcode() != txscript.OP_DATA_12 &&
-		len(tokenizer.Data()) != 12 {
-		return stakeRuleError(ErrTreasuryBaseInvalid,
+	if mtx.TxOut[1].PkScript[1] != txscript.OP_DATA_12 {
+		return stakeRuleError(ErrTreasuryBaseInvalidDataPush,
 			"second output must be an OP_RETURN script followed "+
 				"by 12 bytes")
-	}
-
-	// Make sure chainhash etc is treasurybase.
-	// A treasury base must only have one transaction input.
-	if len(mtx.TxIn) != 1 {
-		return stakeRuleError(ErrTreasuryBaseInvalid,
-			"invalid treasurybase in script count")
 	}
 
 	// The previous output of a coin base must have a max value index and a
