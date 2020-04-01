@@ -5,6 +5,7 @@
 package stake
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 
@@ -974,6 +975,67 @@ var treasurybaseInvalidOpcodeDataPush = &wire.MsgTx{
 	Expiry:   0,
 }
 
+// treasurybaseInvalid has invalid in script constants.
+var treasurybaseInvalid = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{
+			PreviousOutPoint: wire.OutPoint{
+				Index: math.MaxUint32 - 1,
+			},
+		},
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc1, // OP_TADD
+			},
+		},
+		&wire.TxOut{
+			PkScript: []byte{
+				0x6a, // OP_RETURN
+				0x0c, // OP_DATA_12
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalid2 has invalid in script constants.
+var treasurybaseInvalid2 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&wire.TxIn{
+			PreviousOutPoint: wire.OutPoint{
+				Index: math.MaxUint32,
+				Hash:  chainhash.Hash{'m', 'o', 'o'},
+			},
+		},
+	},
+	TxOut: []*wire.TxOut{
+		&wire.TxOut{
+			PkScript: []byte{
+				0xc1, // OP_TADD
+			},
+		},
+		&wire.TxOut{
+			PkScript: []byte{
+				0x6a, // OP_RETURN
+				0x0c, // OP_DATA_12
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
 // TestTreasuryIsFunctions verifies that all TAdd errors can be hit and return the
 // propper error.
 func TestTreasuryBaseErrors(t *testing.T) {
@@ -1020,7 +1082,17 @@ func TestTreasuryBaseErrors(t *testing.T) {
 		{
 			name:     "treasurybaseInvalidDataPush",
 			tx:       treasurybaseInvalidOpcodeDataPush,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidDataPush},
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode1},
+		},
+		{
+			name:     "treasurybaseInvalid",
+			tx:       treasurybaseInvalid,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalid},
+		},
+		{
+			name:     "treasurybaseInvalid2",
+			tx:       treasurybaseInvalid2,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalid},
 		},
 	}
 	for i, tt := range tests {
