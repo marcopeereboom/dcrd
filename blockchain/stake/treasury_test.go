@@ -681,8 +681,8 @@ var taddInvalidVersion = &wire.MsgTx{
 	Version: 1,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
+		&wire.TxOut{Version: 1},
 		&wire.TxOut{Version: 0},
-		&wire.TxOut{Version: 2},
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -707,7 +707,10 @@ var taddInvalidLength = &wire.MsgTx{
 	Version: 1,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
-		&wire.TxOut{PkScript: []byte{0}}, // One byte to not fail prior test
+		&wire.TxOut{PkScript: []byte{
+			0xc2, // OP_TSPEND instead of OP_TADD
+			0x00, // Fail lenght test
+		}},
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -741,7 +744,9 @@ var taddInvalidChange = &wire.MsgTx{
 			},
 		},
 		&wire.TxOut{
-			PkScript: []byte{},
+			PkScript: []byte{
+				0x00, // Not OP_SSTXCHANGE
+			},
 		},
 	},
 	LockTime: 0,
