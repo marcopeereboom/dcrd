@@ -52,7 +52,7 @@ func checkTAdd(mtx *wire.MsgTx) error {
 				mtx.TxOut[0].PkScript[0]))
 	}
 
-	// only 1 stake change  output allowed.
+	// only 1 stake change output allowed.
 	if len(mtx.TxOut) == 2 {
 		// Script length has been already verified.
 		if txscript.GetScriptClass(mtx.TxOut[1].Version,
@@ -74,7 +74,7 @@ func IsTAdd(tx *wire.MsgTx) bool {
 func checkTSpend(mtx *wire.MsgTx) error {
 	// A TSPEND consists of one OP_TSPEND <pi compressed pubkey> in
 	// TxIn[0].SignatureScript, one OP_RETURN transaction hash and at least
-	// one P2PH TxOut script.
+	// one TGEN tagged followed P2SH TxOut script.
 	if len(mtx.TxIn) != 1 ||
 		!(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
 		return stakeRuleError(ErrTSpendInvalidLength,
