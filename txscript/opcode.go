@@ -2451,13 +2451,13 @@ func opcodeCheckSig(op *opcode, data []byte, vm *Engine) error {
 	// the data stack.
 	hashType := SigHashType(fullSigBytes[len(fullSigBytes)-1])
 	sigBytes := fullSigBytes[:len(fullSigBytes)-1]
-	if err := vm.checkHashTypeEncoding(hashType); err != nil {
+	if err := CheckHashTypeEncoding(hashType); err != nil {
 		return err
 	}
-	if err := vm.checkSignatureEncoding(sigBytes); err != nil {
+	if err := CheckSignatureEncoding(sigBytes); err != nil {
 		return err
 	}
-	if err := vm.checkPubKeyEncoding(pkBytes); err != nil {
+	if err := CheckPubKeyEncoding(pkBytes); err != nil {
 		return err
 	}
 
@@ -2648,10 +2648,10 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 		// Only parse and check the signature encoding once.
 		var parsedSig *secp256k1.Signature
 		if !sigInfo.parsed {
-			if err := vm.checkHashTypeEncoding(hashType); err != nil {
+			if err := CheckHashTypeEncoding(hashType); err != nil {
 				return err
 			}
-			if err := vm.checkSignatureEncoding(signature); err != nil {
+			if err := CheckSignatureEncoding(signature); err != nil {
 				return err
 			}
 
@@ -2673,7 +2673,7 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 			parsedSig = sigInfo.parsedSignature
 		}
 
-		if err := vm.checkPubKeyEncoding(pubKey); err != nil {
+		if err := CheckPubKeyEncoding(pubKey); err != nil {
 			return err
 		}
 
@@ -2820,7 +2820,7 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 	// requirements enabled by the flags.
 	hashType := SigHashType(fullSigBytes[len(fullSigBytes)-1])
 	sigBytes := fullSigBytes[:len(fullSigBytes)-1]
-	if err := vm.checkHashTypeEncoding(hashType); err != nil {
+	if err := CheckHashTypeEncoding(hashType); err != nil {
 		return err
 	}
 
