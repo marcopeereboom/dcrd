@@ -536,6 +536,7 @@ func isStakeChangeScript(scriptVersion uint16, script []byte) bool {
 //
 // NOTE: This function is only valid for version 0 scripts.  It will always
 // return false for other script versions.
+// XXX THIS IS WRONG AND WE PROBABLY WANT THIS TO GO AWAY
 func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 	// We will support 2 OP_TADD variants. One where a user sends utxo from
 	// wallet to treasury and one where part of the block reward will be
@@ -587,6 +588,7 @@ func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 //
 // NOTE: This function is only valid for version 0 scripts.  It will always
 // return false for other script versions.
+// XXX THIS IS WRONG AND WE PROBABLY WANT THIS TO GO AWAY
 func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
 	// An OP_TSPEND OUTPUT script consists of one or more OP_TGEN +
 	// The only currently supported script version is 0.

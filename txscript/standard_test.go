@@ -715,13 +715,6 @@ var scriptClassTests = []struct {
 		subClass: ScriptHashTy,
 	},
 
-	// Treasury add.
-	{
-		name:   "TADD",
-		script: "TADD",
-		class:  TreasuryAddTy,
-	},
-
 	{
 		// Nulldata with no data at all.
 		name:   "nulldata no data",
