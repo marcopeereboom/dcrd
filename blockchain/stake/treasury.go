@@ -91,29 +91,79 @@ func checkTSpend(mtx *wire.MsgTx) error {
 		}
 	}
 
-	// Verify expected length of SignatureScript.
-	if len(mtx.TxIn[0].SignatureScript) != 35 {
-		return stakeRuleError(ErrTSpendInvalidSignature,
-			fmt.Sprintf("invalid TSPEND signature length: %v",
-				len(mtx.TxIn[0].SignatureScript)))
+	// Pull out signature, pubkey and OP_TSPEND
+	tokenizer := txscript.MakeScriptTokenizer(0,
+		mtx.TxIn[0].SignatureScript)
+	// Expect data push of signature
+	var (
+		i         = 0
+		err       error
+		signature *secp256k1.Signature
+		pubkey    *secp256k1.PublicKey
+	)
+	for i = 0; i <= 3; i++ {
+		// Expect a token
+		if !tokenizer.Next() {
+			if i == 3 {
+				// State machine complete.
+				break
+			}
+			return stakeRuleError(ErrTSpendInvalidTokenCount,
+				fmt.Sprintf("TSPEND token count: %v", i))
+		}
+
+		opcode := tokenizer.Opcode()
+		switch i {
+		case 0:
+			// Data push signature
+			if opcode < txscript.OP_DATA_8 ||
+				opcode > txscript.OP_DATA_72 {
+				return stakeRuleError(ErrTSpendInvalidSignaturePush,
+					fmt.Sprintf("TSPEND invalid "+
+						"signature push: 0x%x", opcode))
+			}
+
+			data := tokenizer.Data()
+			signature, err = secp256k1.ParseDERSignature(data)
+			if err != nil {
+				return stakeRuleError(ErrTSpendInvalidSignature,
+					fmt.Sprintf("TSPEND invalid "+
+						"signature: %v", err))
+
+			}
+			continue
+		case 1:
+			// Data push public key.
+			if opcode != txscript.OP_DATA_33 {
+				return stakeRuleError(ErrTSpendInvalidPubkeyPush,
+					fmt.Sprintf("TSPEND invalid "+
+						"publickey push: 0x%x", opcode))
+			}
+
+			data := tokenizer.Data()
+			pubkey, err = secp256k1.ParsePubKey(data)
+			if err != nil {
+				return stakeRuleError(ErrTSpendInvalidPubkey,
+					fmt.Sprintf("TSPEND invalid pubkey %v",
+						err))
+			}
+			continue
+		case 2:
+			// OP_TSPEND.
+			if opcode != txscript.OP_TSPEND {
+				return stakeRuleError(ErrTSpendInvalidOpcode,
+					fmt.Sprintf("TSPEND invalid opcode: "+
+						"0x%x", opcode))
+			}
+			continue
+		default:
+			// Too many tokens
+		}
 	}
 
-	// Make sure SignatureScript starts with OP_TSPEND.
-	if mtx.TxIn[0].SignatureScript[0] != txscript.OP_TSPEND ||
-		mtx.TxIn[0].SignatureScript[1] != txscript.OP_DATA_33 {
-		return stakeRuleError(ErrTSpendInvalidOpcode,
-			fmt.Sprintf("first script must start with an "+
-				"OP_TSPEND followed by OP_DATA_33 but got %x %x",
-				mtx.TxIn[0].SignatureScript[0],
-				mtx.TxIn[0].SignatureScript[1]))
-	}
-
-	// Verify pubkey is valid.
-	_, err := secp256k1.ParsePubKey(mtx.TxIn[0].SignatureScript[2:])
-	if err != nil {
-		return stakeRuleError(ErrTSpendInvalidPubkey,
-			fmt.Sprintf("TSPEND invalid pubkey: %v", err))
-	}
+	// XXX check signature here?
+	_ = signature
+	_ = pubkey
 
 	// Verify that the TxOut's contains P2PH scripts.
 	for k, txOut := range mtx.TxOut {
