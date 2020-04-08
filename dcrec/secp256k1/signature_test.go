@@ -438,8 +438,7 @@ func TestSignatureSerialize(t *testing.T) {
 	}
 }
 
-func testSignCompact(t *testing.T, tag string,
-	data []byte, isCompressed bool) {
+func testSignCompact(t *testing.T, tag string, data []byte, isCompressed bool) {
 	priv, _ := GeneratePrivateKey()
 
 	hashed := []byte("testing")
