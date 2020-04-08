@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -72,11 +71,14 @@ func IsTAdd(tx *wire.MsgTx) bool {
 
 // checkTSpend verifies if a MsgTx is a valid TSPEND.
 func checkTSpend(mtx *wire.MsgTx) error {
-	// A TSPEND consists of one OP_TSPEND <pi compressed pubkey> in
-	// TxIn[0].SignatureScript, one OP_RETURN transaction hash and at least
-	// one TGEN tagged followed P2SH TxOut script.
-	if len(mtx.TxIn) != 1 ||
-		!(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
+	// A valid TSPEND consists of a single TxIn that contains a signature,
+	// a public key and an OP_TSPEND opcode.
+	//
+	// There must be at least two outputs. The first must contain an
+	// OP_RETURN followed by a 32 byte data push of a random number. This
+	// is used to randomize the transaction hash.
+	// The second output must be a TGEN tagged P2SH or P2PH script.
+	if len(mtx.TxIn) != 1 || len(mtx.TxOut) < 2 {
 		return stakeRuleError(ErrTSpendInvalidLength,
 			fmt.Sprintf("invalid TSPEND script lengths in: %v "+
 				"out: %v", len(mtx.TxIn), len(mtx.TxOut)))
@@ -89,19 +91,20 @@ func checkTSpend(mtx *wire.MsgTx) error {
 				fmt.Sprintf("invalid script version found in "+
 					"TxOut: %v", k))
 		}
+
+		// Make there is a script.
+		if len(txOut.PkScript) == 0 {
+			return stakeRuleError(ErrTSpendInvalidScriptLength,
+				fmt.Sprintf("invalid TxOut script length %v: "+
+					"%v", k, len(txOut.PkScript)))
+		}
+
 	}
 
 	// Pull out signature, pubkey and OP_TSPEND
 	tokenizer := txscript.MakeScriptTokenizer(0,
 		mtx.TxIn[0].SignatureScript)
-	// Expect data push of signature
-	var (
-		i         = 0
-		err       error
-		signature *secp256k1.Signature
-		pubkey    *secp256k1.PublicKey
-	)
-	for i = 0; i <= 3; i++ {
+	for i := 0; i <= 3; i++ {
 		// Expect a token
 		if !tokenizer.Next() {
 			if i == 3 {
@@ -113,79 +116,41 @@ func checkTSpend(mtx *wire.MsgTx) error {
 		}
 
 		opcode := tokenizer.Opcode()
+		data := tokenizer.Data()
 		switch i {
 		case 0:
-			// Data push signature
-			if opcode < txscript.OP_DATA_8 ||
-				opcode > txscript.OP_DATA_72 {
-				return stakeRuleError(ErrTSpendInvalidSignaturePush,
-					fmt.Sprintf("TSPEND invalid "+
-						"signature push: 0x%x", opcode))
+			if txscript.IsStrictSignatureEncoding(data) {
+				continue
 			}
-
-			data := tokenizer.Data()
-			signature, err = secp256k1.ParseDERSignature(data)
-			if err != nil {
-				return stakeRuleError(ErrTSpendInvalidSignature,
-					fmt.Sprintf("TSPEND invalid "+
-						"signature: %v", err))
-
-			}
-			continue
+			return stakeRuleError(ErrTSpendInvalidSignature,
+				fmt.Sprintf("TSPEND invalid signature: %v", i))
 		case 1:
-			// Data push public key.
-			if opcode != txscript.OP_DATA_33 {
-				return stakeRuleError(ErrTSpendInvalidPubkeyPush,
-					fmt.Sprintf("TSPEND invalid "+
-						"publickey push: 0x%x", opcode))
+			if txscript.IsStrictCompressedPubKeyEncoding(data) {
+				continue
 			}
-
-			data := tokenizer.Data()
-			pubkey, err = secp256k1.ParsePubKey(data)
-			if err != nil {
-				return stakeRuleError(ErrTSpendInvalidPubkey,
-					fmt.Sprintf("TSPEND invalid pubkey %v",
-						err))
-			}
-			continue
+			return stakeRuleError(ErrTSpendInvalidPubkey,
+				fmt.Sprintf("TSPEND invalid pubkey %v", i))
 		case 2:
-			// OP_TSPEND.
-			if opcode != txscript.OP_TSPEND {
-				return stakeRuleError(ErrTSpendInvalidOpcode,
-					fmt.Sprintf("TSPEND invalid opcode: "+
-						"0x%x", opcode))
+			if opcode == txscript.OP_TSPEND {
+				continue
 			}
-			continue
-		default:
-			// Too many tokens
+			return stakeRuleError(ErrTSpendInvalidOpcode,
+				fmt.Sprintf("TSPEND invalid opcode: 0x%x",
+					opcode))
 		}
 	}
 
-	// XXX check signature here?
-	_ = signature
-	_ = pubkey
+	// Make sure TxOut[0] contains an OP_RETURN followed by a 32 byte data
+	// push
+	if !txscript.IsStrictNullData(mtx.TxOut[0].Version,
+		mtx.TxOut[0].PkScript, 32) {
+		return stakeRuleError(ErrTSpendInvalidTransaction,
+			"First TSPEND output should have been an OP_RETURN "+
+				"followed by a 32 byte data push")
+	}
 
 	// Verify that the TxOut's contains P2PH scripts.
-	for k, txOut := range mtx.TxOut {
-		// Make there is a script.
-		if len(txOut.PkScript) == 0 {
-			return stakeRuleError(ErrTSpendInvalidScriptLength,
-				fmt.Sprintf("TSPEND out script length is 0: %v",
-					len(txOut.PkScript)))
-		}
-
-		if k == 0 {
-			// Check for OP_RETURN
-			if txscript.GetScriptClass(txOut.Version, txOut.PkScript) !=
-				txscript.NullDataTy {
-				return stakeRuleError(ErrTSpendInvalidTransaction,
-					"First TSPEND output should have been "+
-						"an OP_RETURN data push, but "+
-						"was not")
-			}
-			continue
-		}
-
+	for k, txOut := range mtx.TxOut[1:] {
 		// All tx outs are tagged with OP_TGEN
 		if txOut.PkScript[0] != txscript.OP_TGEN {
 			return stakeRuleError(ErrTSpendInvalidTGen,
@@ -194,7 +159,7 @@ func checkTSpend(mtx *wire.MsgTx) error {
 		}
 		sc := txscript.GetScriptClass(txOut.Version, txOut.PkScript[1:])
 		if !(sc == txscript.ScriptHashTy || sc == txscript.PubKeyHashTy) {
-			return stakeRuleError(ErrTSpendInvalidP2SH,
+			return stakeRuleError(ErrTSpendInvalidSpendScript,
 				fmt.Sprintf("Output is not P2PH: %v", k))
 		}
 	}

@@ -215,33 +215,37 @@ const (
 	// invalid version in an output script.
 	ErrTSpendInvalidVersion
 
+	// ErrTSpendInvalidScriptLength indicates that the TSPEND transaction
+	// has outputs that have a zero length script.
+	ErrTSpendInvalidScriptLength
+
+	// ErrTSpendInvalidTokenCount indicates that this transaction does not
+	// have enough tokens to encode a valid TSPEND.
+	ErrTSpendInvalidTokenCount
+
 	// ErrTSpendInvalidSignature indicates that this transaction has an
 	// invalid signature in the input script.
 	ErrTSpendInvalidSignature
-
-	// ErrTSpendInvalidOpcode indicates that this transaction does not have
-	// a TSPEND opcode.
-	ErrTSpendInvalidOpcode
 
 	// ErrTSpendInvalidPubkey indicates that this transaction contains an
 	// invalid public key.
 	ErrTSpendInvalidPubkey
 
-	// ErrTSpendInvalidScriptLength indicates that the TSPEND transaction
-	// has outputs that have a zero length script.
-	ErrTSpendInvalidScriptLength
+	// ErrTSpendInvalidOpcode indicates that this transaction does not have
+	// a TSPEND opcode.
+	ErrTSpendInvalidOpcode
 
 	// ErrTSpendInvalidTGen indicates that the TSPEND transaction has
 	// outputs that are not tagged with OP_TGEN.
 	ErrTSpendInvalidTGen
 
-	// ErrTSpendInvalidTransaction indicates that a TSPEND
-	// transaction output 0 does not have an a valid transaction reference.
+	// ErrTSpendInvalidTransaction indicates that a TSPEND transaction
+	// output 0 does not have an a valid null data script.
 	ErrTSpendInvalidTransaction
 
-	// ErrTSpendInvalidP2SH indicates that this transaction contains an
-	// invalid P2SH script.
-	ErrTSpendInvalidP2SH
+	// ErrTSpendInvalidSpendScript indicates that this transaction contains
+	// an invalid P2SH or P2PH script.
+	ErrTSpendInvalidSpendScript
 
 	// ErrTreasuryBaseInvalidCount indicates that this transaction contains
 	// an invalid treasury base script count.
@@ -315,13 +319,14 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrTAddInvalidChange:          "ErrTAddInvalidChange",
 	ErrTSpendInvalidLength:        "ErrTSpendInvalidLength",
 	ErrTSpendInvalidVersion:       "ErrTSpendInvalidVersion",
-	ErrTSpendInvalidSignature:     "ErrTSpendInvalidSignature",
-	ErrTSpendInvalidOpcode:        "ErrTSpendInvalidOpcode",
-	ErrTSpendInvalidPubkey:        "ErrTSpendInvalidPubkey",
 	ErrTSpendInvalidScriptLength:  "ErrTSpendInvalidScriptLength",
+	ErrTSpendInvalidTokenCount:    "ErrTSpendInvalidTokenCount",
+	ErrTSpendInvalidSignature:     "ErrTSpendInvalidSignature",
+	ErrTSpendInvalidPubkey:        "ErrTSpendInvalidPubkey",
+	ErrTSpendInvalidOpcode:        "ErrTSpendInvalidOpcode",
 	ErrTSpendInvalidTransaction:   "ErrTSpendInvalidTransaction",
 	ErrTSpendInvalidTGen:          "ErrTSpendInvalidTGen",
-	ErrTSpendInvalidP2SH:          "ErrTSpendInvalidP2SH",
+	ErrTSpendInvalidSpendScript:   "ErrTSpendInvalidSpendScript",
 	ErrTreasuryBaseInvalidCount:   "ErrTreasuryBaseInvalidCount",
 	ErrTreasuryBaseInvalidVersion: "ErrTreasuryBaseInvalidVersion",
 	ErrTreasuryBaseInvalidOpcode0: "ErrTreasuryBaseInvalidOpcode0",
