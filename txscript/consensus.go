@@ -252,6 +252,12 @@ func CheckSignatureEncoding(sig []byte) error {
 	return nil
 }
 
+// IsStrictSignatureEncoding returns false if the passed signature does not
+// adhere to the strict encoding requirements.
+func IsStrictSignatureEncoding(signature []byte) bool {
+	return CheckSignatureEncoding(signature) == nil
+}
+
 // CheckPubKeyEncoding returns an error if the passed public key does not
 // adhere to the strict encoding requirements.
 func CheckPubKeyEncoding(pubKey []byte) error {
@@ -270,4 +276,41 @@ func CheckHashTypeEncoding(hashType SigHashType) error {
 		return scriptError(ErrInvalidSigHashType, str)
 	}
 	return nil
+}
+
+// IsStrictCompressedPubKeyEncoding returns whether or not the passed public
+// key adheres to the strict compressed encoding requirements.
+func IsStrictCompressedPubKeyEncoding(pubKey []byte) bool {
+	if len(pubKey) == 33 && (pubKey[0] == 0x02 || pubKey[0] == 0x03) {
+		// Compressed
+		return true
+	}
+	return false
+}
+
+// IsStrictNullData returns wether or not the passed data is an OP_RETURN
+// followed by specified length data push.
+func IsStrictNullData(scriptVersion uint16, script []byte, expectedLength int) bool {
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// A null script is of the form:
+	//  OP_RETURN <optional data>
+	//
+	// Thus, it can either be a single OP_RETURN or an OP_RETURN followed by a
+	// data push up to MaxDataCarrierSize bytes.
+
+	// The script can't possibly be a null data script if it doesn't start
+	// with OP_RETURN.  Fail fast to avoid more work below.
+	if len(script) < 2 || script[0] != OP_RETURN {
+		return false
+	}
+
+	// OP_RETURN followed by data push of the expect size.
+	tokenizer := MakeScriptTokenizer(scriptVersion, script[1:])
+	return tokenizer.Next() && tokenizer.Done() &&
+		(isSmallInt(tokenizer.Opcode()) || tokenizer.Opcode() <= OP_PUSHDATA4) &&
+		len(tokenizer.Data()) == expectedLength
 }
