@@ -13,6 +13,24 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+// This file contains the functions that verify that treasury transactions
+// strictly adhere to the specified format.
+//
+// == User sends to treasury ==
+// TxIn:  Normal TxIn signature scripts
+// TxOut[0] OP_TADD
+// TxOut[1] optional OP_SSTXCHANGE
+//
+// == Treasurybase add ==
+// TxIn[0]:  Stakebase
+// TxOut[0] OP_TADD
+// TxOut[1] OP_RETURN <random>
+//
+// == Spend from treasury ==
+// TxIn[0]     <signature> <pi pubkey> OP_TSPEND
+// TxOut[0]    OP_RETURN <random>
+// TxOut[1..N] OP_TGEN <paytopubkeyhash || paytoscripthash>
+
 // checkTAdd verifies that the provided MsgTx is a valid TADD.
 // Note: this function does not recognize treasurybase TADDs.
 func checkTAdd(mtx *wire.MsgTx) error {
@@ -101,7 +119,7 @@ func checkTSpend(mtx *wire.MsgTx) error {
 
 	}
 
-	// Pull out signature, pubkey and OP_TSPEND
+	// Pull out signature, pubkey and OP_TSPEND.
 	tokenizer := txscript.MakeScriptTokenizer(0,
 		mtx.TxIn[0].SignatureScript)
 	for i := 0; i <= 3; i++ {
