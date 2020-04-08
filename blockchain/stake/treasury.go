@@ -72,8 +72,8 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	// only 1 stake change output allowed.
 	if len(mtx.TxOut) == 2 {
 		// Script length has been already verified.
-		if txscript.GetScriptClass(mtx.TxOut[1].Version,
-			mtx.TxOut[1].PkScript) != txscript.StakeSubChangeTy {
+		if !txscript.IsStakeChangeScript(mtx.TxOut[1].Version,
+			mtx.TxOut[1].PkScript) {
 			return stakeRuleError(ErrTAddInvalidChange,
 				"second output must be an OP_SSTXCHANGE script")
 		}
@@ -116,7 +116,6 @@ func checkTSpend(mtx *wire.MsgTx) error {
 				fmt.Sprintf("invalid TxOut script length %v: "+
 					"%v", k, len(txOut.PkScript)))
 		}
-
 	}
 
 	// Pull out signature, pubkey and OP_TSPEND.
@@ -167,7 +166,7 @@ func checkTSpend(mtx *wire.MsgTx) error {
 				"followed by a 32 byte data push")
 	}
 
-	// Verify that the TxOut's contains P2PH scripts.
+	// Verify that the TxOut's contains a P2PH or P2PH scripts.
 	for k, txOut := range mtx.TxOut[1:] {
 		// All tx outs are tagged with OP_TGEN
 		if txOut.PkScript[0] != txscript.OP_TGEN {
@@ -175,8 +174,8 @@ func checkTSpend(mtx *wire.MsgTx) error {
 				fmt.Sprintf("Output is not tagged with "+
 					"OP_TGEN: %v", k))
 		}
-		sc := txscript.GetScriptClass(txOut.Version, txOut.PkScript[1:])
-		if !(sc == txscript.ScriptHashTy || sc == txscript.PubKeyHashTy) {
+		if !(txscript.IsPubKeyHashScript(txOut.PkScript[1:]) ||
+			txscript.IsPayToScriptHash(txOut.PkScript[1:])) {
 			return stakeRuleError(ErrTSpendInvalidSpendScript,
 				fmt.Sprintf("Output is not P2PH: %v", k))
 		}

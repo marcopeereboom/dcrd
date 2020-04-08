@@ -297,10 +297,7 @@ func IsStrictNullData(scriptVersion uint16, script []byte, expectedLength int) b
 	}
 
 	// A null script is of the form:
-	//  OP_RETURN <optional data>
-	//
-	// Thus, it can either be a single OP_RETURN or an OP_RETURN followed by a
-	// data push up to MaxDataCarrierSize bytes.
+	//  OP_RETURN non-optional data
 
 	// The script can't possibly be a null data script if it doesn't start
 	// with OP_RETURN.  Fail fast to avoid more work below.
@@ -313,4 +310,34 @@ func IsStrictNullData(scriptVersion uint16, script []byte, expectedLength int) b
 	return tokenizer.Next() && tokenizer.Done() &&
 		(isSmallInt(tokenizer.Opcode()) || tokenizer.Opcode() <= OP_PUSHDATA4) &&
 		len(tokenizer.Data()) == expectedLength
+}
+
+// IsScriptHashScript returns whether or not the passed script is a standard
+// pay-to-script-hash script.
+func IsScriptHashScript(script []byte) bool {
+	return extractScriptHash(script) != nil
+}
+
+// IsPubKeyHashScript returns whether or not the passed script is a standard
+// pay-to-pubkey-hash script.
+func IsPubKeyHashScript(script []byte) bool {
+	return extractPubKeyHash(script) != nil
+}
+
+// IsStakeChangeScript returns whether or not the passed script is a supported
+// stake change script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func IsStakeChangeScript(scriptVersion uint16, script []byte) bool {
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// The only supported stake change scripts are pay-to-pubkey-hash and
+	// pay-to-script-hash tagged with the stake submission opcode.
+	const stakeOpcode = OP_SSTXCHANGE
+	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
+		extractStakeScriptHash(script, stakeOpcode) != nil
 }
