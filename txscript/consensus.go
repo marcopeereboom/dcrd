@@ -289,15 +289,14 @@ func IsStrictCompressedPubKeyEncoding(pubKey []byte) bool {
 }
 
 // IsStrictNullData returns wether or not the passed data is an OP_RETURN
-// followed by specified length data push.
+// followed by specified length data push. It explicitely verifies that the
+// opcode is identical to the expected length. This function does not support
+// checks for data > 75 bytes.
 func IsStrictNullData(scriptVersion uint16, script []byte, expectedLength int) bool {
 	// The only currently supported script version is 0.
 	if scriptVersion != 0 {
 		return false
 	}
-
-	// A null script is of the form:
-	//  OP_RETURN non-optional data
 
 	// The script can't possibly be a null data script if it doesn't start
 	// with OP_RETURN.  Fail fast to avoid more work below.
@@ -308,8 +307,9 @@ func IsStrictNullData(scriptVersion uint16, script []byte, expectedLength int) b
 	// OP_RETURN followed by data push of the expect size.
 	tokenizer := MakeScriptTokenizer(scriptVersion, script[1:])
 	return tokenizer.Next() && tokenizer.Done() &&
-		(isSmallInt(tokenizer.Opcode()) || tokenizer.Opcode() <= OP_PUSHDATA4) &&
-		len(tokenizer.Data()) == expectedLength
+		(isSmallInt(tokenizer.Opcode()) || tokenizer.Opcode() <= OP_DATA_75) &&
+		len(tokenizer.Data()) == expectedLength &&
+		expectedLength == int(tokenizer.Opcode())
 }
 
 // IsScriptHashScript returns whether or not the passed script is a standard
