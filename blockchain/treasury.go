@@ -192,6 +192,10 @@ func (b *BlockChain) writeTreasury(dbTx database.Tx, block *dcrutil.Block, node 
 			ts.Values = append(ts.Values, v.TxOut[0].Value)
 			trsyLog.Tracef("  writeTreasury: balance TADD %v",
 				v.TxOut[0].Value)
+		} else if stake.IsTreasuryBase(v) {
+			ts.Values = append(ts.Values, v.TxOut[0].Value)
+			trsyLog.Tracef("  writeTreasury: balance treasury "+
+				"base %v", v.TxOut[0].Value)
 		} else if stake.IsTSpend(v) {
 			// This is a TSpend, pull values out of block. Skip
 			// first TxOut since it is an OP_RETURN.
