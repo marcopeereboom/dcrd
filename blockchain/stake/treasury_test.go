@@ -125,6 +125,23 @@ func TestTreasuryIsFunctions(t *testing.T) {
 			check:    checkTAdd,
 		},
 		{
+			name: "check tadd from user, no change with istreasurybase",
+			createTx: func() *wire.MsgTx {
+				builder := txscript.NewScriptBuilder()
+				builder.AddOp(txscript.OP_TADD)
+				script, err := builder.Script()
+				if err != nil {
+					panic(err)
+				}
+				msgTx := wire.NewMsgTx()
+				msgTx.AddTxOut(wire.NewTxOut(0, script))
+				return msgTx
+			},
+			is:       IsTreasuryBase,
+			expected: false,
+			check:    checkTreasuryBase,
+		},
+		{
 			// This is a valid stakebase but NOT a valid TADD.
 			name: "tadd from user, with OP_RETURN",
 			createTx: func() *wire.MsgTx {
@@ -249,6 +266,55 @@ func TestTreasuryIsFunctions(t *testing.T) {
 			is:       IsTreasuryBase,
 			expected: true,
 			check:    checkTreasuryBase,
+		},
+		{
+			name: "check treasury base with tadd",
+			createTx: func() *wire.MsgTx {
+				builder := txscript.NewScriptBuilder()
+				builder.AddOp(txscript.OP_TADD)
+				script, err := builder.Script()
+				if err != nil {
+					panic(err)
+				}
+				msgTx := wire.NewMsgTx()
+				msgTx.AddTxOut(wire.NewTxOut(0, script))
+
+				// OP_RETURN <data>
+				payload := make([]byte, 12) // extra nonce size
+				_, err = rand.Read(payload)
+				if err != nil {
+					panic(err)
+				}
+				builder = txscript.NewScriptBuilder()
+				builder.AddOp(txscript.OP_RETURN)
+				builder.AddData(payload)
+				script, err = builder.Script()
+				if err != nil {
+					panic(err)
+				}
+				msgTx.AddTxOut(wire.NewTxOut(0, script))
+
+				// treasurybase
+				coinbaseFlags := "/dcrd/"
+				coinbaseScript := make([]byte, len(coinbaseFlags)+2)
+				copy(coinbaseScript[2:], coinbaseFlags)
+				msgTx.AddTxIn(&wire.TxIn{
+					// Stakebase transactions have no
+					// inputs, so previous outpoint is zero
+					// hash and max index.
+					PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+						wire.MaxPrevOutIndex, wire.TxTreeRegular),
+					Sequence:        wire.MaxTxInSequenceNum,
+					BlockHeight:     wire.NullBlockHeight,
+					BlockIndex:      wire.NullBlockIndex,
+					SignatureScript: coinbaseScript,
+				})
+
+				return msgTx
+			},
+			is:       IsTAdd,
+			expected: false,
+			check:    checkTAdd,
 		},
 		{
 			name: "tspend",
