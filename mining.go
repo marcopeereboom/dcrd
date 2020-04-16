@@ -442,8 +442,15 @@ func txIndexFromTxList(hash chainhash.Hash, list []*dcrutil.Tx) int {
 }
 
 // standardCoinbaseOpReturn creates a standard OP_RETURN output to insert into
-// coinbase to use as extranonces. The OP_RETURN pushes 12 bytes.
-func standardCoinbaseOpReturn(height uint32, extraNonce uint64) ([]byte, error) {
+// coinbase. This function autogenerates the extranonce. The OP_RETURN pushes
+// 12 bytes.
+func standardCoinbaseOpReturn(height uint32) ([]byte, error) {
+	extraNonce, err := wire.RandomUint64()
+	if err != nil {
+		return nil, err
+	}
+	minrLog.Tracef("standardCoinbaseOpReturn %v", extraNonce)
+
 	enData := make([]byte, 12)
 	binary.LittleEndian.PutUint32(enData[0:4], height)
 	binary.LittleEndian.PutUint64(enData[4:12], extraNonce)
@@ -512,6 +519,12 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 		return dcrutil.NewTx(tx), nil
 	}
 
+	// Extranonce.
+	tx.AddTxOut(&wire.TxOut{
+		Value:    0,
+		PkScript: opReturnPkScript,
+	})
+
 	// Create a coinbase with correct block subsidy and extranonce.
 	workSubsidy := subsidyCache.CalcWorkSubsidy(nextBlockHeight, voters)
 	treasurySubsidy := int64(0)
@@ -543,11 +556,6 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 				PkScript: trueScript,
 			})
 		}
-		// Extranonce.
-		tx.AddTxOut(&wire.TxOut{
-			Value:    0,
-			PkScript: opReturnPkScript,
-		})
 	}
 
 	// ValueIn.
@@ -759,14 +767,9 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		block.Header = *tipHeader
 
 		// Create and populate a new coinbase.
-		rand, err := wire.RandomUint64()
-		if err != nil {
-			return nil, err
-		}
 		coinbaseScript := make([]byte, len(coinbaseFlags)+2)
 		copy(coinbaseScript[2:], coinbaseFlags)
-		opReturnPkScript, err := standardCoinbaseOpReturn(tipHeader.Height,
-			rand)
+		opReturnPkScript, err := standardCoinbaseOpReturn(tipHeader.Height)
 		if err != nil {
 			return nil, err
 		}
@@ -780,8 +783,12 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		block.AddTransaction(coinbaseTx.MsgTx())
 
 		if treasuryEnabled {
+			opReturnTreasury, err := standardCoinbaseOpReturn(tipHeader.Height)
+			if err != nil {
+				return nil, err
+			}
 			treasuryBase, err := createTreasuryBaseTx(subsidyCache,
-				coinbaseScript, opReturnPkScript,
+				coinbaseScript, opReturnTreasury,
 				topBlock.Height(), tipHeader.Voters,
 				bm.cfg.ChainParams)
 			if err != nil {
@@ -1514,12 +1521,7 @@ mempoolLoop:
 	// Add a random coinbase nonce to ensure that tx prefix hash
 	// so that our merkle root is unique for lookups needed for
 	// getwork, etc.
-	rand, err := wire.RandomUint64()
-	if err != nil {
-		return nil, err
-	}
-	opReturnPkScript, err := standardCoinbaseOpReturn(uint32(nextBlockHeight),
-		rand)
+	opReturnPkScript, err := standardCoinbaseOpReturn(uint32(nextBlockHeight))
 	if err != nil {
 		return nil, err
 	}
@@ -1554,9 +1556,13 @@ mempoolLoop:
 
 	var treasuryBase *dcrutil.Tx
 	if treasuryEnabled {
+		opReturnTreasury, err := standardCoinbaseOpReturn(uint32(nextBlockHeight))
+		if err != nil {
+			return nil, err
+		}
 		treasuryBase, err = createTreasuryBaseTx(g.subsidyCache,
 			coinbaseScript,
-			opReturnPkScript,
+			opReturnTreasury,
 			nextBlockHeight,
 			uint16(voters),
 			g.chainParams)
