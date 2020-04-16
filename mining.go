@@ -518,7 +518,7 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 
 	if treasuryEnabled {
 		// Stakebase enabled so zero out treasurySubsidy since it is
-		// cincluded in the satke tree.
+		// included in the stake tree.
 
 		// DO NOTHING
 	} else {
