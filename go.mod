@@ -72,5 +72,4 @@ replace (
 	github.com/decred/dcrd/rpcclient/v6 => ./rpcclient
 	github.com/decred/dcrd/txscript/v3 => ./txscript
 	github.com/decred/dcrd/wire => ./wire
-	github.com/decred/dcrwallet/rpc/jsonrpc/types => ../dcrwallet/rpc/jsonrpc/types
 )
