@@ -15,7 +15,6 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/chaincfg/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/connmgr/v3 v3.0.0-20200215031403-6b2ce76f0986
-	github.com/decred/dcrd/crypto/blake256 v1.0.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.0
 	github.com/decred/dcrd/database/v2 v2.0.1
 	github.com/decred/dcrd/dcrec v1.0.0
