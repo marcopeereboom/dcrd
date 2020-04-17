@@ -35,6 +35,7 @@ func IsCoinBaseTx(tx *wire.MsgTx) bool {
 	prevOut := &tx.TxIn[0].PreviousOutPoint
 	if prevOut.Index != math.MaxUint32 || prevOut.Hash != zeroHash ||
 		prevOut.Tree != wire.TxTreeRegular {
+		// XXX investigate if we need "prevOut.Tree != wire.TxTreeRegular"
 		return false
 	}
 
