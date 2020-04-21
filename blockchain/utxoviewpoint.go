@@ -373,7 +373,7 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64, blockInd
 // spent.  In addition, when the 'stxos' argument is not nil, it will be updated
 // to append an entry for each spent txout.  An error will be returned if the
 // view does not contain the required utxos.
-func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, stxos *[]spentTxOut) error {
+func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, stxos *[]spentTxOut, isTreasuryAgendaActive bool) error {
 	// Coinbase transactions don't have any inputs to spend.
 	msgTx := tx.MsgTx()
 	if standalone.IsCoinBaseTx(msgTx) {
@@ -386,7 +386,11 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	// if a slice was provided for the spent txout details, append an entry
 	// to it.
 	isVote := stake.IsSSGen(msgTx)
-	isTSpend := stake.IsTSpend(msgTx)
+	var isTSpend, isTreasuryBase bool
+	if isTreasuryAgendaActive {
+		isTSpend = stake.IsTSpend(msgTx)
+		isTreasuryBase = stake.IsTreasuryBase(msgTx)
+	}
 	for txInIdx, txIn := range msgTx.TxIn {
 		// Ignore stakebase since it has no input.
 		if isVote && txInIdx == 0 {
@@ -395,6 +399,11 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 
 		// Ignore TSpend since it has no input.
 		if isTSpend && txInIdx == 0 {
+			continue
+		}
+
+		// Ignore treasury base since it has no input.
+		if isTreasuryBase && txInIdx == 0 {
 			continue
 		}
 
@@ -452,6 +461,13 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 // on the flag, and unspending all of the txos spent by those same transactions
 // by using the provided spent txo information.
 func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []spentTxOut, stakeTree bool) error {
+	// See if treasury agenda is enabled.
+	pHash := &block.MsgBlock().Header.PrevBlock
+	tbEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
+	if err != nil {
+		return err
+	}
+
 	// Choose which transaction tree to use and the appropriate offset into the
 	// spent transaction outputs that corresponds to them depending on the flag.
 	// Transactions in the stake tree are spent before transactions in the
@@ -464,6 +480,8 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 		transactions = block.STransactions()
 	}
 
+	var isTreasuryBase, isTSpend bool
+
 	for txIdx := len(transactions) - 1; txIdx > -1; txIdx-- {
 		tx := transactions[txIdx]
 		msgTx := tx.MsgTx()
@@ -472,7 +490,12 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 			txType = stake.DetermineTxType(msgTx)
 		}
 		isVote := txType == stake.TxTypeSSGen
-		isTreasuryBase := txType == stake.TxTypeTreasuryBase
+
+		if tbEnabled {
+			isTSpend = txType == stake.TxTypeTSpend && stakeTree
+			isTreasuryBase = txType == stake.TxTypeTreasuryBase &&
+				stakeTree && txIdx == 0
+		}
 
 		// Clear this transaction from the view if it already exists or create a
 		// new empty entry for when it does not.  This is done because the code
@@ -496,6 +519,9 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 			continue
 		}
 		if isTreasuryBase {
+			continue
+		}
+		if isTSpend {
 			continue
 		}
 		for txInIdx := len(msgTx.TxIn) - 1; txInIdx > -1; txInIdx-- {
@@ -580,6 +606,8 @@ func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stx
 // information.
 //func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, stxos []spentTxOut) error {
 func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block) error {
+	// XXX this is called with parent so we are looking at the parent's
+	// parent. Is this right?
 	pHash := &block.MsgBlock().Header.PrevBlock
 	tbEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
 	if err != nil {
@@ -647,6 +675,13 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 		return err
 	}
 
+	// See if the treasury agenda was active at the parent.
+	pHash := &parent.MsgBlock().Header.PrevBlock
+	tbEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
+	if err != nil {
+		return err
+	}
+
 	// Connect all of the transactions in both the regular and stake trees of
 	// the block.  Notice that the stake tree is connected before the regular
 	// tree.  This means that stake transactions are not able to redeem outputs
@@ -654,13 +689,15 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 	// important since the regular tree may be disapproved by the subsequent
 	// block while the stake tree must remain valid.
 	for i, stx := range block.STransactions() {
-		err := view.connectTransaction(stx, block.Height(), uint32(i), stxos)
+		err := view.connectTransaction(stx, block.Height(), uint32(i),
+			stxos, tbEnabled)
 		if err != nil {
 			return err
 		}
 	}
 	for i, tx := range block.Transactions() {
-		err := view.connectTransaction(tx, block.Height(), uint32(i), stxos)
+		err := view.connectTransaction(tx, block.Height(), uint32(i),
+			stxos, tbEnabled)
 		if err != nil {
 			return err
 		}
@@ -726,8 +763,16 @@ func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcruti
 			return err
 		}
 
+		// See if the treasury agenda was active at the parent.
+		pHash := &parent.MsgBlock().Header.PrevBlock
+		tbEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
+		if err != nil {
+			return err
+		}
+
 		for i, tx := range parent.Transactions() {
-			err := view.connectTransaction(tx, parent.Height(), uint32(i), nil)
+			err := view.connectTransaction(tx, parent.Height(),
+				uint32(i), nil, tbEnabled)
 			if err != nil {
 				return err
 			}
@@ -999,6 +1044,8 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) 
 			if isVote && txInIdx == 0 {
 				continue
 			}
+
+			// XXX Do we need treasury stuff here?
 
 			filteredSet.add(view, &txIn.PreviousOutPoint.Hash)
 		}

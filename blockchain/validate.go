@@ -2702,10 +2702,18 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 		return nil, err
 	}
 
+	// See if the treasury agenda was active at the parent.  XXX Do we need
+	// to test this or can we simply send in false into connectTransaction?
+	pHash := &parent.MsgBlock().Header.PrevBlock
+	tbEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
+	if err != nil {
+		return nil, err
+	}
+
 	// Connect all of the transactions in the stake tree of the current block.
 	for txIdx, stx := range block.STransactions() {
 		err := seqLockView.connectTransaction(stx, block.Height(),
-			uint32(txIdx), nil)
+			uint32(txIdx), nil, tbEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -2951,7 +2959,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// Connect the transaction to the UTXO viewpoint, so that in
 		// flight transactions may correctly validate.
 		err = view.connectTransaction(tx, node.height, uint32(idx),
-			stxos)
+			stxos, isTreasuryAgendaActive)
 		if err != nil {
 			return err
 		}
