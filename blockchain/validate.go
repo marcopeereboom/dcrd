@@ -2904,7 +2904,7 @@ func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs [
 // After ensuring the transaction is valid, the transaction is connected to the
 // UTXO viewpoint.  TxTree true == Regular, false == Stake
 func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint, stxos *[]spentTxOut, txTree bool) error {
-	isTreasuryAgendaActive, err := b.isTreasuryAgendaActive(node)
+	isTreasuryAgendaActive, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
 	}
@@ -3131,7 +3131,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	// Check that the coinbase pays the treasury, if applicable.
-	treasuryBaseEnabled, err := b.isTreasuryAgendaActive(node)
+	treasuryBaseEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
 	}
@@ -3198,7 +3198,12 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// Disconnect all of the transactions in the regular transaction tree of
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
-		err := view.disconnectDisapprovedBlock(b.db, parent)
+		popHash := &parent.MsgBlock().Header.PrevBlock
+		tbEnabled, err := b.isTreasuryAgendaActiveByHash(popHash)
+		if err != nil {
+			return err
+		}
+		err = view.disconnectDisapprovedBlock(b.db, parent, tbEnabled)
 		if err != nil {
 			return err
 		}
@@ -3469,10 +3474,17 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 		return err
 	}
 
+	// See if treasury agenda is active.
+	isTreasuryAgendaActive, err := b.isTreasuryAgendaActive(tip)
+	if err != nil {
+		return err
+	}
+
 	// Load all of the spent txos for the tip block from the spend journal.
 	var stxos []spentTxOut
 	err = b.db.View(func(dbTx database.Tx) error {
-		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock)
+		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock,
+			isTreasuryAgendaActive)
 		return err
 	})
 	if err != nil {

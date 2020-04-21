@@ -757,6 +757,19 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 	return state.State == ThresholdActive, nil
 }
 
+// isTreasuryAgendaActiveByHash looks up a node by hash and the returns the
+// value of isTreasuryAgendaActive.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (bool, error) {
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil {
+		return false, fmt.Errorf("isTreasuryAgendaActiveByHash not "+
+			"found: %v", prevHash)
+	}
+	return b.isTreasuryAgendaActive(prevNode)
+}
+
 // IsTreasuryAgendaActive returns whether or not whether or not the TADD/TSUB
 // opcodes are active.
 //

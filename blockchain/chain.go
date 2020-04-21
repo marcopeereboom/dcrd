@@ -983,6 +983,12 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		attachNodes[n.height-fork.height-1] = n
 	}
 
+	// See if the treasury agenda is active.
+	isTreasuryAgendaActive, err := b.isTreasuryAgendaActive(targetTip)
+	if err != nil {
+		return err
+	}
+
 	// Disconnect all of the blocks back to the point of the fork.  This entails
 	// loading the blocks and their associated spent txos from the database and
 	// using that information to unspend all of the spent txos and remove the
@@ -1023,7 +1029,8 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// Load all of the spent txos for the block from the spend journal.
 		var stxos []spentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
-			stxos, err = dbFetchSpendJournalEntry(dbTx, block)
+			stxos, err = dbFetchSpendJournalEntry(dbTx, block,
+				isTreasuryAgendaActive)
 			return err
 		})
 		if err != nil {
@@ -1092,12 +1099,17 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		stxos := make([]spentTxOut, 0, countSpentOutputs(block))
 		var hdrCommitments headerCommitmentData
 		if b.index.NodeStatus(n).HasValidated() {
+			tbEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+			if err != nil {
+				return err
+			}
 			// Update the view to mark all utxos referenced by the block as
 			// spent and add all transactions being created by this block to it.
 			// In the case the block votes against the parent, also disconnect
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
-			err := view.connectBlock(b.db, block, parent, &stxos)
+			err = view.connectBlock(b.db, block, parent, &stxos,
+				tbEnabled)
 			if err != nil {
 				return err
 			}
@@ -1381,7 +1393,12 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// the parent, its regular transaction tree must be
 		// disconnected.
 		if fastAdd {
-			err := view.connectBlock(b.db, block, parent, &stxos)
+			tbEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+			if err != nil {
+				return 0, err
+			}
+			err = view.connectBlock(b.db, block, parent, &stxos,
+				tbEnabled)
 			if err != nil {
 				return 0, err
 			}
@@ -1929,8 +1946,14 @@ func (q *chainQueryerAdapter) BestHeight() int64 {
 //
 // This is part of the indexers.ChainQueryer interface.
 func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block) (indexers.PrevScripter, error) {
+	popHash := &block.MsgBlock().Header.PrevBlock
+	tbEnabled, err := q.isTreasuryAgendaActiveByHash(popHash)
+	if err != nil {
+		return nil, err
+	}
+
 	// Load all of the spent transaction output data from the database.
-	stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+	stxos, err := dbFetchSpendJournalEntry(dbTx, block, tbEnabled)
 	if err != nil {
 		return nil, err
 	}

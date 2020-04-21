@@ -825,7 +825,7 @@ func clearFailedBlockFlags(index *blockIndex) error {
 //
 // The database is  guaranteed to have a filter entry for every block in the
 // main chain if this returns without failure.
-func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView) error {
+func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView, isTreasuryAgendaActive bool) error {
 	// Hardcoded values so updates to the global values do not affect old
 	// upgrades.
 	gcsBucketName := []byte("gcsfilters")
@@ -853,7 +853,8 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 		}
 
 		// Load all of the spent transaction output data from the database.
-		stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+		stxos, err := dbFetchSpendJournalEntry(dbTx, block,
+			isTreasuryAgendaActive)
 		if err != nil {
 			return nil, err
 		}
@@ -1006,7 +1007,9 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 	}
 
 	// Create and store version 2 GCS filters for all blocks in the main chain.
-	err = initializeGCSFilters(ctx, db, index, bestChain)
+	// We can use the false flag because there is no way the treasury could
+	// be active at this point.
+	err = initializeGCSFilters(ctx, db, index, bestChain, false)
 	if err != nil {
 		return err
 	}

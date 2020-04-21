@@ -775,7 +775,7 @@ func serializeSpendJournalEntry(stxos []spentTxOut) ([]byte, error) {
 // view MUST have the utxos referenced by all of the transactions available for
 // the passed block since that information is required to reconstruct the spent
 // txouts.
-func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTxOut, error) {
+func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, isTreasuryAgendaActive bool) ([]spentTxOut, error) {
 	// Exclude the coinbase transaction since it can't spend anything.
 	spendBucket := dbTx.Metadata().Bucket(dbnamespace.SpendJournalBucketName)
 	serialized := spendBucket.Get(block.Hash()[:])
@@ -783,9 +783,8 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 
 	blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
 		len(msgBlock.Transactions[1:]))
-	if len(msgBlock.STransactions) > 0 &&
-		stake.IsTreasuryBase(msgBlock.STransactions[0]) {
-		// Skip trwsury base.
+	if len(msgBlock.STransactions) > 0 && isTreasuryAgendaActive {
+		// Skip treasury base.
 		blockTxns = append(blockTxns, msgBlock.STransactions[1:]...)
 	} else {
 		blockTxns = append(blockTxns, msgBlock.STransactions...)
