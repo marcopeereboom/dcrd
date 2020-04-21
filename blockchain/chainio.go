@@ -691,6 +691,7 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
 		tx := txns[txIdx]
 		isVote := stake.IsSSGen(tx)
+		// XXX do we need a check for treasurybase here?
 
 		// Loop backwards through all of the transaction inputs and read
 		// the associated stxo.
@@ -782,7 +783,13 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 
 	blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
 		len(msgBlock.Transactions[1:]))
-	blockTxns = append(blockTxns, msgBlock.STransactions...)
+	if len(msgBlock.STransactions) > 0 &&
+		stake.IsTreasuryBase(msgBlock.STransactions[0]) {
+		// Skip trwsury base.
+		blockTxns = append(blockTxns, msgBlock.STransactions[1:]...)
+	} else {
+		blockTxns = append(blockTxns, msgBlock.STransactions...)
+	}
 	blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
 	if len(blockTxns) > 0 && len(serialized) == 0 {
 		panicf("missing spend journal data for %s", block.Hash())
@@ -803,7 +810,6 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 
 		return nil, err
 	}
-
 	return stxos, nil
 }
 
