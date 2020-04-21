@@ -117,7 +117,7 @@ func TestBlockchainSpendJournal(t *testing.T) {
 			}
 
 			ntx := countSpentOutputs(block)
-			stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+			stxos, err := dbFetchSpendJournalEntry(dbTx, block, false)
 			if err != nil {
 				return err
 			}

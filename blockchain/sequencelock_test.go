@@ -55,7 +55,7 @@ func TestCalcSequenceLock(t *testing.T) {
 			PkScript: nil,
 		}},
 	})
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(bc)
 	view.AddTxOuts(targetTx, int64(numBlocks)-4, 0)
 	view.SetBestHash(&node.hash)
 

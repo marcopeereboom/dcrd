@@ -608,7 +608,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 			name:       "No spends",
 			entry:      nil,
 			blockTxns:  nil,
-			utxoView:   NewUtxoViewpoint(),
+			utxoView:   NewUtxoViewpoint(nil),
 			serialized: nil,
 		},
 		{
@@ -654,7 +654,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				LockTime: 0,
 				Expiry:   0,
 			}},
-			utxoView:   NewUtxoViewpoint(),
+			utxoView:   NewUtxoViewpoint(nil),
 			serialized: hexToBytes("11000511db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c01"),
 		},
 		{

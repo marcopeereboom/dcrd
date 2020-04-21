@@ -3198,12 +3198,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// Disconnect all of the transactions in the regular transaction tree of
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
-		popHash := &parent.MsgBlock().Header.PrevBlock
-		tbEnabled, err := b.isTreasuryAgendaActiveByHash(popHash)
-		if err != nil {
-			return err
-		}
-		err = view.disconnectDisapprovedBlock(b.db, parent, tbEnabled)
+		err = view.disconnectDisapprovedBlock(b.db, parent)
 		if err != nil {
 			return err
 		}
@@ -3453,7 +3448,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 			return ruleError(ErrMissingParent, err.Error())
 		}
 
-		view := NewUtxoViewpoint()
+		view := NewUtxoViewpoint(b)
 		view.SetBestHash(&tip.hash)
 
 		return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
@@ -3463,7 +3458,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// current tip due to the previous checks, so undo the transactions and
 	// spend information for the tip block to reach the point of view of the
 	// block template.
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b)
 	view.SetBestHash(&tip.hash)
 	tipBlock, err := b.fetchMainChainBlockByNode(tip)
 	if err != nil {

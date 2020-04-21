@@ -82,7 +82,7 @@ func (s *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.U
 	// do not affect the fake chain's view.
 
 	// Add an entry for the tx itself to the new view.
-	viewpoint := blockchain.NewUtxoViewpoint()
+	viewpoint := blockchain.NewUtxoViewpoint(nil)
 	entry := s.utxos.LookupEntry(tx.Hash())
 	viewpoint.Entries()[*tx.Hash()] = entry.Clone()
 
@@ -720,7 +720,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	// Create a new fake chain and harness bound to it.
 	subsidyCache := standalone.NewSubsidyCache(chainParams)
 	chain := &fakeChain{
-		utxos:       blockchain.NewUtxoViewpoint(),
+		utxos:       blockchain.NewUtxoViewpoint(nil),
 		utxoTimes:   make(map[wire.OutPoint]int64),
 		blocks:      make(map[chainhash.Hash]*dcrutil.Block),
 		scriptFlags: BaseStandardVerifyFlags,

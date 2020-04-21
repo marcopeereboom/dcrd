@@ -1115,7 +1115,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// house all of the input transactions so multiple lookups can be
 	// avoided.
 	blockTxns := make([]*dcrutil.Tx, 0, len(sourceTxns))
-	blockUtxos := blockchain.NewUtxoViewpoint()
+	blockUtxos := blockchain.NewUtxoViewpoint(g.chain)
 
 	// dependers is used to track transactions which depend on another
 	// transaction in the source pool.  This, in conjunction with the

@@ -995,7 +995,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 	// utxos created by the blocks.  In addition, if a block votes against its
 	// parent, the regular transactions are reconnected.
 	tip := b.bestChain.Tip()
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b)
 	view.SetBestHash(&tip.hash)
 	var nextBlockToDetach *dcrutil.Block
 	for tip != nil && tip != fork {
@@ -1099,17 +1099,12 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		stxos := make([]spentTxOut, 0, countSpentOutputs(block))
 		var hdrCommitments headerCommitmentData
 		if b.index.NodeStatus(n).HasValidated() {
-			tbEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
-			if err != nil {
-				return err
-			}
 			// Update the view to mark all utxos referenced by the block as
 			// spent and add all transactions being created by this block to it.
 			// In the case the block votes against the parent, also disconnect
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
-			err = view.connectBlock(b.db, block, parent, &stxos,
-				tbEnabled)
+			err = view.connectBlock(b.db, block, parent, &stxos)
 			if err != nil {
 				return err
 			}
@@ -1365,7 +1360,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// flushed when a valid block is connected, and the worst case
 		// scenario if a block is invalid is it would need to be
 		// revalidated after a restart.
-		view := NewUtxoViewpoint()
+		view := NewUtxoViewpoint(b)
 		view.SetBestHash(parentHash)
 		var stxos []spentTxOut
 		var hdrCommitments headerCommitmentData
@@ -1393,12 +1388,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// the parent, its regular transaction tree must be
 		// disconnected.
 		if fastAdd {
-			tbEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
-			if err != nil {
-				return 0, err
-			}
-			err = view.connectBlock(b.db, block, parent, &stxos,
-				tbEnabled)
+			err := view.connectBlock(b.db, block, parent, &stxos)
 			if err != nil {
 				return 0, err
 			}
@@ -1946,8 +1936,8 @@ func (q *chainQueryerAdapter) BestHeight() int64 {
 //
 // This is part of the indexers.ChainQueryer interface.
 func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block) (indexers.PrevScripter, error) {
-	popHash := &block.MsgBlock().Header.PrevBlock
-	tbEnabled, err := q.isTreasuryAgendaActiveByHash(popHash)
+	pHash := &block.MsgBlock().Header.PrevBlock
+	tbEnabled, err := q.isTreasuryAgendaActiveByHash(pHash)
 	if err != nil {
 		return nil, err
 	}

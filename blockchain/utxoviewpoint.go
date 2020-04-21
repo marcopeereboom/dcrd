@@ -249,8 +249,9 @@ func newUtxoEntry(txVersion uint16, height uint32, index uint32, isCoinBase bool
 // The unspent outputs are needed by other transactions for things such as
 // script validation and double spend prevention.
 type UtxoViewpoint struct {
-	entries  map[chainhash.Hash]*UtxoEntry
-	bestHash chainhash.Hash
+	entries    map[chainhash.Hash]*UtxoEntry
+	bestHash   chainhash.Hash
+	blockChain *BlockChain
 }
 
 // BestHash returns the hash of the best block in the chain the view currently
@@ -578,13 +579,18 @@ func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stx
 // restoring the outputs spent by it with the help of the provided spent txo
 // information.
 //func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, stxos []spentTxOut) error {
-func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, isTreasuryAgendaActive bool) error {
+func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block) error {
+	pHash := &block.MsgBlock().Header.PrevBlock
+	tbEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
+	if err != nil {
+		return err
+	}
+
 	// Load all of the spent txos for the block from the database spend journal.
 	var stxos []spentTxOut
-	err := db.View(func(dbTx database.Tx) error {
+	err = db.View(func(dbTx database.Tx) error {
 		var err error
-		stxos, err = dbFetchSpendJournalEntry(dbTx, block,
-			isTreasuryAgendaActive)
+		stxos, err = dbFetchSpendJournalEntry(dbTx, block, tbEnabled)
 		return err
 	})
 	if err != nil {
@@ -623,13 +629,12 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 //
 // In addition, when the 'stxos' argument is not nil, it will be updated to
 // append an entry for each spent txout.
-func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block, stxos *[]spentTxOut, isTreasuryAgendaActive bool) error {
+func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block, stxos *[]spentTxOut) error {
 	// Disconnect the transactions in the regular tree of the parent block if
 	// the passed block disapproves it.
 	if !headerApprovesParent(&block.MsgBlock().Header) {
 		// XXX call from parent parents
-		err := view.disconnectDisapprovedBlock(db, parent,
-			isTreasuryAgendaActive)
+		err := view.disconnectDisapprovedBlock(db, parent)
 		if err != nil {
 			return err
 		}
@@ -917,9 +922,10 @@ func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 }
 
 // NewUtxoViewpoint returns a new empty unspent transaction output view.
-func NewUtxoViewpoint() *UtxoViewpoint {
+func NewUtxoViewpoint(blockChain *BlockChain) *UtxoViewpoint {
 	return &UtxoViewpoint{
-		entries: make(map[chainhash.Hash]*UtxoEntry),
+		entries:    make(map[chainhash.Hash]*UtxoEntry),
+		blockChain: blockChain,
 	}
 }
 
@@ -941,7 +947,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) 
 	// because the code below requires the parent block and the genesis
 	// block doesn't have one.
 	tip := b.bestChain.Tip()
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b)
 	view.SetBestHash(&tip.hash)
 	if tip.height == 0 {
 		return view, nil
@@ -964,11 +970,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) 
 
 			// Disconnect the transactions in the regular tree of the parent
 			// block.
-			ta, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
-			if err != nil {
-				return nil, err
-			}
-			err = view.disconnectDisapprovedBlock(b.db, parent, ta)
+			err = view.disconnectDisapprovedBlock(b.db, parent)
 			if err != nil {
 				b.disapprovedViewLock.Unlock()
 				return nil, err
