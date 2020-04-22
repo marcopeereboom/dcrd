@@ -1305,7 +1305,7 @@ mempoolLoop:
 			// Store if this is a TAdd or not.
 			isTAdd = prioItem.txType == stake.TxTypeTAdd
 
-			// Store if this is an TSpen or not.
+			// Store if this is an TSpend or not.
 			isTSpend = prioItem.txType == stake.TxTypeTSpend
 		}
 

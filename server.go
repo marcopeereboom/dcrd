@@ -2969,6 +2969,9 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 				s.bg.VoteReceived(voteTx)
 			}
 		},
+		IsTreasuryAgendaActive: func() (bool, error) {
+			return s.chain.IsTreasuryAgendaActive()
+		},
 	}
 	s.txMemPool = mempool.New(&txC)
 	s.blockManager, err = newBlockManager(&blockManagerConfig{

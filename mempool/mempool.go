@@ -140,6 +140,10 @@ type Config struct {
 	// OnVoteReceived defines the function used to signal receiving a new
 	// vote in the mempool.
 	OnVoteReceived func(voteTx *dcrutil.Tx)
+
+	// IsTreasuryAgendaActive returns if the treasury agenda is active or
+	// not.
+	IsTreasuryAgendaActive func() (bool, error)
 }
 
 // Policy houses the policy (configuration parameters) which is used to
@@ -940,11 +944,23 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 //
 // This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) error {
+	tbEnabled, err := mp.cfg.IsTreasuryAgendaActive()
+	if err != nil {
+		return err
+	}
+
 	for i, txIn := range tx.MsgTx().TxIn {
 		// We don't care about double spends of stake bases.
-		if (i == 0 && (txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx)) ||
-			txType == stake.TxTypeTSpend {
+		if i == 0 && (txType == stake.TxTypeSSGen ||
+			txType == stake.TxTypeSSRtx) {
 			continue
+		}
+
+		// Ignore Treasury bases
+		if tbEnabled {
+			if i == 0 && txType == stake.TxTypeTSpend {
+				continue
+			}
 		}
 
 		if txR, exists := mp.outpoints[txIn.PreviousOutPoint]; exists {
@@ -1157,8 +1173,17 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		tx.SetTree(wire.TxTreeStake)
 	}
 	isVote := txType == stake.TxTypeSSGen
-	isTreasury := txType == stake.TxTypeTSpend ||
-		txType == stake.TxTypeTreasuryBase
+
+	// Determine if treasury agenda is enabled.
+	tbEnabled, err := mp.cfg.IsTreasuryAgendaActive()
+	if err != nil {
+		return nil, err
+	}
+	var isTreasury bool
+	if tbEnabled {
+		isTreasury = txType == stake.TxTypeTSpend ||
+			txType == stake.TxTypeTreasuryBase
+	}
 
 	// Choose whether or not to accept transactions with sequence locks enabled.
 	//
@@ -1193,7 +1218,6 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			"block height %d)", stakeValidationHeight, nextBlockHeight)
 		return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
 	}
-	// XXX add check for TSpend/TAdd here too.
 
 	// Reject revocations before they can possibly be valid.  A vote must be
 	// missed for a revocation to be valid and votes are not allowed until stake
