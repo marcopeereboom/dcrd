@@ -884,6 +884,8 @@ func countSpentStakeOutputs(block *dcrutil.Block) int {
 			continue
 		}
 
+		// XXX this doesn't look right.
+
 		// Exclude TSpend.
 		if stake.IsTSpend(stx) {
 			continue

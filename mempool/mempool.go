@@ -1193,7 +1193,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			"block height %d)", stakeValidationHeight, nextBlockHeight)
 		return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
 	}
-	// XXX add check for TSPEN/TADD here too.
+	// XXX add check for TSpend/TAdd here too.
 
 	// Reject revocations before they can possibly be valid.  A vote must be
 	// missed for a revocation to be valid and votes are not allowed until stake

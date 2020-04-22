@@ -2600,14 +2600,16 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		return 0, nil
 	}
 
-	// XXX Do we need all three tyoes here?
+	// XXX The following two ifs need to be behind a treasury enabled flag.
 	if stake.IsTSpend(tx.MsgTx()) {
 		return 0, nil
 	}
-	if stake.IsTAdd(tx.MsgTx()) {
+	if stake.IsTreasuryBase(tx.MsgTx()) {
 		return 0, nil
 	}
-	if stake.IsTreasuryBase(tx.MsgTx()) {
+
+	// XXX Do we need all TAdd here?
+	if stake.IsTAdd(tx.MsgTx()) {
 		return 0, nil
 	}
 
