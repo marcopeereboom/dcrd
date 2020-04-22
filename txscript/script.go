@@ -375,6 +375,8 @@ func countSigOpsV0(script []byte, precise bool) int {
 				numSigOps += MaxPubKeysPerMultiSig
 			}
 
+		// XXX add case for OP_TGEN here
+
 		default:
 			// Not a sigop.
 		}
