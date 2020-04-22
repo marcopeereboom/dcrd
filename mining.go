@@ -696,11 +696,11 @@ func medianAdjustedTime(best *blockchain.BestState, timeSource blockchain.Median
 	return newTimestamp
 }
 
-// maybeInsertStakeTx checks to make sure that a stake tx is
-// valid from the perspective of the mainchain (not necessarily
-// the mempool or block) before inserting into a tx tree.
-// If it fails the check, it returns false; otherwise true.
-func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool {
+// maybeInsertStakeTx checks to make sure that a stake tx is valid from the
+// perspective of the mainchain (not necessarily the mempool or block) before
+// inserting into a tx tree.  If it fails the check, it returns false;
+// otherwise true.
+func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool, treasuryEnabled bool) bool {
 	missingInput := false
 
 	view, err := bm.cfg.Chain.FetchUtxoView(stx, treeValid)
@@ -711,15 +711,17 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool 
 	}
 	mstx := stx.MsgTx()
 	isSSGen := stake.IsSSGen(mstx)
-	isTSpend := stake.IsTSpend(mstx)
+	var isTSpend, isTreasuryBase bool
+	if treasuryEnabled {
+		isTSpend = stake.IsTSpend(mstx)
+		isTreasuryBase = stake.IsTreasuryBase(mstx)
+	}
 	for i, txIn := range mstx.TxIn {
-		// Evaluate if this is a stakebase input or not. If it
-		// is, continue without evaluation of the input.
-		// if isStakeBase
-		if (i == 0 && isSSGen) || isTSpend {
+		// Evaluate if this is a stakebase or treasury base input or
+		// not. If it is, continue without evaluation of the input.
+		if (i == 0 && (isSSGen || isTreasuryBase)) || isTSpend {
 			txIn.BlockHeight = wire.NullBlockHeight
 			txIn.BlockIndex = wire.NullBlockIndex
-
 			continue
 		}
 
@@ -1169,7 +1171,10 @@ mempoolLoop:
 			}
 		}
 
-		isTSpend := txDesc.Type == stake.TxTypeTSpend
+		var isTSpend bool
+		if treasuryEnabled {
+			isTSpend = txDesc.Type == stake.TxTypeTSpend
+		}
 
 		// Fetch all of the utxos referenced by the this transaction.
 		// NOTE: This intentionally does not fetch inputs from the
@@ -1295,11 +1300,14 @@ mempoolLoop:
 		// Store if this is an SSRtx or not.
 		isSSRtx := prioItem.txType == stake.TxTypeSSRtx
 
-		// Store if this is an SSRtx or not.
-		isTAdd := prioItem.txType == stake.TxTypeTAdd
+		var isTAdd, isTSpend bool
+		if treasuryEnabled {
+			// Store if this is a TAdd or not.
+			isTAdd = prioItem.txType == stake.TxTypeTAdd
 
-		// Store if this is an SSRtx or not.
-		isTSpend := prioItem.txType == stake.TxTypeTSpend
+			// Store if this is an TSpen or not.
+			isTSpend = prioItem.txType == stake.TxTypeTSpend
+		}
 
 		// Grab the list of transactions which depend on this one (if any).
 		deps := dependers[*tx.Hash()]
@@ -1542,7 +1550,7 @@ mempoolLoop:
 			if stake.IsSSGen(msgTx) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 				if maybeInsertStakeTx(g.blockManager, txCopy,
-					!knownDisapproved) {
+					!knownDisapproved, treasuryEnabled) {
 					voters++
 				}
 			}
@@ -1583,7 +1591,8 @@ mempoolLoop:
 
 			if stake.IsSSGen(msgTx) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-				if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
+				if maybeInsertStakeTx(g.blockManager, txCopy,
+					!knownDisapproved, treasuryEnabled) {
 					vb := stake.SSGenVoteBits(txCopy.MsgTx())
 					voteBitsVoters = append(voteBitsVoters, vb)
 					blockTxnsStake = append(blockTxnsStake, txCopy)
@@ -1669,18 +1678,20 @@ mempoolLoop:
 				}
 			}
 
-			// Replace blockTxns with the pruned list of valid mempool tx.
+			// Replace blockTxns with the pruned list of valid
+			// mempool tx.
 			blockTxns = tempBlockTxns
 		}
 	}
 
-	// Get the newly purchased tickets (SStx tx) and store them and their number.
+	// Get the newly purchased tickets (SStx tx) and store them and their
+	// number.
 	freshStake := 0
 	for _, tx := range blockTxns {
 		msgTx := tx.MsgTx()
 		if tx.Tree() == wire.TxTreeStake && stake.IsSStx(msgTx) {
-			// A ticket can not spend an input from TxTreeRegular, since it
-			// has not yet been validated.
+			// A ticket can not spend an input from TxTreeRegular,
+			// since it has not yet been validated.
 			if containsTxIns(blockTxns, tx) {
 				continue
 			}
@@ -1688,8 +1699,10 @@ mempoolLoop:
 			// Quick check for difficulty here.
 			if msgTx.TxOut[0].Value >= best.NextStakeDiff {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-				if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
-					blockTxnsStake = append(blockTxnsStake, txCopy)
+				if maybeInsertStakeTx(g.blockManager, txCopy,
+					!knownDisapproved, treasuryEnabled) {
+					blockTxnsStake = append(blockTxnsStake,
+						txCopy)
 					freshStake++
 				}
 			}
@@ -1701,7 +1714,8 @@ mempoolLoop:
 		}
 	}
 
-	// Get the ticket revocations (SSRtx tx) and store them and their number.
+	// Get the ticket revocations (SSRtx tx) and store them and their
+	// number.
 	revocations := 0
 	for _, tx := range blockTxns {
 		if nextBlockHeight < stakeValidationHeight {
@@ -1711,7 +1725,8 @@ mempoolLoop:
 		msgTx := tx.MsgTx()
 		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx) {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
+			if maybeInsertStakeTx(g.blockManager, txCopy,
+				!knownDisapproved, treasuryEnabled) {
 				blockTxnsStake = append(blockTxnsStake, txCopy)
 				revocations++
 			}
@@ -1724,21 +1739,28 @@ mempoolLoop:
 	}
 
 	// Insert TAdd/TSpend transactions.
-	for _, tx := range blockTxns {
-		msgTx := tx.MsgTx()
-		if tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx) {
-			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
-				blockTxnsStake = append(blockTxnsStake, txCopy)
-				minrLog.Tracef("maybeInsertStakeTx TADD %v ",
-					tx.Hash())
-			}
-		} else if tx.Tree() == wire.TxTreeStake && stake.IsTSpend(msgTx) {
-			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
-				blockTxnsStake = append(blockTxnsStake, txCopy)
-				minrLog.Tracef("maybeInsertStakeTx TSPEND %v ",
-					tx.Hash())
+	if treasuryEnabled {
+		for _, tx := range blockTxns {
+			msgTx := tx.MsgTx()
+			if tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx) {
+				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+				if maybeInsertStakeTx(g.blockManager, txCopy,
+					!knownDisapproved, treasuryEnabled) {
+					blockTxnsStake = append(blockTxnsStake,
+						txCopy)
+					minrLog.Tracef("maybeInsertStakeTx "+
+						"TADD %v ", tx.Hash())
+				}
+			} else if tx.Tree() == wire.TxTreeStake &&
+				stake.IsTSpend(msgTx) {
+				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+				if maybeInsertStakeTx(g.blockManager, txCopy,
+					!knownDisapproved, treasuryEnabled) {
+					blockTxnsStake = append(blockTxnsStake,
+						txCopy)
+					minrLog.Tracef("maybeInsertStakeTx "+
+						"TSPEND %v ", tx.Hash())
+				}
 			}
 		}
 	}
@@ -1974,10 +1996,12 @@ mempoolLoop:
 			return nil, miningRuleError(ErrTransactionAppend, err.Error())
 		}
 		// While in this loop count treasury operations.
-		if stake.IsTAdd(tx.MsgTx()) {
-			totalTreasuryOps++
-		} else if stake.IsTSpend(tx.MsgTx()) {
-			totalTreasuryOps++
+		if treasuryEnabled {
+			if stake.IsTAdd(tx.MsgTx()) {
+				totalTreasuryOps++
+			} else if stake.IsTSpend(tx.MsgTx()) {
+				totalTreasuryOps++
+			}
 		}
 	}
 
