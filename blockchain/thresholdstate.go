@@ -770,6 +770,16 @@ func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (boo
 	return b.isTreasuryAgendaActive(prevNode)
 }
 
+// IsTreasuryAgendaActiveByHash looks up a node by hash and the returns the
+// value of IsTreasuryAgendaActive.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (bool, error) {
+	b.chainLock.Lock()
+	defer b.chainLock.Unlock()
+	return b.isTreasuryAgendaActiveByHash(prevHash)
+}
+
 // IsTreasuryAgendaActive returns whether or not whether or not the TADD/TSUB
 // opcodes are active.
 //

@@ -588,7 +588,7 @@ func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSourc
 //
 // The flags do not modify the behavior of this function directly, however they
 // are needed to pass along to checkBlockHeaderSanity.
-func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params) error {
+func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
 	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
 	err := checkBlockHeaderSanity(header, timeSource, flags, chainParams)
@@ -849,7 +849,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		msgTx := tx.MsgTx()
 		isCoinBase := standalone.IsCoinBaseTx(msgTx)
 		isSSGen := stake.IsSSGen(msgTx)
-		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen)
+		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen,
+			isTreasuryEnabled)
 		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
 			str := fmt.Sprintf("block contains too many signature "+
 				"operations - got %v, max %v", totalSigOps,
@@ -864,8 +865,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 // CheckBlockSanity performs some preliminary checks on a block to ensure it is
 // sane before continuing with block processing.  These checks are context
 // free.
-func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainParams *chaincfg.Params) error {
-	return checkBlockSanity(block, timeSource, BFNone, chainParams)
+func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
+	return checkBlockSanity(block, timeSource, BFNone, chainParams, isTreasuryEnabled)
 }
 
 // checkBlockHeaderPositional performs several validation checks on the block
@@ -1063,12 +1064,12 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 		// Check that the coinbase contains at minimum the block
 		// height in output 1.
 		if blockHeight > 1 {
-			stakebaseEnabled, err := b.isTreasuryAgendaActive(prevNode)
+			isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
 			if err != nil {
 				return err
 			}
 			err = checkCoinbaseUniqueHeight(blockHeight, block,
-				stakebaseEnabled)
+				isTreasuryEnabled)
 			if err != nil {
 				return err
 			}
@@ -2548,35 +2549,46 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 // input and output scripts in the provided transaction.  This uses the
 // quicker, but imprecise, signature operation counting mechanism from
 // txscript.
-func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool) int {
+func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool, isTreasuryEnabled bool) int {
 	msgTx := tx.MsgTx()
 
-	isTreasuryBase := stake.IsTreasuryBase(msgTx)
+	var isTreasuryBase, isTSpend, isTAdd bool
+	if isTreasuryEnabled {
+		isTreasuryBase = stake.IsTreasuryBase(msgTx)
+		isTSpend = stake.IsTSpend(msgTx)
+		isTAdd = stake.IsTAdd(msgTx)
+	}
 
-	// Accumulate the number of signature operations in all transaction
-	// inputs.
 	totalSigOps := 0
-	for i, txIn := range msgTx.TxIn {
-		// Skip coinbase inputs.
-		if isCoinBaseTx {
-			continue
-		}
-		// Skip stakebase inputs.
-		if isSSGen && i == 0 {
-			continue
-		}
-		// Skip treasurybase inputs.
-		if isTreasuryBase {
-			continue
-		}
 
-		numSigOps := txscript.GetSigOpCount(txIn.SignatureScript)
-		totalSigOps += numSigOps
+	// isTreasuryBase has no sigops in input and output so just return.
+	if isTreasuryBase {
+		return totalSigOps
+	}
+
+	if !(isCoinBaseTx || isTSpend) {
+		// Accumulate the number of signature operations in all
+		// transaction inputs.
+		for i, txIn := range msgTx.TxIn {
+			// Skip stakebase inputs.
+			if isSSGen && i == 0 {
+				continue
+			}
+
+			numSigOps := txscript.GetSigOpCount(txIn.SignatureScript)
+			totalSigOps += numSigOps
+		}
+	}
+
+	// TAdds have not outputs so just return.
+	if isTAdd {
+		return totalSigOps
 	}
 
 	// Accumulate the number of signature operations in all transaction
 	// outputs.
 	for _, txOut := range msgTx.TxOut {
+		// XXX Ensure TSpend works here because of TGen prefix.
 		numSigOps := txscript.GetSigOpCount(txOut.PkScript)
 		totalSigOps += numSigOps
 	}
@@ -2728,10 +2740,11 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 // sure they don't overflow the limits.  It takes a cumulative number of sig
 // ops as an argument and increments will each call.
 // TxTree true == Regular, false == Stake
-func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool, cumulativeSigOps int) (int, error) {
+func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool, cumulativeSigOps int, isTreasuryEnabled bool) (int, error) {
 	msgTx := tx.MsgTx()
 	isSSGen := stake.IsSSGen(msgTx)
-	numsigOps := CountSigOps(tx, (index == 0) && txTree, isSSGen)
+	numsigOps := CountSigOps(tx, (index == 0) && txTree, isSSGen,
+		isTreasuryEnabled)
 
 	// Since the first (and only the first) transaction has already been
 	// verified to be a coinbase transaction, use (i == 0) && TxTree as an
@@ -2933,7 +2946,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// the consensus limit.
 		var err error
 		cumulativeSigOps, err = checkNumSigOps(tx, view, idx, txTree,
-			cumulativeSigOps)
+			cumulativeSigOps, isTreasuryAgendaActive)
 		if err != nil {
 			return err
 		}
@@ -3426,7 +3439,12 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	}
 
 	// Perform context-free sanity checks on the block and its transactions.
-	err := checkBlockSanity(block, b.timeSource, flags, b.chainParams)
+	isTreasuryAgendaActive, err := b.isTreasuryAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+	err = checkBlockSanity(block, b.timeSource, flags, b.chainParams,
+		isTreasuryAgendaActive)
 	if err != nil {
 		return err
 	}
@@ -3475,12 +3493,6 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 		return err
 	}
 	parent, err := b.fetchMainChainBlockByNode(tip.parent)
-	if err != nil {
-		return err
-	}
-
-	// See if treasury agenda is active.
-	isTreasuryAgendaActive, err := b.isTreasuryAgendaActive(tip)
 	if err != nil {
 		return err
 	}

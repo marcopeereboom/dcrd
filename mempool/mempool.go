@@ -1453,7 +1453,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		return nil, err
 	}
 
-	numSigOps += blockchain.CountSigOps(tx, false, isVote)
+	numSigOps += blockchain.CountSigOps(tx, false, isVote, tbEnabled)
 	if numSigOps > mp.cfg.Policy.MaxSigOpsPerTx {
 		str := fmt.Sprintf("transaction %v has too many sigops: %d > %d",
 			txHash, numSigOps, mp.cfg.Policy.MaxSigOpsPerTx)

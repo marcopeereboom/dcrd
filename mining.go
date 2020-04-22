@@ -491,7 +491,7 @@ func calcBlockCommitmentRootV1(block *wire.MsgBlock, prevScripts blockcf2.PrevSc
 //
 // See the comment for NewBlockTemplate for more information about why the nil
 // address handling is useful.
-func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params, treasuryEnabled bool) (*dcrutil.Tx, error) {
+func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params, isTreasuryEnabled bool) (*dcrutil.Tx, error) {
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
 		// Coinbase transactions have no inputs, so previous outpoint is
@@ -529,7 +529,7 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 	workSubsidy := subsidyCache.CalcWorkSubsidy(nextBlockHeight, voters)
 	treasurySubsidy := int64(0)
 
-	if treasuryEnabled {
+	if isTreasuryEnabled {
 		// Stakebase enabled so zero out treasurySubsidy since it is
 		// included in the stake tree.
 
@@ -700,7 +700,7 @@ func medianAdjustedTime(best *blockchain.BestState, timeSource blockchain.Median
 // perspective of the mainchain (not necessarily the mempool or block) before
 // inserting into a tx tree.  If it fails the check, it returns false;
 // otherwise true.
-func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool, treasuryEnabled bool) bool {
+func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool, isTreasuryEnabled bool) bool {
 	missingInput := false
 
 	view, err := bm.cfg.Chain.FetchUtxoView(stx, treeValid)
@@ -712,7 +712,7 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool, treas
 	mstx := stx.MsgTx()
 	isSSGen := stake.IsSSGen(mstx)
 	var isTSpend, isTreasuryBase bool
-	if treasuryEnabled {
+	if isTreasuryEnabled {
 		isTSpend = stake.IsTSpend(mstx)
 		isTreasuryBase = stake.IsTreasuryBase(mstx)
 	}
@@ -745,7 +745,7 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool, treas
 // work off of is present, it will return a copy of that template to pass to the
 // miner.
 // Safe for concurrent access.
-func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager, treasuryEnabled bool) (*BlockTemplate, error) {
+func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager, isTreasuryEnabled bool) (*BlockTemplate, error) {
 	timeSource := bm.cfg.TimeSource
 	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
 
@@ -778,13 +778,13 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		coinbaseTx, err := createCoinbaseTx(subsidyCache,
 			coinbaseScript, opReturnPkScript, topBlock.Height(),
 			miningAddress, tipHeader.Voters, bm.cfg.ChainParams,
-			treasuryEnabled)
+			isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
 		block.AddTransaction(coinbaseTx.MsgTx())
 
-		if treasuryEnabled {
+		if isTreasuryEnabled {
 			opReturnTreasury, err := standardCoinbaseOpReturn(tipHeader.Height)
 			if err != nil {
 				return nil, err
@@ -1041,7 +1041,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	nextBlockHeight := best.Height + 1
 	stakeValidationHeight := g.chainParams.StakeValidationHeight
 
-	treasuryEnabled, err := g.chain.IsTreasuryAgendaActive()
+	isTreasuryEnabled, err := g.chain.IsTreasuryAgendaActive()
 	if err != nil {
 		return nil, err
 	}
@@ -1062,7 +1062,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 			minrLog.Debugf("Too few voters found on any HEAD block, " +
 				"recycling a parent block to mine on")
 			return handleTooFewVoters(g.subsidyCache, nextBlockHeight,
-				payToAddress, g.blockManager, treasuryEnabled)
+				payToAddress, g.blockManager, isTreasuryEnabled)
 		}
 
 		minrLog.Debugf("Found eligible parent %v with enough votes to build "+
@@ -1172,7 +1172,7 @@ mempoolLoop:
 		}
 
 		var isTSpend bool
-		if treasuryEnabled {
+		if isTreasuryEnabled {
 			isTSpend = txDesc.Type == stake.TxTypeTSpend
 		}
 
@@ -1301,7 +1301,7 @@ mempoolLoop:
 		isSSRtx := prioItem.txType == stake.TxTypeSSRtx
 
 		var isTAdd, isTSpend bool
-		if treasuryEnabled {
+		if isTreasuryEnabled {
 			// Store if this is a TAdd or not.
 			isTAdd = prioItem.txType == stake.TxTypeTAdd
 
@@ -1351,7 +1351,8 @@ mempoolLoop:
 
 		// Enforce maximum signature operations per block.  Also check
 		// for overflow.
-		numSigOps := int64(blockchain.CountSigOps(tx, false, isSSGen))
+		numSigOps := int64(blockchain.CountSigOps(tx, false, isSSGen,
+			isTreasuryEnabled))
 		if blockSigOps+numSigOps < blockSigOps ||
 			blockSigOps+numSigOps > blockchain.MaxSigOpsPerBlock {
 			minrLog.Tracef("Skipping tx %s because it would "+
@@ -1550,7 +1551,7 @@ mempoolLoop:
 			if stake.IsSSGen(msgTx) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 				if maybeInsertStakeTx(g.blockManager, txCopy,
-					!knownDisapproved, treasuryEnabled) {
+					!knownDisapproved, isTreasuryEnabled) {
 					voters++
 				}
 			}
@@ -1563,7 +1564,7 @@ mempoolLoop:
 	}
 
 	var treasuryBase *dcrutil.Tx
-	if treasuryEnabled {
+	if isTreasuryEnabled {
 		opReturnTreasury, err := standardCoinbaseOpReturn(uint32(nextBlockHeight))
 		if err != nil {
 			return nil, err
@@ -1592,7 +1593,7 @@ mempoolLoop:
 			if stake.IsSSGen(msgTx) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 				if maybeInsertStakeTx(g.blockManager, txCopy,
-					!knownDisapproved, treasuryEnabled) {
+					!knownDisapproved, isTreasuryEnabled) {
 					vb := stake.SSGenVoteBits(txCopy.MsgTx())
 					voteBitsVoters = append(voteBitsVoters, vb)
 					blockTxnsStake = append(blockTxnsStake, txCopy)
@@ -1700,7 +1701,7 @@ mempoolLoop:
 			if msgTx.TxOut[0].Value >= best.NextStakeDiff {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 				if maybeInsertStakeTx(g.blockManager, txCopy,
-					!knownDisapproved, treasuryEnabled) {
+					!knownDisapproved, isTreasuryEnabled) {
 					blockTxnsStake = append(blockTxnsStake,
 						txCopy)
 					freshStake++
@@ -1726,7 +1727,7 @@ mempoolLoop:
 		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx) {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 			if maybeInsertStakeTx(g.blockManager, txCopy,
-				!knownDisapproved, treasuryEnabled) {
+				!knownDisapproved, isTreasuryEnabled) {
 				blockTxnsStake = append(blockTxnsStake, txCopy)
 				revocations++
 			}
@@ -1739,13 +1740,13 @@ mempoolLoop:
 	}
 
 	// Insert TAdd/TSpend transactions.
-	if treasuryEnabled {
+	if isTreasuryEnabled {
 		for _, tx := range blockTxns {
 			msgTx := tx.MsgTx()
 			if tx.Tree() == wire.TxTreeStake && stake.IsTAdd(msgTx) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 				if maybeInsertStakeTx(g.blockManager, txCopy,
-					!knownDisapproved, treasuryEnabled) {
+					!knownDisapproved, isTreasuryEnabled) {
 					blockTxnsStake = append(blockTxnsStake,
 						txCopy)
 					minrLog.Tracef("maybeInsertStakeTx "+
@@ -1755,7 +1756,7 @@ mempoolLoop:
 				stake.IsTSpend(msgTx) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 				if maybeInsertStakeTx(g.blockManager, txCopy,
-					!knownDisapproved, treasuryEnabled) {
+					!knownDisapproved, isTreasuryEnabled) {
 					blockTxnsStake = append(blockTxnsStake,
 						txCopy)
 					minrLog.Tracef("maybeInsertStakeTx "+
@@ -1767,20 +1768,22 @@ mempoolLoop:
 
 	coinbaseTx, err := createCoinbaseTx(g.subsidyCache, coinbaseScript,
 		opReturnPkScript, nextBlockHeight, payToAddress, uint16(voters),
-		g.chainParams, treasuryEnabled)
+		g.chainParams, isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
 	coinbaseTx.SetTree(wire.TxTreeRegular)
 
-	numCoinbaseSigOps := int64(blockchain.CountSigOps(coinbaseTx, true, false))
+	numCoinbaseSigOps := int64(blockchain.CountSigOps(coinbaseTx, true,
+		false, isTreasuryEnabled))
 	blockSize += uint32(coinbaseTx.MsgTx().SerializeSize())
 	blockSigOps += numCoinbaseSigOps
 	txFeesMap[*coinbaseTx.Hash()] = 0
 	txSigOpCountsMap[*coinbaseTx.Hash()] = numCoinbaseSigOps
 	if treasuryBase != nil {
 		txFeesMap[*treasuryBase.Hash()] = 0
-		n := int64(blockchain.CountSigOps(treasuryBase, true, false))
+		n := int64(blockchain.CountSigOps(treasuryBase, true, false,
+			isTreasuryEnabled))
 		txSigOpCountsMap[*treasuryBase.Hash()] = n
 	}
 
@@ -1847,7 +1850,7 @@ mempoolLoop:
 	// block size for the real transaction count and coinbase value with
 	// the total fees accordingly.
 	if nextBlockHeight > 1 {
-		if !treasuryEnabled {
+		if !isTreasuryEnabled {
 			blockSize -= wire.MaxVarIntPayload -
 				uint32(wire.VarIntSerializeSize(uint64(len(blockTxnsRegular))+
 					uint64(len(blockTxnsStake))))
@@ -1875,7 +1878,7 @@ mempoolLoop:
 		minrLog.Warnf("incongruent number of voters in mempool " +
 			"vs mempool.voters; not enough voters found")
 		return handleTooFewVoters(g.subsidyCache, nextBlockHeight, payToAddress,
-			g.blockManager, treasuryEnabled)
+			g.blockManager, isTreasuryEnabled)
 	}
 
 	// Correct transaction index fraud proofs for any transactions that
@@ -1996,7 +1999,7 @@ mempoolLoop:
 			return nil, miningRuleError(ErrTransactionAppend, err.Error())
 		}
 		// While in this loop count treasury operations.
-		if treasuryEnabled {
+		if isTreasuryEnabled {
 			if stake.IsTAdd(tx.MsgTx()) {
 				totalTreasuryOps++
 			} else if stake.IsTSpend(tx.MsgTx()) {
