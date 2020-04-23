@@ -1134,7 +1134,13 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Perform preliminary sanity checks on the transaction.  This makes
 	// use of blockchain which contains the invariant rules for what
 	// transactions are allowed into blocks.
-	err := blockchain.CheckTransactionSanity(msgTx, mp.cfg.ChainParams)
+	isTreasuryEnabled, err := mp.cfg.IsTreasuryAgendaActive()
+	if err != nil {
+		return nil, err
+	}
+
+	err = blockchain.CheckTransactionSanity(msgTx, mp.cfg.ChainParams,
+		isTreasuryEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
@@ -1413,7 +1419,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// used later.  The fraud proof is not checked because it will be
 	// filled in by the miner.
 	txFee, err := blockchain.CheckTransactionInputs(mp.cfg.SubsidyCache,
-		tx, nextBlockHeight, utxoView, false, mp.cfg.ChainParams)
+		tx, nextBlockHeight, utxoView, false, mp.cfg.ChainParams,
+		tbEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
@@ -1444,7 +1451,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// maximum allowed signature operations per transaction is less than
 	// the maximum allowed signature operations per block.
 	numSigOps, err := blockchain.CountP2SHSigOps(tx, false,
-		(txType == stake.TxTypeSSGen), utxoView)
+		(txType == stake.TxTypeSSGen), utxoView, isTreasuryEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {

@@ -1364,7 +1364,7 @@ mempoolLoop:
 		// This isn't very expensive, but we do this check a number of times.
 		// Consider caching this in the mempool in the future. - Decred
 		numP2SHSigOps, err := blockchain.CountP2SHSigOps(tx, false,
-			isSSGen, blockUtxos)
+			isSSGen, blockUtxos, isTreasuryEnabled)
 		if err != nil {
 			minrLog.Tracef("Skipping tx %s due to error in "+
 				"CountP2SHSigOps: %v", tx.Hash(), err)
@@ -1450,7 +1450,8 @@ mempoolLoop:
 		// The fraud proof is not checked because it will be filled in
 		// by the miner.
 		_, err = blockchain.CheckTransactionInputs(g.subsidyCache, tx,
-			nextBlockHeight, blockUtxos, false, g.chainParams)
+			nextBlockHeight, blockUtxos, false, g.chainParams,
+			isTreasuryEnabled)
 		if err != nil {
 			minrLog.Tracef("Skipping tx %s due to error in "+
 				"CheckTransactionInputs: %v", tx.Hash(), err)

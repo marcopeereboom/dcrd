@@ -217,7 +217,7 @@ func IsFinalizedTransaction(tx *dcrutil.Tx, blockHeight int64, blockTime time.Ti
 
 // CheckTransactionSanity performs some preliminary checks on a transaction to
 // ensure it is sane.  These checks are context free.
-func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
+func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
 	// A transaction must have at least one input.
 	if len(tx.TxIn) == 0 {
 		return ruleError(ErrNoTxInputs, "transaction has no inputs")
@@ -314,8 +314,11 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	// stake opcodes.
 	isTicket := !isVote && stake.IsSStx(tx)
 	isRevocation := !isVote && !isTicket && stake.IsSSRtx(tx)
-	isTAdd := !isRevocation && stake.IsTAdd(tx)
-	isTSpend := !isTAdd && stake.IsTSpend(tx)
+	var isTAdd, isTSpend bool
+	if isTreasuryEnabled {
+		isTAdd = !isRevocation && stake.IsTAdd(tx)
+		isTSpend = !isTAdd && stake.IsTSpend(tx)
+	}
 	isStakeTx := isVote || isTicket || isRevocation || isTAdd || isTSpend
 	var totalAtom int64
 	for txOutIdx, txOut := range tx.TxOut {
@@ -664,7 +667,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 			return ruleError(ErrStakeTxInRegularTree, errStr)
 		}
 
-		err := CheckTransactionSanity(msgTx, chainParams)
+		err := CheckTransactionSanity(msgTx, chainParams,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -676,7 +680,8 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	var totalTickets, totalVotes, totalRevocations, totalTreasury int64
 	var totalYesVotes int64
 	for txIdx, stx := range msgBlock.STransactions {
-		err := CheckTransactionSanity(stx, chainParams)
+		err := CheckTransactionSanity(stx, chainParams,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -723,15 +728,22 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 
 		case stake.TxTypeSSRtx:
 			totalRevocations++
+		}
 
-		case stake.TxTypeTAdd:
-			totalTreasury++
+		// If treasury agenda is enabled do the same type of math as
+		// above.
+		if isTreasuryEnabled {
+			switch txType {
 
-		case stake.TxTypeTSpend:
-			totalTreasury++
+			case stake.TxTypeTAdd:
+				totalTreasury++
 
-		case stake.TxTypeTreasuryBase:
-			totalTreasury++
+			case stake.TxTypeTSpend:
+				totalTreasury++
+
+			case stake.TxTypeTreasuryBase:
+				totalTreasury++
+			}
 		}
 	}
 
@@ -1329,8 +1341,8 @@ func checkCoinbaseUniqueHeightWithStakebase(blockHeight int64, block *dcrutil.Bl
 // checkCoinbaseUniqueHeightchecks to ensure that for all blocks height > 1 the
 // coinbase contains the height encoding to make coinbase hash collisions
 // impossible.
-func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasuryStakeEnabled bool) error {
-	if treasuryStakeEnabled {
+func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasuryEnabled bool) error {
+	if treasuryEnabled {
 		return checkCoinbaseUniqueHeightWithStakebase(blockHeight, block)
 	} else {
 		return checkCoinbaseUniqueHeightWithAddress(blockHeight, block)
@@ -2236,7 +2248,7 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, 
 //
 // NOTE: The transaction MUST have already been sanity checked with the
 // CheckTransactionSanity function prior to calling this function.
-func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool, chainParams *chaincfg.Params) (int64, error) {
+func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool, chainParams *chaincfg.Params, isTreasuryEnabled bool) (int64, error) {
 	// Coinbase transactions have no inputs.
 	msgTx := tx.MsgTx()
 	if standalone.IsCoinBaseTx(msgTx) {
@@ -2287,7 +2299,10 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 	}
 
 	// Perform additional checks on TSpend transactions.
-	isTSpend := stake.IsTSpend(msgTx)
+	var isTSpend bool
+	if isTreasuryEnabled {
+		isTSpend = stake.IsTSpend(msgTx)
+	}
 
 	// -------------------------------------------------------------------
 	// Decred general transaction testing (and a few stake exceptions).
@@ -2600,7 +2615,7 @@ func CountSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool, isTreasuryEnab
 // transactions which are of the pay-to-script-hash type.  This uses the
 // precise, signature operation counting mechanism from the script engine which
 // requires access to the input transaction scripts.
-func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view *UtxoViewpoint) (int, error) {
+func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view *UtxoViewpoint, isTreasuryEnabled bool) (int, error) {
 	// Coinbase transactions have no interesting inputs.
 	if isCoinBaseTx {
 		return 0, nil
@@ -2612,17 +2627,14 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		return 0, nil
 	}
 
-	// XXX The following two ifs need to be behind a treasury enabled flag.
-	if stake.IsTSpend(tx.MsgTx()) {
-		return 0, nil
-	}
-	if stake.IsTreasuryBase(tx.MsgTx()) {
-		return 0, nil
-	}
-
-	// XXX Do we need all TAdd here?
-	if stake.IsTAdd(tx.MsgTx()) {
-		return 0, nil
+	// Exit in some cases if treasury agenda is enabled.
+	if isTreasuryEnabled {
+		if stake.IsTSpend(tx.MsgTx()) {
+			return 0, nil
+		}
+		if stake.IsTreasuryBase(tx.MsgTx()) {
+			return 0, nil
+		}
 	}
 
 	// Accumulate the number of signature operations in all transaction
@@ -2716,8 +2728,7 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 		return nil, err
 	}
 
-	// See if the treasury agenda was active at the parent.  XXX Do we need
-	// to test this or can we simply send in false into connectTransaction?
+	// See if the treasury agenda was active at the parent.
 	pHash := &parent.MsgBlock().Header.PrevBlock
 	tbEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
 	if err != nil {
@@ -2752,7 +2763,7 @@ func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool,
 	// transaction is a coinbase transaction rather than having to do a
 	// full coinbase check again.
 	numP2SHSigOps, err := CountP2SHSigOps(tx, (index == 0) && txTree,
-		isSSGen, view)
+		isSSGen, view, isTreasuryEnabled)
 	if err != nil {
 		log.Tracef("CountP2SHSigOps failed; error returned %v", err)
 		return 0, err
@@ -2853,14 +2864,17 @@ func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint) (int64, error) 
 
 // getStakeTreeFees determines the amount of fees for in the stake tx tree of
 // some node given a transaction store.
-func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs []*dcrutil.Tx, view *UtxoViewpoint) (dcrutil.Amount, error) {
+func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs []*dcrutil.Tx, view *UtxoViewpoint, isTreasuryEnabled bool) (dcrutil.Amount, error) {
 	totalInputs := int64(0)
 	totalOutputs := int64(0)
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
 		isSSGen := stake.IsSSGen(msgTx)
-		isTSpend := stake.IsTSpend(msgTx)
-		isTreasuryBase := stake.IsTreasuryBase(msgTx)
+		var isTSpend, isTreasuryBase bool
+		if isTreasuryEnabled {
+			isTSpend = stake.IsTSpend(msgTx)
+			isTreasuryBase = stake.IsTreasuryBase(msgTx)
+		}
 
 		for i, in := range msgTx.TxIn {
 			// Ignore stakebases.
@@ -2955,7 +2969,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		// spent, so be aware of this.
 		txFee, err := CheckTransactionInputs(b.subsidyCache, tx,
 			node.height, view, true, /* check fraud proofs */
-			b.chainParams)
+			b.chainParams, isTreasuryAgendaActive)
 		if err != nil {
 			log.Tracef("CheckTransactionInputs failed; error "+
 				"returned: %v", err)
@@ -3154,11 +3168,11 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	// Check that the coinbase pays the treasury, if applicable.
-	treasuryBaseEnabled, err := b.isTreasuryAgendaActive(node.parent)
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
 	}
-	if treasuryBaseEnabled {
+	if isTreasuryEnabled {
 		if len(block.STransactions()) == 0 {
 			return AssertError("invalid STransactions length")
 		}
@@ -3254,7 +3268,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	stakeTreeFees, err := getStakeTreeFees(b.subsidyCache, node.height,
-		block.STransactions(), view)
+		block.STransactions(), view, isTreasuryEnabled)
 	if err != nil {
 		log.Tracef("getStakeTreeFees failed for TxTreeStake: %v", err)
 		return err
