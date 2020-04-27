@@ -519,12 +519,6 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 		return dcrutil.NewTx(tx), nil
 	}
 
-	// Extranonce.
-	tx.AddTxOut(&wire.TxOut{
-		Value:    0,
-		PkScript: opReturnPkScript,
-	})
-
 	// Create a coinbase with correct block subsidy and extranonce.
 	workSubsidy := subsidyCache.CalcWorkSubsidy(nextBlockHeight, voters)
 	treasurySubsidy := int64(0)
@@ -560,6 +554,12 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 
 	// ValueIn.
 	tx.TxIn[0].ValueIn = workSubsidy + treasurySubsidy
+
+	// Extranonce.
+	tx.AddTxOut(&wire.TxOut{
+		Value:    0,
+		PkScript: opReturnPkScript,
+	})
 
 	// Create the script to pay to the provided payment address if one was
 	// specified.  Otherwise create a script that allows the coinbase to be
@@ -1045,6 +1045,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("isTreasuryEnabled %v\n", isTreasuryEnabled)
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
