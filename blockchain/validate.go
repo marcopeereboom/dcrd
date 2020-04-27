@@ -1250,11 +1250,11 @@ func checkCoinbaseUniqueHeightWithAddress(blockHeight int64, block *dcrutil.Bloc
 	return nil
 }
 
-// checkCoinbaseUniqueHeightWithStakebase checks to ensure that for all blocks
+// checkCoinbaseUniqueHeightWithTreasuryBase checks to ensure that for all blocks
 // height > 1 the coinbase contains the height encoding to make coinbase hash
 // collisions impossible. This is the new function that assumes that there is
 // no treasury address.
-func checkCoinbaseUniqueHeightWithStakebase(blockHeight int64, block *dcrutil.Block) error {
+func checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight int64, block *dcrutil.Block) error {
 
 	if len(block.MsgBlock().STransactions) == 0 {
 		return AssertError(fmt.Sprintf(
@@ -1343,7 +1343,7 @@ func checkCoinbaseUniqueHeightWithStakebase(blockHeight int64, block *dcrutil.Bl
 // impossible.
 func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasuryEnabled bool) error {
 	if treasuryEnabled {
-		return checkCoinbaseUniqueHeightWithStakebase(blockHeight, block)
+		return checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight, block)
 	} else {
 		return checkCoinbaseUniqueHeightWithAddress(blockHeight, block)
 	}
@@ -2651,10 +2651,6 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 				"transaction %s:%d either does not exist or "+
 				"has already been spent", txIn.PreviousOutPoint,
 				tx.Hash(), txInIndex)
-			s, _ := txscript.DisasmString(txIn.SignatureScript)
-			fmt.Printf("%v %v\n", txInIndex, s)
-			fmt.Printf("%v\n", str)
-			//panic(spew.Sdump(tx.MsgTx()))
 			return 0, ruleError(ErrMissingTxOut, str)
 		}
 
