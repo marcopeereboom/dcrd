@@ -175,7 +175,7 @@ type node struct {
 
 // tracef is identical to debug.go.tracef but it prepends the pid of this
 // node.
-func (n node) tracef(format string, args ...interface{}) {
+func (n *node) tracef(format string, args ...interface{}) {
 	if !trace {
 		return
 	}
@@ -185,7 +185,7 @@ func (n node) tracef(format string, args ...interface{}) {
 
 // debugf is identical to debug.go.debugf but it prepends the pid of this
 // node.
-func (n node) debugf(format string, args ...interface{}) {
+func (n *node) debugf(format string, args ...interface{}) {
 	if !debug {
 		return
 	}
@@ -292,6 +292,9 @@ func (n *node) stop() error {
 		err = n.cmd.Process.Signal(os.Kill)
 	} else {
 		err = n.cmd.Process.Signal(os.Interrupt)
+	}
+	if err != nil {
+		n.t.Logf("stop Signal error: %v", err)
 	}
 
 	// Wait for pipes.

@@ -105,7 +105,6 @@ func TestRpcServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to create primary harness: %v", err)
 	}
-	harness = harness
 
 	// Initialize the primary mining node with a chain of length 125,
 	// providing 25 mature coinbases to allow spending from for testing
