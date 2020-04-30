@@ -672,13 +672,8 @@ func TestHarness(t *testing.T) {
 	// Skip tests when running with -short
 	if !testing.Short() {
 		tests := []struct {
-			name          string
-			seqLockHeight int64
-			seqLockTime   int64
-			blockHeight   int64
-			medianTime    int64
-			want          bool
-			f             func(context.Context, *Harness, *testing.T)
+			name string
+			f    func(context.Context, *Harness, *testing.T)
 		}{
 			{
 				f:    testSendOutputs,
