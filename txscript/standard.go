@@ -609,7 +609,7 @@ func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
 //
 // NOTE:  All scripts that are not version 0 are currently considered non
 // standard.
-func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
+func typeOfScript(scriptVersion uint16, script []byte, isTreasuryEnabled bool) ScriptClass {
 	if scriptVersion != 0 {
 		return NonStandardTy
 	}
@@ -637,10 +637,15 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return StakeRevocationTy
 	case isStakeChangeScript(scriptVersion, script):
 		return StakeSubChangeTy
-	case isTreasuryAddScript(scriptVersion, script):
-		return TreasuryAddTy
-	case isTreasurySpendScript(scriptVersion, script):
-		return TreasurySpendTy
+	}
+
+	if isTreasuryEnabled {
+		switch {
+		case isTreasuryAddScript(scriptVersion, script):
+			return TreasuryAddTy
+		case isTreasurySpendScript(scriptVersion, script):
+			return TreasurySpendTy
+		}
 	}
 
 	return NonStandardTy
@@ -649,13 +654,13 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 // GetScriptClass returns the class of the script passed.
 //
 // NonStandardTy will be returned when the script does not parse.
-func GetScriptClass(version uint16, script []byte) ScriptClass {
+func GetScriptClass(version uint16, script []byte, isTreasuryEnabled bool) ScriptClass {
 	// All scripts with nonzero versions are considered non standard.
 	if version != 0 {
 		return NonStandardTy
 	}
 
-	return typeOfScript(version, script)
+	return typeOfScript(version, script, isTreasuryEnabled)
 }
 
 // GetStakeOutSubclass extracts the subclass (P2PKH or P2SH)
@@ -664,23 +669,24 @@ func GetScriptClass(version uint16, script []byte) ScriptClass {
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func GetStakeOutSubclass(pkScript []byte) (ScriptClass, error) {
+func GetStakeOutSubclass(pkScript []byte, isTreasuryEnabled bool) (ScriptClass, error) {
 	const scriptVersion = 0
 	if err := checkScriptParses(scriptVersion, pkScript); err != nil {
 		return 0, err
 	}
 
-	class := typeOfScript(scriptVersion, pkScript)
+	class := typeOfScript(scriptVersion, pkScript, isTreasuryEnabled)
 	isStake := class == StakeSubmissionTy ||
 		class == StakeGenTy ||
 		class == StakeRevocationTy ||
 		class == StakeSubChangeTy ||
-		class == TreasuryAddTy ||
-		class == TreasurySpendTy
+		class == TreasuryAddTy || // This is ok since typeOfScript can't
+		class == TreasurySpendTy //  return these types when disabled.
 
 	subClass := ScriptClass(0)
 	if isStake {
-		subClass = typeOfScript(scriptVersion, pkScript[1:])
+		subClass = typeOfScript(scriptVersion, pkScript[1:],
+			isTreasuryEnabled)
 	} else {
 		return 0, fmt.Errorf("not a stake output")
 	}
@@ -1251,8 +1257,7 @@ func scriptHashToAddrs(hash []byte, params dcrutil.AddressParams) []dcrutil.Addr
 // NOTE: This function only attempts to identify version 0 scripts.  The return
 // value will indicate a nonstandard script type for other script versions along
 // with an invalid script version error.
-func ExtractPkScriptAddrs(version uint16, pkScript []byte,
-	chainParams dcrutil.AddressParams) (ScriptClass, []dcrutil.Address, int, error) {
+func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams dcrutil.AddressParams, isTreasuryEnabled bool) (ScriptClass, []dcrutil.Address, int, error) {
 	if version != 0 {
 		return NonStandardTy, nil, 0, fmt.Errorf("invalid script version")
 	}
@@ -1371,8 +1376,10 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	}
 
 	// Check for TADD
-	if isTreasuryAddScript(version, pkScript) {
-		return TreasuryAddTy, nil, 0, nil
+	if isTreasuryEnabled {
+		if isTreasuryAddScript(version, pkScript) {
+			return TreasuryAddTy, nil, 0, nil
+		}
 	}
 
 	// Don't attempt to extract addresses or required signatures for nonstandard

@@ -870,8 +870,9 @@ func CheckSSGen(tx *wire.MsgTx) error {
 	// one.
 	txOutLen := len(tx.TxOut)
 	lastTxOut := tx.TxOut[len(tx.TxOut)-1]
-	if txscript.GetScriptClass(lastTxOut.Version, lastTxOut.PkScript) ==
-		txscript.NullDataTy {
+	// XXX is it ok to call this with treasury disabled?
+	if txscript.GetScriptClass(lastTxOut.Version, lastTxOut.PkScript,
+		false) == txscript.NullDataTy {
 		txOutLen--
 
 		// Verify that the following data is 'TV' + N hashes.
@@ -1018,7 +1019,7 @@ func IsSSRtx(tx *wire.MsgTx) bool {
 
 // DetermineTxType determines the type of stake transaction a transaction is; if
 // none, it returns that it is an assumed regular tx.
-func DetermineTxType(tx *wire.MsgTx) TxType {
+func DetermineTxType(tx *wire.MsgTx, isTreasuryEnabled bool) TxType {
 	if IsSStx(tx) {
 		return TxTypeSStx
 	}
@@ -1028,14 +1029,16 @@ func DetermineTxType(tx *wire.MsgTx) TxType {
 	if IsSSRtx(tx) {
 		return TxTypeSSRtx
 	}
-	if IsTAdd(tx) {
-		return TxTypeTAdd
-	}
-	if IsTSpend(tx) {
-		return TxTypeTSpend
-	}
-	if IsTreasuryBase(tx) {
-		return TxTypeTreasuryBase
+	if isTreasuryEnabled {
+		if IsTAdd(tx) {
+			return TxTypeTAdd
+		}
+		if IsTSpend(tx) {
+			return TxTypeTSpend
+		}
+		if IsTreasuryBase(tx) {
+			return TxTypeTreasuryBase
+		}
 	}
 	return TxTypeRegular
 }

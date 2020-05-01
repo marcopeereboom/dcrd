@@ -2429,7 +2429,8 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 		// coinbase maturity many blocks.
 		scriptClass := txscript.GetScriptClass(
 			utxoEntry.ScriptVersionByIndex(originTxIndex),
-			utxoEntry.PkScriptByIndex(originTxIndex))
+			utxoEntry.PkScriptByIndex(originTxIndex),
+			isTreasuryEnabled)
 		if scriptClass == txscript.TreasuryAddTy ||
 			scriptClass == txscript.TreasurySpendTy {
 			originHeight := utxoEntry.BlockHeight()

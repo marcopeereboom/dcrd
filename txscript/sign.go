@@ -182,13 +182,11 @@ func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 // its input index, a database of keys, a database of scripts, and information
 // about the type of signature and returns a signature, script class, the
 // addresses involved, and the number of signatures required.
-func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
-	subScript []byte, hashType SigHashType, kdb KeyDB,
-	sdb ScriptDB) ([]byte, ScriptClass, []dcrutil.Address, int, error) {
+func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, isTreasuryEnabled bool) ([]byte, ScriptClass, []dcrutil.Address, int, error) {
 
 	const scriptVersion = 0
 	class, addresses, nrequired, err := ExtractPkScriptAddrs(scriptVersion,
-		subScript, chainParams)
+		subScript, chainParams, isTreasuryEnabled)
 	if err != nil {
 		return nil, NonStandardTy, nil, 0, err
 	}
@@ -199,7 +197,7 @@ func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 		class == StakeGenTy ||
 		class == StakeRevocationTy
 	if isStakeType {
-		subClass, err = GetStakeOutSubclass(subScript)
+		subClass, err = GetStakeOutSubclass(subScript, isTreasuryEnabled)
 		if err != nil {
 			return nil, 0, nil, 0,
 				fmt.Errorf("unknown stake output subclass encountered")
@@ -441,9 +439,7 @@ sigLoop:
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
-	pkScript []byte, class ScriptClass, addresses []dcrutil.Address,
-	nRequired int, sigScript, prevScript []byte) []byte {
+func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, pkScript []byte, class ScriptClass, addresses []dcrutil.Address, nRequired int, sigScript, prevScript []byte, isTreasuryEnabled bool) []byte {
 
 	// TODO(oga) the scripthash and multisig paths here are overly
 	// inefficient in that they will recompute already known data.
@@ -475,11 +471,12 @@ func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 		// We already know this information somewhere up the stack,
 		// therefore the error is ignored.
 		class, addresses, nrequired, _ := ExtractPkScriptAddrs(scriptVersion,
-			script, chainParams)
+			script, chainParams, isTreasuryEnabled)
 
 		// Merge
 		mergedScript := mergeScripts(chainParams, tx, idx, script,
-			class, addresses, nrequired, sigScript, prevScript)
+			class, addresses, nrequired, sigScript, prevScript,
+			isTreasuryEnabled)
 
 		// Reappend the script and return the result.
 		builder := NewScriptBuilder()
@@ -545,12 +542,10 @@ func (sc ScriptClosure) GetScript(address dcrutil.Address) ([]byte, error) {
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
-	pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB,
-	previousScript []byte) ([]byte, error) {
+func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, previousScript []byte, isTreasuryEnabled bool) ([]byte, error) {
 
 	sigScript, class, addresses, nrequired, err := sign(chainParams, tx,
-		idx, pkScript, hashType, kdb, sdb)
+		idx, pkScript, hashType, kdb, sdb, isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -559,8 +554,9 @@ func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 		class == StakeSubChangeTy ||
 		class == StakeGenTy ||
 		class == StakeRevocationTy
+		// XXX do we need to care about treasury here?
 	if isStakeType {
-		class, err = GetStakeOutSubclass(pkScript)
+		class, err = GetStakeOutSubclass(pkScript, isTreasuryEnabled)
 		if err != nil {
 			return nil, fmt.Errorf("unknown stake output subclass encountered")
 		}
@@ -569,7 +565,7 @@ func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 	if class == ScriptHashTy {
 		// TODO keep the sub addressed and pass down to merge.
 		realSigScript, _, _, _, err := sign(chainParams, tx, idx,
-			sigScript, hashType, kdb, sdb)
+			sigScript, hashType, kdb, sdb, isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -585,6 +581,7 @@ func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 
 	// Merge scripts. with any previous data, if any.
 	mergedScript := mergeScripts(chainParams, tx, idx, pkScript, class,
-		addresses, nrequired, sigScript, previousScript)
+		addresses, nrequired, sigScript, previousScript,
+		isTreasuryEnabled)
 	return mergedScript, nil
 }

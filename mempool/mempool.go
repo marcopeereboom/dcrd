@@ -1242,7 +1242,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if !mp.cfg.Policy.AcceptNonStd {
 		err := checkTransactionStandard(tx, txType, nextBlockHeight,
 			medianTime, mp.cfg.Policy.MinRelayTxFee,
-			mp.cfg.Policy.MaxTxVersion)
+			mp.cfg.Policy.MaxTxVersion, isTreasuryEnabled)
 		if err != nil {
 			str := fmt.Sprintf("transaction %v is not standard: %v",
 				txHash, err)
@@ -1432,7 +1432,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Don't allow transactions with non-standard inputs if the mempool config
 	// forbids their acceptance and relaying.
 	if !mp.cfg.Policy.AcceptNonStd {
-		err := checkInputsStandard(tx, txType, utxoView)
+		err := checkInputsStandard(tx, txType, utxoView,
+			isTreasuryEnabled)
 		if err != nil {
 			str := fmt.Sprintf("transaction %v has a non-standard "+
 				"input: %v", txHash, err)
