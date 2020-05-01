@@ -1369,6 +1369,8 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams dcrutil.A
 		return StakeSubChangeTy, scriptHashToAddrs(hash, chainParams), 1, nil
 	}
 
+	// XXX add OP_TSPEND/OP_TGEN here
+
 	// Check for null data script.
 	if isNullDataScript(version, pkScript) {
 		// Null data transactions have no addresses or required signatures.

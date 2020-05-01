@@ -682,11 +682,11 @@ type writeIndexData map[[addrKeySize]byte][]int
 // indexPkScript extracts all standard addresses from the passed public key
 // script and maps each of them to the associated transaction using the passed
 // map.
-func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool) {
+func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool, isTreasuryEnabled bool) {
 	// Nothing to index if the script is non-standard or otherwise doesn't
 	// contain any addresses.
-	class, addrs, _, err := txscript.ExtractPkScriptAddrs(scriptVersion, pkScript,
-		idx.chainParams)
+	class, addrs, _, err := txscript.ExtractPkScriptAddrs(scriptVersion,
+		pkScript, idx.chainParams, isTreasuryEnabled)
 	if err != nil {
 		return
 	}
@@ -749,13 +749,15 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 					continue
 				}
 
-				idx.indexPkScript(data, version, pkScript, txIdx, false)
+				idx.indexPkScript(data, version, pkScript,
+					txIdx, false, false) // No treasury
 			}
 		}
 
 		for _, txOut := range tx.MsgTx().TxOut {
-			idx.indexPkScript(data, txOut.Version, txOut.PkScript, txIdx,
-				false)
+			// XXX OP_TADD here?
+			idx.indexPkScript(data, txOut.Version, txOut.PkScript,
+				txIdx, false, false) // No treasury
 		}
 	}
 
@@ -769,6 +771,8 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 			if isSSGen && i == 0 {
 				continue
 			}
+
+			// XXX we probably need to skip treasury base
 
 			// The input should always be available since the index contract
 			// requires it, however, be safe and simply ignore any missing
