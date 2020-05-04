@@ -867,10 +867,10 @@ func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 	}
 
 	// Check to see if the last output is an OP_RETURN followed by a 2 byte
-	// data push that designates what the data push is after this one. In
-	// the case of 'T','V' the next data push should be N hashes. If it is
-	// we need to decrease the count on OP_SSRTX tests by one. This check
-	// is only valid if the treasury agenda is active,
+	// data push that designates what the data is that follows the
+	// discriminator. In the case of 'T','V' the next data push should be N
+	// hashes. If it is we need to decrease the count on OP_SSRTX tests by
+	// one. This check is only valid if the treasury agenda is active,
 	txOutLen := len(tx.TxOut)
 	lastTxOut := tx.TxOut[len(tx.TxOut)-1]
 	if isTreasuryEnabled &&
