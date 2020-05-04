@@ -739,7 +739,7 @@ func IsSStx(tx *wire.MsgTx) bool {
 // data that is pushed is.
 // In the case of 'TV` it means a treasury YES vote for the following N TX
 // hashes. The length of the remaining data SHALL be %32==0.
-func CheckSSGen(tx *wire.MsgTx) error {
+func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 	// Check to make sure there aren't too many inputs.
 	// CheckTransactionSanity already makes sure that number of inputs is
 	// greater than 0, so no need to check that.
@@ -867,12 +867,12 @@ func CheckSSGen(tx *wire.MsgTx) error {
 
 	// Check to see if the last output is an OP_RETURN followed by N
 	// hashes. If it is we need to decrease the count on OP_SSRTX tests by
-	// one.
+	// one. This check is only valid if the treasury agenda is active,
 	txOutLen := len(tx.TxOut)
 	lastTxOut := tx.TxOut[len(tx.TxOut)-1]
-	// XXX is it ok to call this with treasury disabled?
-	if txscript.GetScriptClass(lastTxOut.Version, lastTxOut.PkScript,
-		false) == txscript.NullDataTy {
+	if isTreasuryEnabled &&
+		txscript.GetScriptClass(lastTxOut.Version, lastTxOut.PkScript,
+			isTreasuryEnabled) == txscript.NullDataTy {
 		txOutLen--
 
 		// Verify that the following data is 'TV' + N hashes.
@@ -919,8 +919,8 @@ func CheckSSGen(tx *wire.MsgTx) error {
 
 // IsSSGen returns whether or not a transaction is a stake submission generation
 // transaction.  These are also known as votes.
-func IsSSGen(tx *wire.MsgTx) bool {
-	return CheckSSGen(tx) == nil
+func IsSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
+	return CheckSSGen(tx, isTreasuryEnabled) == nil
 }
 
 // CheckSSRtx returns an error if a transaction is not a stake submission
@@ -1023,7 +1023,7 @@ func DetermineTxType(tx *wire.MsgTx, isTreasuryEnabled bool) TxType {
 	if IsSStx(tx) {
 		return TxTypeSStx
 	}
-	if IsSSGen(tx) {
+	if IsSSGen(tx, isTreasuryEnabled) {
 		return TxTypeSSGen
 	}
 	if IsSSRtx(tx) {
@@ -1072,7 +1072,7 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 	revocations := make([]chainhash.Hash, 0, block.Header.Revocations)
 
 	for _, stx := range block.STransactions {
-		if IsSSGen(stx) {
+		if IsSSGen(stx, false /* XXX treasury agenda disabled */) {
 			voters = append(voters, stx.TxIn[1].PreviousOutPoint.Hash)
 			votes = append(votes, VoteVersionTuple{
 				Version: SSGenVersion(stx),
