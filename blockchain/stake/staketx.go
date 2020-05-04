@@ -880,17 +880,25 @@ func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 
 		// Verify that there is enough length to contain a
 		// discriminator.
-		if len(lastTxOut.PkScript) < 4 { // OP_RETURN OP_DATA_X Y Z
+		// Expect at least: OP_RETURN DATA_PUSH Y Z
+		if len(lastTxOut.PkScript) < 4 ||
+			lastTxOut.PkScript[1] > txscript.OP_PUSHDATA1 {
 			str := fmt.Sprintf("last SSGen cannot not contain a " +
 				"type discriminator")
 			return stakeRuleError(ErrSSGenInvalidDiscriminatorLength,
 				str)
 		}
 
-		if bytes.Equal(lastTxOut.PkScript[2:4], []byte{'T', 'V'}) {
+		// Determine start of discriminator based on the opcode in [1].
+		start := 2
+		if lastTxOut.PkScript[1] == txscript.OP_PUSHDATA1 {
+			start = 3
+		}
+
+		if bytes.Equal(lastTxOut.PkScript[start:start+2], []byte{'T', 'V'}) {
 			// Since this is a 'T','V' we expect N hashes
-			if len(lastTxOut.PkScript[4:]) < 32 ||
-				len(lastTxOut.PkScript[4:])%32 != 0 {
+			if len(lastTxOut.PkScript[start+2:]) < 32 ||
+				len(lastTxOut.PkScript[start+2:])%32 != 0 {
 				str := fmt.Sprintf("SSGen 'T','V' invalid " +
 					"length")
 				return stakeRuleError(ErrSSGenInvalidTVLength,
@@ -898,8 +906,9 @@ func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 			}
 		} else {
 			str := fmt.Sprintf("last SSGen unknown type "+
-				"discriminator: 0x%x 0x%x", lastTxOut.PkScript[2],
-				lastTxOut.PkScript[3])
+				"discriminator: 0x%x 0x%x",
+				lastTxOut.PkScript[start],
+				lastTxOut.PkScript[start+1])
 			return stakeRuleError(ErrSSGenUnknownDiscriminator, str)
 		}
 	}
