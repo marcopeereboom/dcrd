@@ -2236,7 +2236,7 @@ var ssgenTxOutInvalidTV5 = wire.TxOut{
 	PkScript: []byte{
 		0x6a, // OP_RETURN
 		0x4d, // OP_PUSHDATA2
-		226,  // Little endian 227 bytes
+		226,  // Little endian 226 bytes
 		0,    // 0 bytes
 		'T',  // Treasury
 		'V',  // Vote
