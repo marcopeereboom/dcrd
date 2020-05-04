@@ -647,7 +647,7 @@ func TestSSGenErrors(t *testing.T) {
 	// ---------------------------------------------------------------------------
 	// Tresury enabled
 
-	//Verify optional OP_RETURN with no discriminator.
+	// Verify optional OP_RETURN with no discriminator.
 	var ssgenNoDiscriminator = dcrutil.NewTx(ssgenMsgTxNoDiscriminator)
 	ssgenNoDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenNoDiscriminator.SetIndex(0)
@@ -662,7 +662,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
-	//Verify optional OP_RETURN with an invalid discriminator length.
+	// Verify optional OP_RETURN with an invalid discriminator length.
 	var ssgenInvalidDiscriminator = dcrutil.NewTx(ssgenMsgTxInvalidDiscriminator)
 	ssgenInvalidDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator.SetIndex(0)
@@ -677,7 +677,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
-	//Verify optional OP_RETURN with an unknown discriminator.
+	// Verify optional OP_RETURN with an unknown discriminator.
 	var ssgenInvalidDiscriminator2 = dcrutil.NewTx(ssgenMsgTxUnknownDiscriminator)
 	ssgenInvalidDiscriminator2.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator2.SetIndex(0)
@@ -692,7 +692,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
-	//Verify optional OP_RETURN with a valid discriminator but no vote.
+	// Verify optional OP_RETURN with a valid discriminator but no vote.
 	var ssgenInvalidTVNoVote = dcrutil.NewTx(ssgenMsgTxInvalidTV)
 	ssgenInvalidTVNoVote.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote.SetIndex(0)
@@ -707,7 +707,7 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
-	//Verify optional OP_RETURN with a valid discriminator but a short vote.
+	// Verify optional OP_RETURN with a valid discriminator but a short vote.
 	var ssgenInvalidTVNoVote2 = dcrutil.NewTx(ssgenMsgTxInvalidTV2)
 	ssgenInvalidTVNoVote2.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote2.SetIndex(0)
@@ -722,8 +722,8 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
-	//Verify optional OP_RETURN with a valid discriminator one valid vote
-	//and a short vote.
+	// Verify optional OP_RETURN with a valid discriminator one valid vote
+	// and a short vote.
 	var ssgenInvalidTVNoVote3 = dcrutil.NewTx(ssgenMsgTxInvalidTV3)
 	ssgenInvalidTVNoVote3.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote3.SetIndex(0)
@@ -738,19 +738,21 @@ func TestSSGenErrors(t *testing.T) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
-	// Verify optional OP_RETURN with invalid hashes.
-	//var ssgenInvalidHashes = dcrutil.NewTx(ssgenMsgTxInvalidTreasuryHashes)
-	//ssgenInvalidHashes.SetTree(wire.TxTreeStake)
-	//ssgenInvalidHashes.SetIndex(0)
+	// Verify optional OP_RETURN with a valid discriminator 7 valid votes
+	// and a short vote.
+	var ssgenInvalidTVNoVote4 = dcrutil.NewTx(ssgenMsgTxInvalidTV4)
+	ssgenInvalidTVNoVote4.SetTree(wire.TxTreeStake)
+	ssgenInvalidTVNoVote4.SetIndex(0)
 
-	//err = stake.CheckSSGen(ssgenInvalidHashes.MsgTx(), true) // Treasury enabled
-	//if err.(stake.RuleError).GetCode() != stake.ErrSSGenInvalidHashCount {
-	//	t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-	//		stake.ErrSSGenInvalidHashCount, err)
-	//}
-	//if stake.IsSSGen(ssgenInvalidHashes.MsgTx(), true) { // Treasury enabled
-	//	t.Errorf("IsSSGen claimed an invalid ssgen is valid")
-	//}
+	err = stake.CheckSSGen(ssgenInvalidTVNoVote4.MsgTx(), true) // Treasury enabled
+	if err.(stake.RuleError).GetCode() !=
+		stake.ErrSSGenInvalidTVLength {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			stake.ErrSSGenInvalidTVLength, err)
+	}
+	if stake.IsSSGen(ssgenInvalidTVNoVote4.MsgTx(), true) { // Treasury enabled
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
 }
 
 // SSRTX TESTING ------------------------------------------------------------------
@@ -1912,6 +1914,26 @@ var ssgenMsgTxInvalidTV3 = &wire.MsgTx{
 	Expiry:   0,
 }
 
+// ssgenMsgTxInvalidTV4 is a valid SSGen MsgTx with inputs/outputs and a valid
+// OP_RETURN followed by 'T','V' but has one valid and one short vote.
+var ssgenMsgTxInvalidTV4 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&ssgenTxIn0,
+		&ssgenTxIn1,
+	},
+	TxOut: []*wire.TxOut{
+		&ssgenTxOut0,
+		&ssgenTxOut1,
+		&ssgenTxOut2,
+		&ssgenTxOut3,
+		&ssgenTxOutInvalidTV4,
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
 // ssgenMsgTxInvalidTreasuryHashes is a valid SSGen MsgTx with inputs/outputs
 // and an invalid OP_RETURN that has and invalid number of hashes.
 var ssgenMsgTxInvalidTreasuryHashes = &wire.MsgTx{
@@ -2115,6 +2137,57 @@ var ssgenTxOutInvalidTV3 = wire.TxOut{
 		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
 		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
 		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+		0x00, // short vote
+	},
+}
+
+// ssgenTxOutInvalidTV4 is an OP_RETURN with a valid treasury vote
+// discriminator but with 7 valid vote and one short vote.
+var ssgenTxOutInvalidTV4 = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+		0x4c, // OP_PUSHDATA1
+		227,  // 227 bytes
+		'T',  // Treasury
+		'V',  // Vote
+
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+
 		0x00, // short vote
 	},
 }
