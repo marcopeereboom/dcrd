@@ -737,8 +737,9 @@ func IsSStx(tx *wire.MsgTx) bool {
 //     MaxInputsPerSStx [index MaxOutputsPerSSgen - 1]
 // OP_RETURN push of 2 bytes containing opcode designating what the remaining
 // data that is pushed is.
-// In the case of 'TV` it means a treasury YES vote for the following N TX
-// hashes. The length of the remaining data SHALL be %32==0.
+// In the case of 'TV` (Treasury Vote) it means a treasury YES vote for the
+// following N TX hashes. The length of the remaining data SHALL be %32==0.
+// For example: OP_RETURN OP_DATA_X 'T','V' <N Hashes>
 func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 	// Check to make sure there aren't too many inputs.
 	// CheckTransactionSanity already makes sure that number of inputs is
@@ -865,9 +866,11 @@ func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 			"had an invalid prefix")
 	}
 
-	// Check to see if the last output is an OP_RETURN followed by N
-	// hashes. If it is we need to decrease the count on OP_SSRTX tests by
-	// one. This check is only valid if the treasury agenda is active,
+	// Check to see if the last output is an OP_RETURN followed by a 2 byte
+	// data push that designates what the data push is after this one. In
+	// the case of 'T','V' the next data push should be N hashes. If it is
+	// we need to decrease the count on OP_SSRTX tests by one. This check
+	// is only valid if the treasury agenda is active,
 	txOutLen := len(tx.TxOut)
 	lastTxOut := tx.TxOut[len(tx.TxOut)-1]
 	if isTreasuryEnabled &&
@@ -875,24 +878,29 @@ func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 			isTreasuryEnabled) == txscript.NullDataTy {
 		txOutLen--
 
-		// Verify that the following data is 'TV' + N hashes.
-		tokenizer := txscript.MakeScriptTokenizer(lastTxOut.Version,
-			lastTxOut.PkScript[1:])
-		gotHashes := false
-		if tokenizer.Next() { //&& tokenizer.Done() {
-			gotHashes = true
-			data := tokenizer.Data()
-			if len(data)%32 != 0 {
-				str := fmt.Sprintf("last SSGen contains " +
-					"an invalid hash count")
-				return stakeRuleError(ErrSSGenInvalidHashCount,
+		// Verify that there is enough length to contain a
+		// discriminator.
+		if len(lastTxOut.PkScript) < 4 { // OP_RETURN OP_DATA_X Y Z
+			str := fmt.Sprintf("last SSGen cannot not contain a " +
+				"type discriminator")
+			return stakeRuleError(ErrSSGenInvalidDiscriminatorLength,
+				str)
+		}
+
+		if bytes.Equal(lastTxOut.PkScript[2:4], []byte{'T', 'V'}) {
+			// Since this is a 'T','V' we expect N hashes
+			if len(lastTxOut.PkScript[4:]) < 32 ||
+				len(lastTxOut.PkScript[4:])%32 != 0 {
+				str := fmt.Sprintf("SSGen 'T','V' invalid " +
+					"length")
+				return stakeRuleError(ErrSSGenInvalidTVLength,
 					str)
 			}
-		}
-		if !gotHashes {
-			str := fmt.Sprintf("last SSGen output contains no " +
-				"hash(es)")
-			return stakeRuleError(ErrSSGenNoHash, str)
+		} else {
+			str := fmt.Sprintf("last SSGen unknown type "+
+				"discriminator: 0x%x 0x%x", lastTxOut.PkScript[2],
+				lastTxOut.PkScript[3])
+			return stakeRuleError(ErrSSGenUnknownDiscriminator, str)
 		}
 	}
 

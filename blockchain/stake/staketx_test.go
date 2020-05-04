@@ -645,33 +645,112 @@ func TestSSGenErrors(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------------
-	// Verify optional OP_RETURN with no hashes.
-	var ssgenNoHashes = dcrutil.NewTx(ssgenMsgTxNoTreasuryHashes)
-	ssgenNoHashes.SetTree(wire.TxTreeStake)
-	ssgenNoHashes.SetIndex(0)
+	// Tresury enabled
 
-	err = stake.CheckSSGen(ssgenNoHashes.MsgTx(), true) // Treasury enabled
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenNoHash {
+	//Verify optional OP_RETURN with no discriminator.
+	var ssgenNoDiscriminator = dcrutil.NewTx(ssgenMsgTxNoDiscriminator)
+	ssgenNoDiscriminator.SetTree(wire.TxTreeStake)
+	ssgenNoDiscriminator.SetIndex(0)
+
+	err = stake.CheckSSGen(ssgenNoDiscriminator.MsgTx(), true) // Treasury enabled
+	if err.(stake.RuleError).GetCode() !=
+		stake.ErrSSGenInvalidDiscriminatorLength {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenNoHash, err)
+			stake.ErrSSGenInvalidDiscriminatorLength, err)
 	}
-	if stake.IsSSGen(ssgenNoHashes.MsgTx(), false) { // Treasury enabled
+	if stake.IsSSGen(ssgenNoDiscriminator.MsgTx(), true) { // Treasury enabled
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
+
+	//Verify optional OP_RETURN with an invalid discriminator length.
+	var ssgenInvalidDiscriminator = dcrutil.NewTx(ssgenMsgTxInvalidDiscriminator)
+	ssgenInvalidDiscriminator.SetTree(wire.TxTreeStake)
+	ssgenInvalidDiscriminator.SetIndex(0)
+
+	err = stake.CheckSSGen(ssgenInvalidDiscriminator.MsgTx(), true) // Treasury enabled
+	if err.(stake.RuleError).GetCode() !=
+		stake.ErrSSGenInvalidDiscriminatorLength {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			stake.ErrSSGenInvalidDiscriminatorLength, err)
+	}
+	if stake.IsSSGen(ssgenInvalidDiscriminator.MsgTx(), true) { // Treasury enabled
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
+
+	//Verify optional OP_RETURN with an unknown discriminator.
+	var ssgenInvalidDiscriminator2 = dcrutil.NewTx(ssgenMsgTxUnknownDiscriminator)
+	ssgenInvalidDiscriminator2.SetTree(wire.TxTreeStake)
+	ssgenInvalidDiscriminator2.SetIndex(0)
+
+	err = stake.CheckSSGen(ssgenInvalidDiscriminator2.MsgTx(), true) // Treasury enabled
+	if err.(stake.RuleError).GetCode() !=
+		stake.ErrSSGenUnknownDiscriminator {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			stake.ErrSSGenUnknownDiscriminator, err)
+	}
+	if stake.IsSSGen(ssgenInvalidDiscriminator2.MsgTx(), true) { // Treasury enabled
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
+
+	//Verify optional OP_RETURN with a valid discriminator but no vote.
+	var ssgenInvalidTVNoVote = dcrutil.NewTx(ssgenMsgTxInvalidTV)
+	ssgenInvalidTVNoVote.SetTree(wire.TxTreeStake)
+	ssgenInvalidTVNoVote.SetIndex(0)
+
+	err = stake.CheckSSGen(ssgenInvalidTVNoVote.MsgTx(), true) // Treasury enabled
+	if err.(stake.RuleError).GetCode() !=
+		stake.ErrSSGenInvalidTVLength {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			stake.ErrSSGenInvalidTVLength, err)
+	}
+	if stake.IsSSGen(ssgenInvalidTVNoVote.MsgTx(), true) { // Treasury enabled
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
+
+	//Verify optional OP_RETURN with a valid discriminator but a short vote.
+	var ssgenInvalidTVNoVote2 = dcrutil.NewTx(ssgenMsgTxInvalidTV2)
+	ssgenInvalidTVNoVote2.SetTree(wire.TxTreeStake)
+	ssgenInvalidTVNoVote2.SetIndex(0)
+
+	err = stake.CheckSSGen(ssgenInvalidTVNoVote2.MsgTx(), true) // Treasury enabled
+	if err.(stake.RuleError).GetCode() !=
+		stake.ErrSSGenInvalidTVLength {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			stake.ErrSSGenInvalidTVLength, err)
+	}
+	if stake.IsSSGen(ssgenInvalidTVNoVote2.MsgTx(), true) { // Treasury enabled
+		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	}
+
+	//Verify optional OP_RETURN with a valid discriminator one valid vote
+	//and a short vote.
+	var ssgenInvalidTVNoVote3 = dcrutil.NewTx(ssgenMsgTxInvalidTV3)
+	ssgenInvalidTVNoVote3.SetTree(wire.TxTreeStake)
+	ssgenInvalidTVNoVote3.SetIndex(0)
+
+	err = stake.CheckSSGen(ssgenInvalidTVNoVote3.MsgTx(), true) // Treasury enabled
+	if err.(stake.RuleError).GetCode() !=
+		stake.ErrSSGenInvalidTVLength {
+		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+			stake.ErrSSGenInvalidTVLength, err)
+	}
+	if stake.IsSSGen(ssgenInvalidTVNoVote3.MsgTx(), true) { // Treasury enabled
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
 	// Verify optional OP_RETURN with invalid hashes.
-	var ssgenInvalidHashes = dcrutil.NewTx(ssgenMsgTxInvalidTreasuryHashes)
-	ssgenInvalidHashes.SetTree(wire.TxTreeStake)
-	ssgenInvalidHashes.SetIndex(0)
+	//var ssgenInvalidHashes = dcrutil.NewTx(ssgenMsgTxInvalidTreasuryHashes)
+	//ssgenInvalidHashes.SetTree(wire.TxTreeStake)
+	//ssgenInvalidHashes.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidHashes.MsgTx(), true) // Treasury enabled
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenInvalidHashCount {
-		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidHashCount, err)
-	}
-	if stake.IsSSGen(ssgenInvalidHashes.MsgTx(), true) { // Treasury enabled
-		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
-	}
+	//err = stake.CheckSSGen(ssgenInvalidHashes.MsgTx(), true) // Treasury enabled
+	//if err.(stake.RuleError).GetCode() != stake.ErrSSGenInvalidHashCount {
+	//	t.Errorf("CheckSSGen should have returned %v but instead returned %v",
+	//		stake.ErrSSGenInvalidHashCount, err)
+	//}
+	//if stake.IsSSGen(ssgenInvalidHashes.MsgTx(), true) { // Treasury enabled
+	//	t.Errorf("IsSSGen claimed an invalid ssgen is valid")
+	//}
 }
 
 // SSRTX TESTING ------------------------------------------------------------------
@@ -1713,9 +1792,9 @@ var ssgenMsgTxWrongFirstOut = &wire.MsgTx{
 	Expiry:   0,
 }
 
-// ssgenMsgTxNoTreasuryHashes is a valid SSGen MsgTx with inputs/outputs and an
-// invalid OP_RETURN that has no hashes.
-var ssgenMsgTxNoTreasuryHashes = &wire.MsgTx{
+// ssgenMsgTxNoDiscriminator is a valid SSGen MsgTx with inputs/outputs and an
+// invalid OP_RETURN that has no discriminator.
+var ssgenMsgTxNoDiscriminator = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 1,
 	TxIn: []*wire.TxIn{
@@ -1727,7 +1806,107 @@ var ssgenMsgTxNoTreasuryHashes = &wire.MsgTx{
 		&ssgenTxOut1,
 		&ssgenTxOut2,
 		&ssgenTxOut3,
-		&ssgenTxOutNoTreasuryHashes,
+		&ssgenTxOutNoDiscriminator,
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// ssgenMsgTxInvalidDiscriminator is a valid SSGen MsgTx with inputs/outputs
+// and an invalid OP_RETURN that has no discriminator.
+var ssgenMsgTxInvalidDiscriminator = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&ssgenTxIn0,
+		&ssgenTxIn1,
+	},
+	TxOut: []*wire.TxOut{
+		&ssgenTxOut0,
+		&ssgenTxOut1,
+		&ssgenTxOut2,
+		&ssgenTxOut3,
+		&ssgenTxOutInvalidDiscriminator,
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// ssgenMsgTxUnknownDiscriminator is a valid SSGen MsgTx with inputs/outputs and an
+// invalid OP_RETURN that has an unknown discriminator.
+var ssgenMsgTxUnknownDiscriminator = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&ssgenTxIn0,
+		&ssgenTxIn1,
+	},
+	TxOut: []*wire.TxOut{
+		&ssgenTxOut0,
+		&ssgenTxOut1,
+		&ssgenTxOut2,
+		&ssgenTxOut3,
+		&ssgenTxOutUnknownDiscriminator,
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// ssgenMsgTxInvalidTV is a valid SSGen MsgTx with inputs/outputs and a
+// valid OP_RETURN followed by 'T','V' but has no votes.
+var ssgenMsgTxInvalidTV = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&ssgenTxIn0,
+		&ssgenTxIn1,
+	},
+	TxOut: []*wire.TxOut{
+		&ssgenTxOut0,
+		&ssgenTxOut1,
+		&ssgenTxOut2,
+		&ssgenTxOut3,
+		&ssgenTxOutInvalidTV,
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// ssgenMsgTxInvalidTV2 is a valid SSGen MsgTx with inputs/outputs and a
+// valid OP_RETURN followed by 'T','V' but has a short vote.
+var ssgenMsgTxInvalidTV2 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&ssgenTxIn0,
+		&ssgenTxIn1,
+	},
+	TxOut: []*wire.TxOut{
+		&ssgenTxOut0,
+		&ssgenTxOut1,
+		&ssgenTxOut2,
+		&ssgenTxOut3,
+		&ssgenTxOutInvalidTV2,
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// ssgenMsgTxInvalidTV3 is a valid SSGen MsgTx with inputs/outputs and a valid
+// OP_RETURN followed by 'T','V' but has one valid and one short vote.
+var ssgenMsgTxInvalidTV3 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1,
+	TxIn: []*wire.TxIn{
+		&ssgenTxIn0,
+		&ssgenTxIn1,
+	},
+	TxOut: []*wire.TxOut{
+		&ssgenTxOut0,
+		&ssgenTxOut1,
+		&ssgenTxOut2,
+		&ssgenTxOut3,
+		&ssgenTxOutInvalidTV3,
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -1859,12 +2038,84 @@ var ssgenTxOutValidTreasury = wire.TxOut{
 	},
 }
 
-// ssgenTxOutNoTreasuryHashes is an OP_RETURN with no treasury vote hashes.
-var ssgenTxOutNoTreasuryHashes = wire.TxOut{
+// ssgenTxOutNoDiscriminator is an OP_RETURN with no treasury vote
+// discriminator.
+var ssgenTxOutNoDiscriminator = wire.TxOut{
 	Value:   0x2122e300,
 	Version: 0x0000,
 	PkScript: []byte{
 		0x6a, // OP_RETURN
+	},
+}
+
+// ssgenTxOutInvalidDiscriminator is an OP_RETURN with an invalid treasury vote
+// discriminator length.
+var ssgenTxOutInvalidDiscriminator = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+		0x01, // OP_DATA_1, invalid length
+		'T',
+	},
+}
+
+// ssgenTxOutUnknownDiscriminator is an OP_RETURN with an unknown treasury vote
+// discriminator.
+var ssgenTxOutUnknownDiscriminator = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+		0x02, // OP_DATA_2
+		'T',  // Treasury
+		0x0,  // Should've been 'V'
+	},
+}
+
+// ssgenTxOutInvalidTV is an OP_RETURN with a valid treasury vote
+// discriminator but without an actual vote.
+var ssgenTxOutInvalidTV = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+		0x02, // OP_DATA_2
+		'T',  // Treasury
+		'V',  // Vote
+	},
+}
+
+// ssgenTxOutInvalidTV2 is an OP_RETURN with a valid treasury vote
+// discriminator but with a short vote.
+var ssgenTxOutInvalidTV2 = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+		0x03, // OP_DATA_3
+		'T',  // Treasury
+		'V',  // Vote
+		0x00, // Start of vote
+	},
+}
+
+// ssgenTxOutInvalidTV3 is an OP_RETURN with a valid treasury vote
+// discriminator but with one valid vote and one short vote.
+var ssgenTxOutInvalidTV3 = wire.TxOut{
+	Value:   0x2122e300,
+	Version: 0x0000,
+	PkScript: []byte{
+		0x6a, // OP_RETURN
+		0x23, // OP_DATA_35
+		'T',  // Treasury
+		'V',  // Vote
+
+		0x00, 0x01, 0x02, 0x04, 0x05, 0x06, 0x07, 0x08, // 32 bytes hash
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x00, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+		0x00, // short vote
 	},
 }
 
