@@ -996,7 +996,7 @@ func NewUtxoViewpoint(blockChain *BlockChain) *UtxoViewpoint {
 // outputs.
 //
 // This function is safe for concurrent access however the returned view is NOT.
-func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool, isTreasuryEnabled bool) (*UtxoViewpoint, error) {
+func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) (*UtxoViewpoint, error) {
 	b.chainLock.RLock()
 	defer b.chainLock.RUnlock()
 
@@ -1009,6 +1009,11 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool, 
 	view.SetBestHash(&tip.hash)
 	if tip.height == 0 {
 		return view, nil
+	}
+
+	isTreasuryEnabled, err := b.IsTreasuryAgendaActive()
+	if err != nil {
+		return nil, err
 	}
 
 	// Disconnect the transactions in the regular tree of the parent block if
@@ -1064,7 +1069,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool, 
 		}
 	}
 
-	err := view.fetchUtxosMain(b.db, filteredSet)
+	err = view.fetchUtxosMain(b.db, filteredSet)
 	return view, err
 }
 

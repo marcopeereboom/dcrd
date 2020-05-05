@@ -2110,12 +2110,19 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()
 	s.donePeers <- sp
 
+	isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive()
+	if err != nil {
+		txmpLog.Error("Could not obtain treasury agenda status: %v",
+			err)
+	}
+
 	// Only tell block manager we are gone if we ever told it we existed.
 	if sp.VersionKnown() {
 		s.blockManager.DonePeer(sp.Peer)
 
 		// Evict any remaining orphans that were sent by the peer.
-		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
+		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()),
+			isTreasuryEnabled)
 		if numEvicted > 0 {
 			txmpLog.Debugf("Evicted %d %s from peer %v (id %d)", numEvicted,
 				pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())
@@ -2442,13 +2449,21 @@ out:
 					break
 				}
 
+				isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive()
+				if err != nil {
+					srvrLog.Error("Could not obtain treasury agenda status: %v",
+						err)
+					break
+				}
+
 				for iv, data := range pendingInvs {
 					tx, ok := data.(*dcrutil.Tx)
 					if !ok {
 						continue
 					}
 
-					txType := stake.DetermineTxType(tx.MsgTx())
+					txType := stake.DetermineTxType(tx.MsgTx(),
+						isTreasuryEnabled)
 
 					// Remove the ticket rebroadcast if the amount not equal to
 					// the current stake difficulty.

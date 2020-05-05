@@ -640,7 +640,7 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript 
 // spendTransaction updates the passed view by marking the inputs to the passed
 // transaction as spent.  It also adds all outputs in the passed transaction
 // which are not provably unspendable as available unspent transaction outputs.
-func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height int64) {
+func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height int64, isTreasuryEnabled bool) {
 	for _, txIn := range tx.MsgTx().TxIn {
 		originHash := &txIn.PreviousOutPoint.Hash
 		originIndex := txIn.PreviousOutPoint.Index
@@ -650,7 +650,7 @@ func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height
 		}
 	}
 
-	utxoView.AddTxOuts(tx, height, wire.NullBlockIndex)
+	utxoView.AddTxOuts(tx, height, wire.NullBlockIndex, isTreasuryEnabled)
 }
 
 // logSkippedDeps logs any dependencies which are also skipped as a result of
@@ -710,7 +710,7 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool, isTre
 		return false
 	}
 	mstx := stx.MsgTx()
-	isSSGen := stake.IsSSGen(mstx)
+	isSSGen := stake.IsSSGen(mstx, isTreasuryEnabled)
 	var isTSpend, isTreasuryBase bool
 	if isTreasuryEnabled {
 		isTSpend = stake.IsTSpend(mstx)
@@ -1472,7 +1472,8 @@ mempoolLoop:
 		// an entry for it to ensure any transactions which reference
 		// this one have it available as an input and can ensure they
 		// aren't double spending.
-		spendTransaction(blockUtxos, tx, nextBlockHeight)
+		spendTransaction(blockUtxos, tx, nextBlockHeight,
+			isTreasuryEnabled)
 
 		// Add the transaction to the block, increment counters, and
 		// save the fees and signature operation counts to the block
@@ -1550,7 +1551,7 @@ mempoolLoop:
 	if nextBlockHeight >= stakeValidationHeight {
 		for _, tx := range blockTxns {
 			msgTx := tx.MsgTx()
-			if stake.IsSSGen(msgTx) {
+			if stake.IsSSGen(msgTx, isTreasuryEnabled) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 				if maybeInsertStakeTx(g.blockManager, txCopy,
 					!knownDisapproved, isTreasuryEnabled) {
@@ -1592,7 +1593,7 @@ mempoolLoop:
 		for _, tx := range blockTxns {
 			msgTx := tx.MsgTx()
 
-			if stake.IsSSGen(msgTx) {
+			if stake.IsSSGen(msgTx, isTreasuryEnabled) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
 				if maybeInsertStakeTx(g.blockManager, txCopy,
 					!knownDisapproved, isTreasuryEnabled) {
