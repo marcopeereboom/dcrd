@@ -460,14 +460,7 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 // the transactions in either the regular or stake tree of the block, depending
 // on the flag, and unspending all of the txos spent by those same transactions
 // by using the provided spent txo information.
-func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []spentTxOut, stakeTree bool) error {
-	// See if treasury agenda is enabled.
-	pHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
-	if err != nil {
-		return err
-	}
-
+func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []spentTxOut, stakeTree bool, isTreasuryEnabled bool) error {
 	// Choose which transaction tree to use and the appropriate offset into the
 	// spent transaction outputs that corresponds to them depending on the flag.
 	// Transactions in the stake tree are spent before transactions in the
@@ -586,16 +579,16 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 // by the transactions in regular tree of the provided block and unspending all
 // of the txos spent by those same transactions by using the provided spent txo
 // information.
-func (view *UtxoViewpoint) disconnectRegularTransactions(block *dcrutil.Block, stxos []spentTxOut) error {
-	return view.disconnectTransactions(block, stxos, false)
+func (view *UtxoViewpoint) disconnectRegularTransactions(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool) error {
+	return view.disconnectTransactions(block, stxos, false, isTreasuryEnabled)
 }
 
 // disconnectStakeTransactions updates the view by removing all utxos created
 // by the transactions in stake tree of the provided block and unspending all
 // of the txos spent by those same transactions by using the provided spent txo
 // information.
-func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stxos []spentTxOut) error {
-	return view.disconnectTransactions(block, stxos, true)
+func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool) error {
+	return view.disconnectTransactions(block, stxos, true, isTreasuryEnabled)
 }
 
 // disconnectDisapprovedBlock updates the view by disconnecting all of the
@@ -605,18 +598,10 @@ func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stx
 // restoring the outputs spent by it with the help of the provided spent txo
 // information.
 //func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, stxos []spentTxOut) error {
-func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block) error {
-	// XXX this is called with parent so we are looking at the parent's
-	// parent. Is this right?
-	pHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
-	if err != nil {
-		return err
-	}
-
+func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, isTreasuryEnabled bool) error {
 	// Load all of the spent txos for the block from the database spend journal.
 	var stxos []spentTxOut
-	err = db.View(func(dbTx database.Tx) error {
+	err := db.View(func(dbTx database.Tx) error {
 		var err error
 		stxos, err = dbFetchSpendJournalEntry(dbTx, block, isTreasuryEnabled)
 		return err
@@ -627,7 +612,7 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block that don't already exist in the utxo view from the database.
-	err = view.fetchRegularInputUtxos(db, block)
+	err = view.fetchRegularInputUtxos(db, block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -639,7 +624,7 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 			countSpentOutputs(block, isTreasuryEnabled))
 	}
 
-	return view.disconnectRegularTransactions(block, stxos)
+	return view.disconnectRegularTransactions(block, stxos, isTreasuryEnabled)
 }
 
 // connectBlock updates the view by potentially disconnecting all of the
@@ -657,12 +642,13 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 //
 // In addition, when the 'stxos' argument is not nil, it will be updated to
 // append an entry for each spent txout.
-func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block, stxos *[]spentTxOut) error {
+func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block, stxos *[]spentTxOut, isTreasuryEnabled bool) error {
 	// Disconnect the transactions in the regular tree of the parent block if
 	// the passed block disapproves it.
 	if !headerApprovesParent(&block.MsgBlock().Header) {
-		// XXX call from parent parents
-		err := view.disconnectDisapprovedBlock(db, parent)
+		// XXX call from parent parents, verify this!
+		err := view.disconnectDisapprovedBlock(db, parent,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -670,14 +656,7 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block that don't already exist in the utxo view from the database.
-	err := view.fetchInputUtxos(db, block)
-	if err != nil {
-		return err
-	}
-
-	// See if the treasury agenda was active at the parent.
-	pHash := &parent.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
+	err := view.fetchInputUtxos(db, block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -725,14 +704,7 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 // Note that, unlike block connection, the spent transaction output (stxo)
 // information is required and failure to provide it will result in an assertion
 // panic.
-func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcrutil.Block, stxos []spentTxOut) error {
-	// See if the treasury agenda was active at the parent.
-	pHash := parent.Hash()
-	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
-	if err != nil {
-		return err
-	}
-
+func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool) error {
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
@@ -742,7 +714,7 @@ func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcruti
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block don't already exist in the utxo view from the database.
-	err = view.fetchInputUtxos(db, block)
+	err := view.fetchInputUtxos(db, block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -750,11 +722,11 @@ func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcruti
 	// Disconnect all of the transactions in both the regular and stake trees of
 	// the block.  Notice that the regular tree is disconnected before the stake
 	// tree since that is the reverse of how they are connected.
-	err = view.disconnectRegularTransactions(block, stxos)
+	err = view.disconnectRegularTransactions(block, stxos, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
-	err = view.disconnectStakeTransactions(block, stxos)
+	err = view.disconnectStakeTransactions(block, stxos, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -765,7 +737,7 @@ func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcruti
 		// Load all of the utxos referenced by the inputs for all transactions
 		// in the regular tree of the parent block that don't already exist in
 		// the utxo view from the database.
-		err := view.fetchRegularInputUtxos(db, parent)
+		err := view.fetchRegularInputUtxos(db, parent, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -856,13 +828,7 @@ func (view *UtxoViewpoint) fetchUtxosMain(db database.DB, filteredSet viewFilter
 // located later in the regular tree of the block and returns a set of the
 // referenced outputs that are not already in the view and thus need to be
 // fetched from the database.
-func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block) viewFilteredSet {
-	// See if treasury was enabled at the parent.
-	pHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
-	if err != nil {
-		return nil
-	}
+func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block, isTreasuryEnabled bool) viewFilteredSet {
 	// Build a map of in-flight transactions because some of the inputs in the
 	// regular transaction tree of this block could be referencing other
 	// transactions earlier in the block which are not yet in the chain.
@@ -912,11 +878,11 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block) viewFilter
 // the view from the database as needed.  In particular, referenced entries that
 // are earlier in the block are added to the view and entries that are already
 // in the view are not modified.
-func (view *UtxoViewpoint) fetchRegularInputUtxos(db database.DB, block *dcrutil.Block) error {
+func (view *UtxoViewpoint) fetchRegularInputUtxos(db database.DB, block *dcrutil.Block, isTreasuryEnabled bool) error {
 	// Add any outputs of transactions in the regular tree of the block that are
 	// referenced by inputs of transactions that are located later in the tree
 	// and fetch any inputs that are not already in the view from the database.
-	filteredSet := view.addRegularInputUtxos(block)
+	filteredSet := view.addRegularInputUtxos(block, isTreasuryEnabled)
 	return view.fetchUtxosMain(db, filteredSet)
 }
 
@@ -926,18 +892,12 @@ func (view *UtxoViewpoint) fetchRegularInputUtxos(db database.DB, block *dcrutil
 // referenced entries that are earlier in the regular tree of the block are
 // added to the view.  In all cases, entries that are already in the view are
 // not modified.
-func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block) error {
-	pHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
-	if err != nil {
-		return err
-	}
-
+func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block, isTreasuryEnabled bool) error {
 	// Add any outputs of transactions in the regular tree of the block that are
 	// referenced by inputs of transactions that are located later in the tree
 	// and, while doing so, determine which inputs are not already in the view
 	// and thus need to be fetched from the database.
-	filteredSet := view.addRegularInputUtxos(block)
+	filteredSet := view.addRegularInputUtxos(block, isTreasuryEnabled)
 
 	// Loop through all of the inputs of the transaction in the stake tree and
 	// add those that aren't already known to the set of what is needed.
@@ -968,8 +928,9 @@ func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block)
 // clone returns a deep copy of the view.
 func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 	clonedView := &UtxoViewpoint{
-		entries:  make(map[chainhash.Hash]*UtxoEntry),
-		bestHash: view.bestHash,
+		entries:    make(map[chainhash.Hash]*UtxoEntry),
+		bestHash:   view.bestHash,
+		blockChain: view.blockChain,
 	}
 
 	for txHash, entry := range view.entries {
@@ -1033,7 +994,8 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) 
 
 			// Disconnect the transactions in the regular tree of the parent
 			// block.
-			err = view.disconnectDisapprovedBlock(b.db, parent)
+			err = view.disconnectDisapprovedBlock(b.db, parent,
+				isTreasuryEnabled)
 			if err != nil {
 				b.disapprovedViewLock.Unlock()
 				return nil, err

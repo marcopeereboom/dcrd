@@ -2708,7 +2708,8 @@ func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view 
 	// tree of the parent block and the parent block outputs are available in
 	// the legacy view so long as it has not been disapproved.
 	if headerApprovesParent(&block.MsgBlock().Header) {
-		err := seqLockView.fetchRegularInputUtxos(b.db, parent)
+		err := seqLockView.fetchRegularInputUtxos(b.db, parent,
+			isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -3242,7 +3243,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// Disconnect all of the transactions in the regular transaction tree of
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
-		err = view.disconnectDisapprovedBlock(b.db, parent)
+		err = view.disconnectDisapprovedBlock(b.db, parent,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -3261,7 +3263,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	//
 	// These utxo entries are needed for verification of things such as
 	// transaction inputs, counting pay-to-script-hashes, and scripts.
-	err = view.fetchInputUtxos(b.db, block)
+	err = view.fetchInputUtxos(b.db, block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -3532,7 +3534,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// Update the view to unspend all of the spent txos and remove the utxos
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
-	err = view.disconnectBlock(b.db, tipBlock, parent, stxos)
+	err = view.disconnectBlock(b.db, tipBlock, parent, stxos, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}

@@ -994,12 +994,6 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		attachNodes[n.height-fork.height-1] = n
 	}
 
-	// See if the treasury agenda is active.
-	isTreasuryAgendaActive, err := b.isTreasuryAgendaActive(targetTip)
-	if err != nil {
-		return err
-	}
-
 	// Disconnect all of the blocks back to the point of the fork.  This entails
 	// loading the blocks and their associated spent txos from the database and
 	// using that information to unspend all of the spent txos and remove the
@@ -1037,11 +1031,17 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		}
 		nextBlockToDetach = parent
 
+		// XXX is this right by looking at the parent?
+		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+		if err != nil {
+			return err
+		}
+
 		// Load all of the spent txos for the block from the spend journal.
 		var stxos []spentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
 			stxos, err = dbFetchSpendJournalEntry(dbTx, block,
-				isTreasuryAgendaActive)
+				isTreasuryEnabled)
 			return err
 		})
 		if err != nil {
@@ -1051,7 +1051,8 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// Update the view to unspend all of the spent txos and remove the utxos
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
-		err = view.disconnectBlock(b.db, block, parent, stxos)
+		err = view.disconnectBlock(b.db, block, parent, stxos,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1121,7 +1122,8 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			// In the case the block votes against the parent, also disconnect
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
-			err = view.connectBlock(b.db, block, parent, &stxos)
+			err = view.connectBlock(b.db, block, parent, &stxos,
+				isTreasuryEnabled)
 			if err != nil {
 				return err
 			}
@@ -1404,8 +1406,14 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// this block.  Also, in the case the block votes against
 		// the parent, its regular transaction tree must be
 		// disconnected.
+		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+		if err != nil {
+			return 0, err
+		}
+
 		if fastAdd {
-			err := view.connectBlock(b.db, block, parent, &stxos)
+			err := view.connectBlock(b.db, block, parent, &stxos,
+				isTreasuryEnabled)
 			if err != nil {
 				return 0, err
 			}
@@ -1420,7 +1428,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		}
 
 		// Connect the block to the main chain.
-		err := b.connectBlock(node, block, parent, view, stxos, &hdrCommitments)
+		err = b.connectBlock(node, block, parent, view, stxos, &hdrCommitments)
 		if err != nil {
 			return 0, err
 		}
