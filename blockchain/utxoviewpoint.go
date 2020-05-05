@@ -972,7 +972,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) 
 		return view, nil
 	}
 
-	isTreasuryEnabled, err := b.IsTreasuryAgendaActive()
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(tip)
 	if err != nil {
 		return nil, err
 	}
