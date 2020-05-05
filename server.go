@@ -2157,28 +2157,6 @@ func (s *server) peerHandler(ctx context.Context) {
 		},
 	}
 
-	if !cfg.DisableSeeders {
-		// Add peers discovered through DNS to the address manager.
-		seeds := s.chainParams.Seeders()
-		for _, seed := range seeds {
-			go func(seed string) {
-				err := connmgr.SeedAddrs(ctx, seed, 0, 0, defaultRequiredServices,
-					dcrdDial, func(addrs []*wire.NetAddress) {
-						// Bitcoind uses a lookup of the dns seeder here. This
-						// is rather strange since the values looked up by the
-						// DNS seed lookups will vary quite a lot.
-						// to replicate this behaviour we put all addresses as
-						// having come from the first one.
-						s.addrManager.AddAddresses(addrs, addrs[0])
-					})
-				if err != nil {
-					srvrLog.Infof("seeder '%s' error: %v", seed, err)
-				}
-			}(seed)
-		}
-	}
-	go s.connManager.Start()
-
 out:
 	for {
 		select {
@@ -2220,7 +2198,6 @@ out:
 		}
 	}
 
-	s.connManager.Stop()
 	s.blockManager.Stop()
 	s.addrManager.Stop()
 
@@ -2535,6 +2512,41 @@ cleanup:
 	s.wg.Done()
 }
 
+// querySeeders queries the configured seeders to discover peers that supported
+// the required services and adds the discovered peers to the address manager.
+// Each seeder is contacted in a separate goroutine.
+func (s *server) querySeeders(ctx context.Context) {
+	// Add peers discovered through DNS to the address manager.
+	seeders := s.chainParams.Seeders()
+	for _, seeder := range seeders {
+		go func(seeder string) {
+			addrs, err := connmgr.SeedAddrs(ctx, seeder, dcrdDial,
+				connmgr.SeedFilterServices(defaultRequiredServices))
+			if err != nil {
+				srvrLog.Infof("seeder '%s' error: %v", seeder, err)
+				return
+			}
+
+			// Nothing to do if the seeder didn't return any addresses.
+			if len(addrs) == 0 {
+				return
+			}
+
+			// Lookup the IP of the https seeder to use as the source of the
+			// seeded addresses.  In the incredibly rare event that the lookup
+			// fails after it just succeeded, fall back to using the first
+			// returned address as the source.
+			srcAddr := addrs[0]
+			srcIPs, err := dcrdLookup(seeder)
+			if err == nil && len(srcIPs) > 0 {
+				const httpsPort = 443
+				srcAddr = wire.NewNetAddressIPPort(srcIPs[0], httpsPort, 0)
+			}
+			s.addrManager.AddAddresses(addrs, srcAddr)
+		}(seeder)
+	}
+}
+
 // Run starts the server and blocks until the provided context is cancelled.
 // This entails accepting connections from peers.
 func (s *server) Run(ctx context.Context) {
@@ -2548,6 +2560,16 @@ func (s *server) Run(ctx context.Context) {
 	// managers.
 	s.wg.Add(1)
 	go s.peerHandler(serverCtx)
+
+	// Query the seeders and start the connection manager.
+	s.wg.Add(1)
+	go func(ctx context.Context, s *server) {
+		if !cfg.DisableSeeders {
+			s.querySeeders(ctx)
+		}
+		s.connManager.Run(ctx)
+		s.wg.Done()
+	}(serverCtx, s)
 
 	if s.nat != nil {
 		s.wg.Add(1)
@@ -2804,7 +2826,7 @@ func setupRPCListeners() ([]net.Listener, error) {
 // newServer returns a new dcrd server configured to listen on addr for the
 // decred network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
-func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string, interrupt <-chan struct{}) (*server, error) {
+func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string) (*server, error) {
 	services := defaultServices
 	if cfg.NoCFilters {
 		services &^= wire.SFNodeCF

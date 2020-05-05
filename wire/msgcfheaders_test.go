@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package wire
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -198,7 +199,6 @@ func TestCFHeadersWire(t *testing.T) {
 func TestCFHeadersWireErrors(t *testing.T) {
 	pver := ProtocolVersion
 	oldPver := NodeCFVersion - 1
-	wireErr := &MessageError{}
 
 	// Block 200,000 hash.
 	hashStr := "000000000000007a59f30586c1003752956a8b55e6f741fd5f24c800cd5e5e8c"
@@ -245,9 +245,9 @@ func TestCFHeadersWireErrors(t *testing.T) {
 		readErr  error         // Expected read error
 	}{
 		// Error in old protocol version with and without enough buffer.
-		{oneCFHeader, oneCFHeaderEncoded, oldPver, 0, wireErr, wireErr},
-		{oneCFHeader, oneCFHeaderEncoded, oldPver, 34, wireErr, wireErr},
-		{oneCFHeader, oneCFHeaderEncoded, oldPver, 66, wireErr, wireErr},
+		{oneCFHeader, oneCFHeaderEncoded, oldPver, 0, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
+		{oneCFHeader, oneCFHeaderEncoded, oldPver, 34, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
+		{oneCFHeader, oneCFHeaderEncoded, oldPver, 66, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
 
 		// Latest protocol version with intentional read/write errors.
 		// Force error in start of stop hash.
@@ -269,41 +269,20 @@ func TestCFHeadersWireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := test.in.BtcEncode(w, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.writeErr) {
-			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v",
-				i, err, test.writeErr)
+		if !errors.Is(err, test.writeErr) {
+			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v", i, err,
+				test.writeErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.writeErr {
-				t.Errorf("BtcEncode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.writeErr)
-				continue
-			}
 		}
 
 		// Decode from wire format.
 		var msg MsgCFHeaders
 		r := newFixedReader(test.max, test.buf)
 		err = msg.BtcDecode(r, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.readErr) {
-			spew.Dump(test)
-			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
-				i, err, test.readErr)
+		if !errors.Is(err, test.readErr) {
+			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
+				test.readErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.readErr {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.readErr)
-				continue
-			}
 		}
 	}
 }
@@ -312,7 +291,6 @@ func TestCFHeadersWireErrors(t *testing.T) {
 // of MsgCFHeaders to confirm malformed encoded data doesn't pass through.
 func TestCFHeadersMalformedErrors(t *testing.T) {
 	pver := ProtocolVersion
-	wireErr := &MessageError{}
 
 	tests := []struct {
 		buf []byte // Wire malformed encoded data
@@ -339,7 +317,7 @@ func TestCFHeadersMalformedErrors(t *testing.T) {
 				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Stop hash
 				0x00,             // Filter type
 				0xfd, 0xd1, 0x07, // Varint for number of header (2001)
-			}, wireErr,
+			}, ErrTooManyFilterHeaders,
 		},
 	}
 
@@ -349,20 +327,10 @@ func TestCFHeadersMalformedErrors(t *testing.T) {
 		var msg MsgCFHeaders
 		rbuf := bytes.NewReader(test.buf)
 		err := msg.BtcDecode(rbuf, pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
+		if !errors.Is(err, test.err) {
 			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
 				i, err, test.err)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.err {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v %v", i, err, test.err, msg)
-				continue
-			}
 		}
 	}
 }

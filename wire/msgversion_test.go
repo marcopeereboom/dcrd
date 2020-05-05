@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package wire
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"reflect"
@@ -86,9 +87,9 @@ func TestVersion(t *testing.T) {
 	// accounting for ":", "/"
 	err = msg.AddUserAgent(strings.Repeat("t",
 		MaxUserAgentLen-len(customUserAgent)-2+1), "")
-	if _, ok := err.(*MessageError); !ok {
-		t.Errorf("AddUserAgent: expected error not received "+
-			"- got %v, want %T", err, MessageError{})
+	if !errors.Is(err, ErrUserAgentTooLong) {
+		t.Errorf("AddUserAgent: expected error not received - got %v, want %v",
+			err, ErrUserAgentTooLong)
 	}
 
 	// Version message should not have any services set by default.
@@ -160,7 +161,7 @@ func TestVersion(t *testing.T) {
 		remoteAddr: tcpAddrYou,
 	}
 	_, err = NewMsgVersionFromConn(conn, nonce, lastBlock)
-	if err != ErrInvalidNetAddr {
+	if !errors.Is(err, ErrInvalidNetAddr) {
 		t.Errorf("NewMsgVersionFromConn: expected error not received "+
 			"- got %v, want %v", err, ErrInvalidNetAddr)
 	}
@@ -171,7 +172,7 @@ func TestVersion(t *testing.T) {
 		remoteAddr: &net.UDPAddr{IP: net.ParseIP("192.168.0.1"), Port: 8333},
 	}
 	_, err = NewMsgVersionFromConn(conn, nonce, lastBlock)
-	if err != ErrInvalidNetAddr {
+	if !errors.Is(err, ErrInvalidNetAddr) {
 		t.Errorf("NewMsgVersionFromConn: expected error not received "+
 			"- got %v, want %v", err, ErrInvalidNetAddr)
 	}
@@ -200,6 +201,12 @@ func TestVersionWire(t *testing.T) {
 			baseVersionBIP0037,
 			baseVersionBIP0037,
 			baseVersionBIP0037Encoded,
+			ProtocolVersion,
+		},
+		{
+			verRelayTxFalse,
+			verRelayTxFalse,
+			verRelayTxFalseEncoded,
 			ProtocolVersion,
 		},
 	}
@@ -242,7 +249,6 @@ func TestVersionWireErrors(t *testing.T) {
 	// because the test data is using bytes encoded with that protocol
 	// version.
 	pver := uint32(60002)
-	wireErr := &MessageError{}
 
 	// Ensure calling MsgVersion.BtcDecode with a non *bytes.Buffer returns
 	// error.
@@ -303,7 +309,7 @@ func TestVersionWireErrors(t *testing.T) {
 		// Force error in last block.
 		{baseVersion, baseVersionEncoded, pver, 98, io.ErrShortWrite, io.ErrUnexpectedEOF},
 		// Force error due to user agent too big
-		{exceedUAVer, exceedUAVerEncoded, pver, newLen, wireErr, wireErr},
+		{exceedUAVer, exceedUAVerEncoded, pver, newLen, ErrUserAgentTooLong, ErrUserAgentTooLong},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -311,40 +317,20 @@ func TestVersionWireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := test.in.BtcEncode(w, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.writeErr) {
-			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v",
-				i, err, test.writeErr)
+		if !errors.Is(err, test.writeErr) {
+			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v", i, err,
+				test.writeErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.writeErr {
-				t.Errorf("BtcEncode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.writeErr)
-				continue
-			}
 		}
 
 		// Decode from wire format.
 		var msg MsgVersion
 		buf := bytes.NewBuffer(test.buf[0:test.max])
 		err = msg.BtcDecode(buf, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.readErr) {
-			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
-				i, err, test.readErr)
+		if !errors.Is(err, test.readErr) {
+			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
+				test.readErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.readErr {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.readErr)
-				continue
-			}
 		}
 	}
 }

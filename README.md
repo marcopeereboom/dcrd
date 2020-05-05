@@ -20,6 +20,19 @@ https://decred.org
 
 https://decred.org/downloads
 
+Core software:
+
+* dcrd: a Decred full node daemon (this)
+* [dcrwallet](https://github.com/decred/dcrwallet): a CLI Decred wallet daemon
+* [dcrctl](https://github.com/decred/dcrctl): a CLI client for dcrd and dcrwallet
+
+Bundles:
+
+* [Decrediton](https://github.com/decred/decrediton): a GUI bundle for `dcrd`
+  and `dcrwallet`
+* [CLI app suite](https://github.com/decred/decred-release/releases/tag/v1.5.1):
+  a CLI bundle for `dcrd` and `dcrwallet`
+
 ## What is dcrd?
 
 dcrd is a full node implementation of Decred written in Go (golang).
@@ -31,12 +44,9 @@ transactions to other Decred nodes around the world.
 This software is currently under active development.  It is extremely stable and
 has been in production use since February 2016.
 
-The software was originally forked from [btcd](https://github.com/btcsuite/btcd),
-which is a bitcoin full node implementation that is still under active
-development.  To gain the benefit of btcd's ongoing upgrades, including improved
-peer and connection handling, database optimization, and other blockchain
-related technology improvements, dcrd is continuously synced with the btcd
-codebase.
+It important to note that dcrd does *NOT* include wallet functionality.  Users
+who desire a wallet will need to use [dcrwallet(CLI)](https://github.com/decred/dcrwallet)
+or [Decrediton(GUI)](https://github.com/decred/decrediton).
 
 ## What is a full node?
 
@@ -100,38 +110,77 @@ Also, make sure your firewall is configured to allow inbound connections to port
 
 ### Binaries (Windows/Linux/macOS)
 
-Binary releases are provided for common operating systems and architectures:
+Binary releases are provided for common operating systems and architectures.
+The easiest method is to download Decrediton from the link below, which will
+include dcrd. Advanced users may prefer the Command-line app suite, which
+includes dcrd and dcrwallet.
 
 https://decred.org/downloads
 
+* How to verify binaries before installing: https://docs.decred.org/advanced/verifying-binaries/
+* How to install the CLI Suite: https://docs.decred.org/wallets/cli/cli-installation/
+* How to install Decrediton: https://docs.decred.org/wallets/decrediton/decrediton-setup/
+
 ### Build from source (all platforms)
 
-Building or updating from source requires the following build dependencies:
+<details><summary><b>Install Dependencies</b></summary>
 
 - **Go 1.13 or 1.14**
 
   Installation instructions can be found here: https://golang.org/doc/install.
-  It is recommended to add `$GOPATH/bin` to your `PATH` at this point.
+  Ensure Go was installed properly and is a supported version:
+  ```sh
+  $ go version
+  $ go env GOROOT GOPATH
+  ```
+  NOTE: `GOROOT` and `GOPATH` must not be on the same path. Since Go 1.8 (2016),
+  `GOROOT` and `GOPATH` are set automatically, and you do not need to change
+  them. However, you still need to add `$GOPATH/bin` to your `PATH` in order to
+  run binaries installed by `go get` and `go install` (On Windows, this happens
+  automatically).
+
+  Unix example -- add these lines to .profile:
+
+  ```
+  PATH="$PATH:/usr/local/go/bin"  # main Go binaries ($GOROOT/bin)
+  PATH="$PATH:$HOME/go/bin"       # installed Go projects ($GOPATH/bin)
+  ```
 
 - **Git**
 
   Installation instructions can be found at https://git-scm.com or
   https://gitforwindows.org.
+  ```sh
+  $ git version
+  ```
 
-To build and install from a checked-out repo, run `go install . ./cmd/...` in
-the repo's root directory.  Some notes:
+</details>
+<details><summary><b>Windows Example</b></summary>
 
-* The `dcrd` executable will be installed to `$GOPATH/bin`.  `GOPATH`
-  defaults to `$HOME/go` (or `%USERPROFILE%\go` on Windows) if unset.
+  ```PowerShell
+  PS> git clone https://github.com/decred/dcrd $env:USERPROFILE\src\dcrd
+  PS> cd $env:USERPROFILE\src\dcrd
+  PS> go install . .\cmd\...
+  PS> dcrd -V
+  ```
 
-### Example of obtaining and building from source on Windows 10:
+  Run the `dcrd` executable now installed in `"$(go env GOPATH)\bin"`.
+</details>
+<details><summary><b>Unix Example</b></summary>
 
-```PowerShell
-PS> git clone https://github.com/decred/dcrd $env:USERPROFILE\src\dcrd
-PS> cd $env:USERPROFILE\src\dcrd
-PS> go install . .\cmd\...
-PS> & "$(go env GOPATH)\bin\dcrd" -V
-```
+  This assumes you have already added `$GOPATH/bin` to your `$PATH` as described
+  in dependencies.
+
+  ```sh
+  $ git clone https://github.com/decred/dcrd $HOME/src/dcrd
+  $ git clone https://github.com/decred/dcrctl $HOME/src/dcrctl
+  $ (cd $HOME/src/dcrd && go install . ./...)
+  $ (cd $HOME/src/dcrctl && go install)
+  $ dcrd -V
+  ```
+
+  Run the `dcrd` executable now installed in `$GOPATH/bin`.
+</details>
 
 ## Docker
 
@@ -180,7 +229,7 @@ And then run `dcrctl` commands against it.  For example:
 docker exec -ti dcrd-1 dcrctl getbestblock
 ```
 
-### Running Tests
+## Running Tests
 
 All tests and linters may be run using the script `run_tests.sh`.  Generally,
 Decred only supports the current and previous major versions of Go.

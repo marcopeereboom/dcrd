@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package wire
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"reflect"
@@ -183,7 +184,6 @@ func TestAddrWire(t *testing.T) {
 // of MsgAddr to confirm error paths work correctly.
 func TestAddrWireErrors(t *testing.T) {
 	pver := ProtocolVersion
-	wireErr := &MessageError{}
 
 	// A couple of NetAddresses to use for testing.
 	na := &NetAddress{
@@ -225,7 +225,7 @@ func TestAddrWireErrors(t *testing.T) {
 	}
 	maxAddr.AddrList = append(maxAddr.AddrList, na)
 	maxAddrEncoded := []byte{
-		0xfd, 0x03, 0xe9, // Varint for number of addresses (1001)
+		0xfd, 0xe9, 0x03, // Varint for number of addresses (1001)
 	}
 
 	tests := []struct {
@@ -241,8 +241,8 @@ func TestAddrWireErrors(t *testing.T) {
 		{baseAddr, baseAddrEncoded, pver, 0, io.ErrShortWrite, io.EOF},
 		// Force error in address list.
 		{baseAddr, baseAddrEncoded, pver, 1, io.ErrShortWrite, io.EOF},
-		// Force error with greater than max inventory vectors.
-		{maxAddr, maxAddrEncoded, pver, 3, wireErr, wireErr},
+		// Force error with greater than max addresses.
+		{maxAddr, maxAddrEncoded, pver, 3, ErrTooManyAddrs, ErrTooManyAddrs},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -250,40 +250,20 @@ func TestAddrWireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := test.in.BtcEncode(w, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.writeErr) {
-			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v",
-				i, err, test.writeErr)
+		if !errors.Is(err, test.writeErr) {
+			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v", i, err,
+				test.writeErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.writeErr {
-				t.Errorf("BtcEncode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.writeErr)
-				continue
-			}
 		}
 
 		// Decode from wire format.
 		var msg MsgAddr
 		r := newFixedReader(test.max, test.buf)
 		err = msg.BtcDecode(r, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.readErr) {
-			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
-				i, err, test.readErr)
+		if !errors.Is(err, test.readErr) {
+			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
+				test.readErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.readErr {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.readErr)
-				continue
-			}
 		}
 	}
 }
