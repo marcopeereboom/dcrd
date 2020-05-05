@@ -762,9 +762,6 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (bool, error) {
-	if b == nil {
-		panic("blockchain == nil")
-	}
 	prevNode := b.index.LookupNode(prevHash)
 	if prevNode == nil {
 		return false, fmt.Errorf("isTreasuryAgendaActiveByHash not "+
