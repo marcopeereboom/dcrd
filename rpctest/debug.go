@@ -16,8 +16,8 @@ var (
 )
 
 func init() {
-	debug = false
-	trace = false
+	debug = true
+	trace = true
 }
 
 func tracef(t *testing.T, format string, args ...interface{}) {
