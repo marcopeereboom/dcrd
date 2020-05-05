@@ -111,29 +111,36 @@ func syncBlocks(nodes []*Harness) error {
 // therefore in the case of disconnects, "from" will attempt to reestablish a
 // connection to the "to" harness.
 func ConnectNode(from *Harness, to *Harness) error {
+	tracef(from.t, "ConnectNode start")
+	defer tracef(from.t, "ConnectNode end")
+
 	ctx := context.Background()
 	peerInfo, err := from.Node.GetPeerInfo(ctx)
 	if err != nil {
 		return err
 	}
 	numPeers := len(peerInfo)
+	tracef(from.t, "ConnectNode numPeers: %v", numPeers)
 
 	targetAddr := to.node.config.listen
 	if err := from.Node.AddNode(ctx, targetAddr, rpcclient.ANAdd); err != nil {
 		return err
 	}
+	tracef(from.t, "ConnectNode targetAddr: %v", targetAddr)
 
 	// Block until a new connection has been established.
 	peerInfo, err = from.Node.GetPeerInfo(ctx)
 	if err != nil {
 		return err
 	}
+	tracef(from.t, "ConnectNode peerInfo: %v", peerInfo)
 	for len(peerInfo) <= numPeers {
 		peerInfo, err = from.Node.GetPeerInfo(ctx)
 		if err != nil {
 			return err
 		}
 	}
+	tracef(from.t, "ConnectNode len(peerInfo): %v", len(peerInfo))
 
 	return nil
 }
