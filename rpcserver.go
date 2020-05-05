@@ -4766,7 +4766,7 @@ func verifyChain(_ context.Context, s *rpcServer, level, depth int64) error {
 		// Level 1 does basic chain sanity checks.
 		if level > 0 {
 			pHash := &block.MsgBlock().Header.PrevBlock
-			tbEnabled, err := s.cfg.Chain.IsTreasuryAgendaActiveByHash(pHash)
+			isTreasuryEnabled, err := s.cfg.Chain.IsTreasuryAgendaActiveByHash(pHash)
 			if err != nil {
 				rpcsLog.Errorf("Verify is unable to ascertain"+
 					" if treasury agenda is active: %v",
@@ -4775,7 +4775,7 @@ func verifyChain(_ context.Context, s *rpcServer, level, depth int64) error {
 			}
 
 			err = blockchain.CheckBlockSanity(block,
-				s.cfg.TimeSource, s.cfg.ChainParams, tbEnabled)
+				s.cfg.TimeSource, s.cfg.ChainParams, isTreasuryEnabled)
 			if err != nil {
 				rpcsLog.Errorf("Verify is unable to validate "+
 					"block at hash %v height %d: %v",

@@ -169,14 +169,14 @@ func coinbasePaysToTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrut
 // and its parent. The blocks passed to this function MUST be valid blocks
 // that have already been confirmed to abide by the consensus rules of the
 // network, or the function might panic.
-func calculateAddedSubsidy(block, parent *dcrutil.Block) int64 {
+func calculateAddedSubsidy(block, parent *dcrutil.Block, isTreasuryEnabled bool) int64 {
 	var subsidy int64
 	if headerApprovesParent(&block.MsgBlock().Header) {
 		subsidy += parent.MsgBlock().Transactions[0].TxIn[0].ValueIn
 	}
 
 	for _, stx := range block.MsgBlock().STransactions {
-		if stake.IsSSGen(stx) {
+		if stake.IsSSGen(stx, isTreasuryEnabled) {
 			subsidy += stx.TxIn[0].ValueIn
 		}
 	}

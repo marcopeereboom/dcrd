@@ -116,7 +116,7 @@ func TestBlockchainSpendJournal(t *testing.T) {
 				return err
 			}
 
-			ntx := countSpentOutputs(block)
+			ntx := countSpentOutputs(block, false) // No treasury
 			stxos, err := dbFetchSpendJournalEntry(dbTx, block, false)
 			if err != nil {
 				return err

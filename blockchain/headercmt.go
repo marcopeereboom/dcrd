@@ -85,7 +85,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 		return nil, err
 	}
 
-	tbEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	// Load all of the spent txos for the tip block from the spend journal.
 	var stxos []spentTxOut
 	err = b.db.View(func(dbTx database.Tx) error {
-		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock, tbEnabled)
+		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock, isTreasuryEnabled)
 		return err
 	})
 	if err != nil {
