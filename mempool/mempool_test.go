@@ -773,6 +773,9 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			AddrIndex:           nil,
 			ExistsAddrIndex:     nil,
 			OnVoteReceived:      nil,
+			IsTreasuryAgendaActive: func() (bool, error) {
+				return false, nil // No treasury
+			},
 		}),
 	}
 
