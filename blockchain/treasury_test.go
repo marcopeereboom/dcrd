@@ -410,12 +410,6 @@ func replaceCoinbase(b *wire.MsgBlock) {
 	coinbaseTx.TxOut = coinbaseTx.TxOut[1:]
 	coinbaseTx.TxIn[0].ValueIn -= devSubsidy
 
-	// Assert devsub value
-	if devSubsidy != devsub {
-		panic(fmt.Sprintf("dev subsidy mismatch: got %v, expected %v",
-			devSubsidy, devsub))
-	}
-
 	// Create treasuryBase and insert it at position 0 of the stake
 	// tree.
 	oldSTransactions := b.STransactions
@@ -943,7 +937,7 @@ func TestTSpendExpenditures(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
-	// Create TSPEND in mempool for exact amount of treasury
+	// Create TSPEND in mempool for exact amount of treasury + 1 atom
 	// ---------------------------------------------------------------------
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
@@ -1021,7 +1015,6 @@ func TestTSpendExpenditures(t *testing.T) {
 	}
 
 	// Try spending 1 atom more than treasury balance.
-	startTip := g.TipName()
 	name := "btoomuch0"
 	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
@@ -1030,7 +1023,155 @@ func TestTSpendExpenditures(t *testing.T) {
 			b.AddSTransaction(tspend)
 		})
 	g.RejectTipBlock(ErrInvalidExpenditure)
+}
 
-	// Assert treasury balance.
-	g.SetTip(startTip)
+func TestTSpendExpenditures2(t *testing.T) {
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the fix sequence locks agenda, and, finally, ensure it is always
+	// available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
+	const tVoteID = chaincfg.VoteIDTreasury
+	params = cloneParams(params)
+	tVersion, deployment, err := findDeployment(params, tVoteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDeploymentTimeConstraints(deployment)
+
+	// Dave off tvi and mul.
+	tvi := params.TreasuryVoteInterval
+	mul := params.TreasuryVoteIntervalMultiplier
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
+	defer teardownFunc()
+
+	// replaceTreasuryVersions is a munge function which modifies the
+	// provided block by replacing the block, stake, and vote versions with the
+	// fix sequence locks deployment version.
+	replaceTreasuryVersions := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
+		chaingen.ReplaceStakeVersion(tVersion)(b)
+		chaingen.ReplaceVoteVersions(tVersion)(b)
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks with the appropriate vote bits set
+	// to reach one block prior to the treasury agenda becoming active.
+	// ---------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+	g.AdvanceFromSVHToActiveAgenda(tVoteID)
+
+	// Ensure treasury agenda is active.
+	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	if err != nil {
+		t.Fatalf("IsTreasuryAgendaActive: %v", err)
+	}
+	if !gotActive {
+		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to get to TVI.
+	//
+	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	// ---------------------------------------------------------------------
+
+	nextBlockHeight := g.Tip().Header.Height + 1
+	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
+		mul)
+	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Generate up to TVI blocks.
+	outs := g.OldestCoinbaseOuts()
+	for i := uint32(0); i < start-nextBlockHeight; i++ {
+		name := fmt.Sprintf("bpretvi%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate 2*Policy*TVI worth of rewards.
+	//
+	//   ... -> b0 ... -> b63
+	//                 \-> btoomuch0
+	// ---------------------------------------------------------------------
+	for i := uint64(0); i < 2*tvi*mul*params.TreasuryVoteIntervalPolicy; i++ {
+		name := fmt.Sprintf("b%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate a TVI worth of rewards and try to spend more.
+	//
+	//   ... -> bv0 ... -> bv7
+	//                 \-> btoomuch0
+	// ---------------------------------------------------------------------
+
+	// Create TSPEND in mempool for 150% of last policy window gain.
+	nextBlockHeight = g.Tip().Header.Height + 1 - uint32(tvi) // travel a bit back
+	expiry = standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
+		mul)
+	start, err = standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	if err != nil {
+		t.Fatal(err)
+	}
+	end, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("nbh %v expiry %v start %v end %v",
+		nextBlockHeight, expiry, start, end)
+
+	// This calculation is inprecise due to the blockreward going down.
+	x := tvi * mul * params.TreasuryVoteIntervalPolicy * devsub
+	tspendAmount := x + x/2 + devsub*2 // 150% including maturity
+	tspendFee := uint64(0)
+	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+		{
+			Amount: dcrutil.Amount(tspendAmount - tspendFee),
+		},
+	},
+		dcrutil.Amount(tspendFee), expiry)
+	tspendHash := tspend.TxHash()
+	t.Logf("tspend %v amount %v fee %v", tspendHash, tspendAmount-tspendFee,
+		tspendFee)
+
+	voteCount := params.TicketsPerBlock
+	for i := uint64(0); i < tvi*mul; i++ {
+		name := fmt.Sprintf("bv%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase,
+			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
+				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
+				voteCount))
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// Try spending > ~150% than treasury gain over policy interval.
+	name := "btoomuch0"
+	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		replaceCoinbase,
+		func(b *wire.MsgBlock) {
+			// Add TSpend
+			b.AddSTransaction(tspend)
+		})
+	g.RejectTipBlock(ErrInvalidExpenditure)
 }
