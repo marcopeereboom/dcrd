@@ -394,9 +394,10 @@ func (g *chaingenHarness) RejectBlock(blockName string, code ErrorCode) {
 			block.Hash(), blockHeight, err)
 	}
 	if rerr.ErrorCode != code {
-		g.t.Fatalf("block %q (hash %s, height %d) does not have expected reject "+
-			"code -- got %v, want %v", blockName, block.Hash(), blockHeight,
-			rerr.ErrorCode, code)
+		g.t.Fatalf("block %q (hash %s, height %d) does not have "+
+			"expected reject code -- got %v, want %v error :%v",
+			blockName, block.Hash(), blockHeight, rerr.ErrorCode,
+			code, err)
 	}
 }
 
