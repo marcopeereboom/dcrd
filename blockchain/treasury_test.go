@@ -347,7 +347,7 @@ func appendHashes(tspendHashes []*chainhash.Hash, votes []stake.TreasuryVoteT) [
 }
 
 // addTSpendVotes reurns a munge function that votes according to voteBits.
-func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.TreasuryVoteT, nrVotes uint16) func(*wire.MsgBlock) {
+func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.TreasuryVoteT, nrVotes uint16, skipAssert bool) func(*wire.MsgBlock) {
 	if len(tspendHashes) != len(votes) {
 		panic(fmt.Sprintf("assert addTSpendVotes %v != %v",
 			len(tspendHashes), len(votes)))
@@ -380,6 +380,12 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 					PkScript: s,
 				})
 
+			// See if we shouild skip asserts. This is used for
+			// munging votes and bits.
+			if skipAssert {
+				continue
+			}
+
 			// Assert vote insertion worked.
 			_, err = stake.GetSSGenTreasuryVotes(s)
 			if err != nil {
@@ -409,6 +415,12 @@ func replaceCoinbase(b *wire.MsgBlock) {
 	devSubsidy := coinbaseTx.TxOut[0].Value
 	coinbaseTx.TxOut = coinbaseTx.TxOut[1:]
 	coinbaseTx.TxIn[0].ValueIn -= devSubsidy
+
+	// Assert devsub value
+	//if devSubsidy != devsub {
+	//	panic(fmt.Sprintf("dev subsidy mismatch: got %v, expected %v",
+	//		devSubsidy, devsub))
+	//}
 
 	// Create treasuryBase and insert it at position 0 of the stake
 	// tree.
@@ -562,7 +574,7 @@ func TestTSpendVoteCount(t *testing.T) {
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
-				voteCount))
+				voteCount, false))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -603,7 +615,7 @@ func TestTSpendVoteCount(t *testing.T) {
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteNo},
-				voteCount))
+				voteCount, false))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -637,7 +649,7 @@ func TestTSpendVoteCount(t *testing.T) {
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteNo},
-				voteCount))
+				voteCount, false))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -766,7 +778,7 @@ func TestTSpendVoteCount(t *testing.T) {
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteNo},
-				voteCount))
+				voteCount, false))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -785,7 +797,7 @@ func TestTSpendVoteCount(t *testing.T) {
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
-				totalVotes))
+				totalVotes, false))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -840,7 +852,7 @@ func TestTSpendVoteCount(t *testing.T) {
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
-				totalVotes))
+				totalVotes, false))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -998,7 +1010,7 @@ func TestTSpendExpenditures(t *testing.T) {
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
-				voteCount))
+				voteCount, false))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1159,7 +1171,7 @@ func TestTSpendExpenditures2(t *testing.T) {
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
-				voteCount))
+				voteCount, false))
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
@@ -1174,4 +1186,152 @@ func TestTSpendExpenditures2(t *testing.T) {
 			b.AddSTransaction(tspend)
 		})
 	g.RejectTipBlock(ErrInvalidExpenditure)
+}
+
+func TestTSpendDupVote(t *testing.T) {
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the fix sequence locks agenda, and, finally, ensure it is always
+	// available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
+	const tVoteID = chaincfg.VoteIDTreasury
+	params = cloneParams(params)
+	tVersion, deployment, err := findDeployment(params, tVoteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDeploymentTimeConstraints(deployment)
+
+	// Dave off tvi and mul.
+	tvi := params.TreasuryVoteInterval
+	mul := params.TreasuryVoteIntervalMultiplier
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
+	defer teardownFunc()
+
+	// replaceTreasuryVersions is a munge function which modifies the
+	// provided block by replacing the block, stake, and vote versions with the
+	// fix sequence locks deployment version.
+	replaceTreasuryVersions := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
+		chaingen.ReplaceStakeVersion(tVersion)(b)
+		chaingen.ReplaceVoteVersions(tVersion)(b)
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks with the appropriate vote bits set
+	// to reach one block prior to the treasury agenda becoming active.
+	// ---------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+	g.AdvanceFromSVHToActiveAgenda(tVoteID)
+
+	// Ensure treasury agenda is active.
+	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	if err != nil {
+		t.Fatalf("IsTreasuryAgendaActive: %v", err)
+	}
+	if !gotActive {
+		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
+	}
+
+	// ---------------------------------------------------------------------
+	// Create two TSPEND with invalid bits and duplicate votes.
+	// ---------------------------------------------------------------------
+	nextBlockHeight := g.Tip().Header.Height + 1
+	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
+		mul)
+	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	if err != nil {
+		t.Fatal(err)
+	}
+	end, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("nbh %v expiry %v start %v end %v",
+		nextBlockHeight, expiry, start, end)
+
+	tspendAmount := devsub * (tvi*mul - uint64(params.CoinbaseMaturity) +
+		uint64(start-nextBlockHeight))
+	tspendFee := uint64(0)
+	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+		{
+			Amount: dcrutil.Amount(tspendAmount - tspendFee),
+		},
+	},
+		dcrutil.Amount(tspendFee), expiry)
+	tspendHash := tspend.TxHash()
+	tspend2 := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+		{
+			Amount: dcrutil.Amount(tspendAmount - tspendFee),
+		},
+	},
+		dcrutil.Amount(tspendFee), expiry)
+	tspendHash2 := tspend2.TxHash()
+	t.Logf("tspend %v amount %v fee %v",
+		tspendHash, tspendAmount-tspendFee, tspendFee)
+	t.Logf("tspend2 %v amount %v fee %v",
+		tspendHash2, tspendAmount-tspendFee, tspendFee)
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to get to TVI.
+	//
+	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	// ---------------------------------------------------------------------
+
+	// Generate votes up to TVI. This is legal however they should NOT be
+	// counted in the totals since they are outside of the voting window.
+	outs := g.OldestCoinbaseOuts()
+	for i := uint32(0); i < start-nextBlockHeight; i++ {
+		name := fmt.Sprintf("bpretvi%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// ---------------------------------------------------------------------
+	//   ... -> pretvi1
+	//       \-> bdv0
+	// ---------------------------------------------------------------------
+
+	startTip := g.TipName()
+	voteCount := params.TicketsPerBlock
+	_ = g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
+		replaceCoinbase,
+		addTSpendVotes(t,
+			[]*chainhash.Hash{
+				&tspendHash,
+				&tspendHash,
+			},
+			[]stake.TreasuryVoteT{
+				stake.TreasuryVoteYes,
+				stake.TreasuryVoteYes,
+			},
+			voteCount, true))
+	g.RejectTipBlock(ErrBadTxInput)
+
+	// ---------------------------------------------------------------------
+	//   ... -> pretvi1
+	//       \-> bdv1
+	// ---------------------------------------------------------------------
+
+	g.SetTip(startTip)
+	_ = g.NextBlock("bdv1", nil, outs[1:], replaceTreasuryVersions,
+		replaceCoinbase,
+		addTSpendVotes(t,
+			[]*chainhash.Hash{
+				&tspendHash2,
+			},
+			[]stake.TreasuryVoteT{
+				0x00, // Invalid bits
+			},
+			voteCount, true))
+	g.RejectTipBlock(ErrBadTxInput)
 }
