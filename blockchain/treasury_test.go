@@ -1459,5 +1459,133 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	g.RejectTipBlock(ErrBadTxInput)
 }
 
-// ErrInvalidTSpendWindow
+func TestTSpendWindow(t *testing.T) {
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the fix sequence locks agenda, and, finally, ensure it is always
+	// available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
+	const tVoteID = chaincfg.VoteIDTreasury
+	params = cloneParams(params)
+	tVersion, deployment, err := findDeployment(params, tVoteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDeploymentTimeConstraints(deployment)
+
+	// Dave off tvi and mul.
+	tvi := params.TreasuryVoteInterval
+	mul := params.TreasuryVoteIntervalMultiplier
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
+	defer teardownFunc()
+
+	// replaceTreasuryVersions is a munge function which modifies the
+	// provided block by replacing the block, stake, and vote versions with the
+	// fix sequence locks deployment version.
+	replaceTreasuryVersions := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
+		chaingen.ReplaceStakeVersion(tVersion)(b)
+		chaingen.ReplaceVoteVersions(tVersion)(b)
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks with the appropriate vote bits set
+	// to reach one block prior to the treasury agenda becoming active.
+	// ---------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+	g.AdvanceFromSVHToActiveAgenda(tVoteID)
+
+	// Ensure treasury agenda is active.
+	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	if err != nil {
+		t.Fatalf("IsTreasuryAgendaActive: %v", err)
+	}
+	if !gotActive {
+		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
+	}
+
+	// ---------------------------------------------------------------------
+	// Create TSPEND in mempool
+	// ---------------------------------------------------------------------
+	nextBlockHeight := g.Tip().Header.Height + uint32(tvi*mul*4) + 1
+	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
+		mul)
+	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	if err != nil {
+		t.Fatal(err)
+	}
+	end, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("nbh %v expiry %v start %v end %v",
+		nextBlockHeight, expiry, start, end)
+
+	tspendAmount := devsub*(tvi*mul-uint64(params.CoinbaseMaturity)+
+		uint64(start-nextBlockHeight)) + 1 // One atom too many
+	tspendFee := uint64(0)
+	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+		{
+			Amount: dcrutil.Amount(tspendAmount - tspendFee),
+		},
+	},
+		dcrutil.Amount(tspendFee), expiry)
+	tspendHash := tspend.TxHash()
+	t.Logf("tspend %v amount %v fee %v", tspendHash, tspendAmount-tspendFee,
+		tspendFee)
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to get to TVI.
+	//
+	//   ... -> bva19 -> bpretvi0 -> bpretvi1
+	// ---------------------------------------------------------------------
+
+	// Generate votes up to TVI. This is legal however they should NOT be
+	// counted in the totals since they are outside of the voting window.
+	outs := g.OldestCoinbaseOuts()
+	for i := uint32(0); i < start-nextBlockHeight; i++ {
+		name := fmt.Sprintf("bpretvi%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate a TVI worth of rewards and try to spend more.
+	//
+	//   ... -> b0 ... -> b7
+	//                 \-> bvidaltoosoon0
+	// ---------------------------------------------------------------------
+
+	voteCount := params.TicketsPerBlock
+	for i := uint64(0); i < tvi*mul; i++ {
+		name := fmt.Sprintf("b%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase,
+			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
+				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
+				voteCount, false))
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// Try accepting TSpend from the future.
+	_ = g.NextBlock("bvidaltoosoon0", nil, outs[1:], replaceTreasuryVersions,
+		replaceCoinbase,
+		func(b *wire.MsgBlock) {
+			// Add TSpend
+			b.AddSTransaction(tspend)
+		})
+	g.RejectTipBlock(ErrInvalidTSpendWindow)
+}
+
 // ErrTSpendExists
