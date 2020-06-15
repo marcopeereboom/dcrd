@@ -405,11 +405,20 @@ type Chain interface {
 
 	// TicketsWithAddress returns a slice of ticket hashes that are currently live
 	// corresponding to the given address.
-	TicketsWithAddress(address dcrutil.Address) ([]chainhash.Hash, error)
+	TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error)
 
 	// TipGeneration returns the entire generation of blocks stemming from the
 	// parent of the current tip.
 	TipGeneration() ([]chainhash.Hash, error)
+
+	// IsTreasuryAgendaActive wraps blockchain.IsTreasuryAgendaActive.
+	IsTreasuryAgendaActive() (bool, error)
+
+	// TreasuryBalance wraps blockchain.TreasuryBalance.
+	TreasuryBalance(*string) (string, int64, int64, []int64, error)
+
+	// IsTreasuryAgendaActiveByHash wraps blockchain.IsTreasuryAgendaActiveByHash.
+	IsTreasuryAgendaActiveByHash(*chainhash.Hash) (bool, error)
 }
 
 // Clock represents a clock for use with the RPC server. The purpose of this

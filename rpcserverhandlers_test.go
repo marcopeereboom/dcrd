@@ -352,7 +352,7 @@ func (c *testRPCChain) TicketPoolValue() (dcrutil.Amount, error) {
 
 // TicketsWithAddress returns a mocked slice of ticket hashes that are currently
 // live corresponding to the given address.
-func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.Hash, error) {
+func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
 	return c.ticketsWithAddress, nil
 }
 
@@ -360,6 +360,17 @@ func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.
 // stemming from the parent of the current tip.
 func (c *testRPCChain) TipGeneration() ([]chainhash.Hash, error) {
 	return c.tipGeneration, nil
+}
+func (c *testRPCChain) IsTreasuryAgendaActive() (bool, error) {
+	return false, nil
+}
+
+func (c *testRPCChain) TreasuryBalance(*string) (string, int64, int64, []int64, error) {
+	return "", 0, 0, []int64{}, fmt.Errorf("nope")
+}
+
+func (c *testRPCChain) IsTreasuryAgendaActiveByHash(*chainhash.Hash) (bool, error) {
+	return false, nil
 }
 
 // testPeer provides a mock peer by implementing the Peer interface.
