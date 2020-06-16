@@ -4653,12 +4653,7 @@ func handleTicketsForAddress(_ context.Context, s *rpcServer, cmd interface{}) (
 		return nil, rpcInvalidError("Invalid address: %v", err)
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
-	if err != nil {
-		return nil, err
-	}
-
-	tickets, err := s.cfg.Chain.TicketsWithAddress(addr, isTreasuryEnabled)
+	tickets, err := s.cfg.Chain.TicketsWithAddress(addr)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "could not obtain tickets")
 	}

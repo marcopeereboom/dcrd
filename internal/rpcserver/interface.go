@@ -405,7 +405,7 @@ type Chain interface {
 
 	// TicketsWithAddress returns a slice of ticket hashes that are currently live
 	// corresponding to the given address.
-	TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error)
+	TicketsWithAddress(address dcrutil.Address) ([]chainhash.Hash, error)
 
 	// TipGeneration returns the entire generation of blocks stemming from the
 	// parent of the current tip.
