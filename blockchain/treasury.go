@@ -482,7 +482,7 @@ func (b *BlockChain) checkTSpendExpenditure(block *dcrutil.Block, prevNode *bloc
 		wantSpend += v.MsgTx().TxIn[0].ValueIn
 	}
 
-	// Ensure that we are not depleating treasury.
+	// Ensure that we are not depleting treasury.
 	var (
 		treasuryBalance int64
 		err             error
