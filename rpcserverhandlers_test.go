@@ -366,7 +366,7 @@ func (c *testRPCChain) IsTreasuryAgendaActive() (bool, error) {
 }
 
 func (c *testRPCChain) TreasuryBalance(*string) (string, int64, int64, []int64, error) {
-	return "", 0, 0, []int64{}, fmt.Errorf("nope")
+	return "", 0, 0, []int64{}, fmt.Errorf("not implemented")
 }
 
 func (c *testRPCChain) IsTreasuryAgendaActiveByHash(*chainhash.Hash) (bool, error) {
