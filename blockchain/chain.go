@@ -752,8 +752,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 			tip.height)
 	}
 
-	pHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(pHash)
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
 	}
