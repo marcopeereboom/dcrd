@@ -623,12 +623,12 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 		// Insert the treasury information into the database.
 		if isTreasuryEnabled {
-			err = b.writeTreasury(dbTx, block, node)
+			err = b.dbPutTreasuryBalance(dbTx, block, node)
 			if err != nil {
 				return err
 			}
 
-			err = b.writeTSpend(dbTx, block, node)
+			err = b.dbPutTSpend(dbTx, block, node)
 			if err != nil {
 				return err
 			}

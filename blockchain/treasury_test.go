@@ -232,7 +232,7 @@ func TestTreasuryDatabase(t *testing.T) {
 		hash := chainhash.HashH(b)
 
 		err = testDb.Update(func(dbTx database.Tx) error {
-			return dbPutTreasury(dbTx, hash, ts)
+			return dbPutTreasuryBalanceWriter(dbTx, hash, ts)
 		})
 		if err != nil {
 			t.Fatalf("%v", err.Error())
@@ -254,7 +254,7 @@ func TestTreasuryDatabase(t *testing.T) {
 
 		var tsr *TreasuryState
 		err = testDb.View(func(dbTx database.Tx) error {
-			tsr, err = dbFetchTreasury(dbTx, hash)
+			tsr, err = dbFetchTreasuryBalance(dbTx, hash)
 			return err
 		})
 		if err != nil {

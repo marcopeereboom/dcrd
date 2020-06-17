@@ -107,8 +107,8 @@ func deserializeTreasuryState(data []byte) (*TreasuryState, error) {
 	return &ts, nil
 }
 
-// dbPutTreasury inserts a treasury state record into the database.
-func dbPutTreasury(dbTx database.Tx, hash chainhash.Hash, ts TreasuryState) error {
+// dbPutTreasuryBalanceWriter inserts a treasury state record into the database.
+func dbPutTreasuryBalanceWriter(dbTx database.Tx, hash chainhash.Hash, ts TreasuryState) error {
 	// Serialize the current treasury state.
 	serializedData, err := serializeTreasuryState(ts)
 	if err != nil {
@@ -121,7 +121,7 @@ func dbPutTreasury(dbTx database.Tx, hash chainhash.Hash, ts TreasuryState) erro
 	return bucket.Put(hash[:], serializedData)
 }
 
-// errDbTreasury wraps a dbFetchTreasury error.
+// errDbTreasury wraps a dbFetchTreasuryBalance error.
 type errDbTreasury struct {
 	err error
 }
@@ -130,9 +130,9 @@ func (e errDbTreasury) Error() string {
 	return e.err.Error()
 }
 
-// dbFetchTreasury uses an existing database transaction to fetch the treasury
+// dbFetchTreasuryBalance uses an existing database transaction to fetch the treasury
 // state.
-func dbFetchTreasury(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, error) {
+func dbFetchTreasuryBalance(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, error) {
 	meta := dbTx.Metadata()
 	bucket := meta.Bucket(dbnamespace.TreasuryBucketName)
 
@@ -146,14 +146,14 @@ func dbFetchTreasury(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, err
 	return deserializeTreasuryState(v)
 }
 
-// dbFetchTreasurySingle wraps dbFetchTreasury in a view.
+// dbFetchTreasurySingle wraps dbFetchTreasuryBalance in a view.
 func (b *BlockChain) dbFetchTreasurySingle(hash chainhash.Hash) (*TreasuryState, error) {
 	var (
 		ts  *TreasuryState
 		err error
 	)
 	err = b.db.View(func(dbTx database.Tx) error {
-		ts, err = dbFetchTreasury(dbTx, hash)
+		ts, err = dbFetchTreasuryBalance(dbTx, hash)
 		return err
 	})
 	return ts, err
@@ -277,7 +277,7 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 	}
 
 	// Current balance is in the parent node
-	ts, err := dbFetchTreasury(dbTx, node.parent.hash)
+	ts, err := dbFetchTreasuryBalance(dbTx, node.parent.hash)
 	if err != nil {
 		// Since the node.parent.hash does not exist in the treasury db
 		// we can safely assume the balance is 0
@@ -285,7 +285,7 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 	}
 
 	// Fetch values that need to be added to the treasury balance.
-	wts, err := dbFetchTreasury(dbTx, wantNode.hash)
+	wts, err := dbFetchTreasuryBalance(dbTx, wantNode.hash)
 	if err != nil {
 		// Since wantNode does not exist in the treasury db we can
 		// safely assume the balance is 0
@@ -304,7 +304,7 @@ func (b *BlockChain) calculateTreasuryBalance(dbTx database.Tx, node *blockNode)
 
 // WriteTreasury inserts the current balance and the future treasury add/spend
 // into the database.
-func (b *BlockChain) writeTreasury(dbTx database.Tx, block *dcrutil.Block, node *blockNode) error {
+func (b *BlockChain) dbPutTreasuryBalance(dbTx database.Tx, block *dcrutil.Block, node *blockNode) error {
 	// Calculate balance as of this node
 	balance, err := b.calculateTreasuryBalance(dbTx, node)
 	if err != nil {
@@ -315,33 +315,33 @@ func (b *BlockChain) writeTreasury(dbTx database.Tx, block *dcrutil.Block, node 
 		Balance: balance,
 		Values:  make([]int64, 0, len(msgBlock.Transactions)*2),
 	}
-	trsyLog.Tracef("writeTreasury: %v start balance %v", node.hash.String(),
-		balance)
+	trsyLog.Tracef("dbPutTreasuryBalance: %v start balance %v",
+		node.hash.String(), balance)
 	for _, v := range msgBlock.STransactions {
 		if stake.IsTAdd(v) {
 			// This is a TAdd, pull amount out of TxOut[0].  Note
 			// that TxOut[1], if it exists, contains the change
 			// output. We have to ignore change.
 			ts.Values = append(ts.Values, v.TxOut[0].Value)
-			trsyLog.Tracef("  writeTreasury: balance TADD %v",
-				v.TxOut[0].Value)
+			trsyLog.Tracef("  dbPutTreasuryBalance: balance TADD "+
+				"%v", v.TxOut[0].Value)
 		} else if stake.IsTreasuryBase(v) {
 			ts.Values = append(ts.Values, v.TxOut[0].Value)
-			trsyLog.Tracef("  writeTreasury: balance treasury "+
-				"base %v", v.TxOut[0].Value)
+			trsyLog.Tracef("  dbPutTreasuryBalance: balance "+
+				"treasury base %v", v.TxOut[0].Value)
 		} else if stake.IsTSpend(v) {
 			// This is a TSpend, pull values out of block. Skip
 			// first TxOut since it is an OP_RETURN.
 			for _, vv := range v.TxOut[1:] {
-				trsyLog.Tracef("  writeTreasury: balance "+
-					"TSPEND %v", -vv.Value)
+				trsyLog.Tracef("  dbPutTreasuryBalance: "+
+					"balance TSPEND %v", -vv.Value)
 				ts.Values = append(ts.Values, -vv.Value)
 			}
 		}
 	}
 
 	hash := block.Hash()
-	return dbPutTreasury(dbTx, *hash, ts)
+	return dbPutTreasuryBalanceWriter(dbTx, *hash, ts)
 }
 
 // addTreasuryBucket creates the treasury database if it doesn't exist.
@@ -366,12 +366,12 @@ func treasuryBalanceFailure(err error) (string, int64, int64, []int64, error) {
 	return "", 0, 0, []int64{}, err
 }
 
-// writeTSpend inserts the TSpends that are included in this block to the
+// dbPutTSpend inserts the TSpends that are included in this block to the
 // database.
-func (b *BlockChain) writeTSpend(dbTx database.Tx, block *dcrutil.Block, node *blockNode) error {
+func (b *BlockChain) dbPutTSpend(dbTx database.Tx, block *dcrutil.Block, node *blockNode) error {
 	hash := block.Hash()
 	msgBlock := block.MsgBlock()
-	trsyLog.Tracef("writeTSpend: processing block %v", hash)
+	trsyLog.Tracef("dbPutTSpend: processing block %v", hash)
 	for _, v := range msgBlock.STransactions {
 		if !stake.IsTSpend(v) {
 			continue
@@ -379,7 +379,7 @@ func (b *BlockChain) writeTSpend(dbTx database.Tx, block *dcrutil.Block, node *b
 
 		// Store TSpend and the block it was included in.
 		txHash := v.TxHash()
-		trsyLog.Tracef("  writeTSpend: tspend %v", txHash)
+		trsyLog.Tracef("  dbPutTSpend: tspend %v", txHash)
 		err := dbUpdateTSpend(dbTx, txHash, *hash)
 		if err != nil {
 			return err
@@ -417,7 +417,7 @@ func (b *BlockChain) TreasuryBalance(hash *string) (string, int64, int64, []int6
 	// Retrieve treasury bits.
 	var ts *TreasuryState
 	err = b.db.View(func(dbTx database.Tx) error {
-		ts, err = dbFetchTreasury(dbTx, *ch)
+		ts, err = dbFetchTreasuryBalance(dbTx, *ch)
 		return err
 	})
 	if err != nil {

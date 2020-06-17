@@ -853,7 +853,7 @@ func getTreasuryState(g *chaingenHarness, hash chainhash.Hash) (*TreasuryState, 
 		err error
 	)
 	err = g.chain.db.View(func(dbTx database.Tx) error {
-		tsr, err = dbFetchTreasury(dbTx, hash)
+		tsr, err = dbFetchTreasuryBalance(dbTx, hash)
 		return err
 	})
 	return tsr, nil
