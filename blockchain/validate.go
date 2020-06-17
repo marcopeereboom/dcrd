@@ -216,8 +216,25 @@ func IsFinalizedTransaction(tx *dcrutil.Tx, blockHeight int64, blockTime time.Ti
 }
 
 // CheckTransactionSanity performs some preliminary checks on a transaction to
-// ensure it is sane.  These checks are context free.
+// ensure it is sane.  These checks are supposed to be context free but cannot
+// be due to the treasury agenda.
+//
+// Note that this is a giant hack to separate the original context free
+// function into two functions due to the treasury agenda induced contextual
+// isTreasuryEnabled flag.  The contextual checks have been pulled out in order
+// to maintain order and assumptions without having to discard the
+// isTreasuryEnabled checks from the function.
 func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
+	err := CheckTransactionSanityContextFree(tx, params)
+	if err != nil {
+		return err
+	}
+	return CheckTransactionSanityContextual(tx, params, isTreasuryEnabled)
+}
+
+// CheckTransactionSanityContextFree performs some preliminary checks on a
+// transaction to ensure it is sane.  These checks are context free.
+func CheckTransactionSanityContextFree(tx *wire.MsgTx, params *chaincfg.Params) error {
 	// A transaction must have at least one input.
 	if len(tx.TxIn) == 0 {
 		return ruleError(ErrNoTxInputs, "transaction has no inputs")
@@ -237,6 +254,12 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryE
 		return ruleError(ErrTxTooBig, str)
 	}
 
+	return nil
+}
+
+// CheckTransactionSanityContextual performs some preliminary checks on a
+// transaction to ensure it is sane.  These checks are contextual.
+func CheckTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
 	// Coinbase script length must be between min and max length.
 	isVote := stake.IsSSGen(tx, isTreasuryEnabled)
 	isTicket := !isVote && stake.IsSStx(tx)
@@ -591,12 +614,31 @@ func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSourc
 }
 
 // checkBlockSanity performs some preliminary checks on a block to ensure it is
-// sane before continuing with block processing.  These checks are context
-// free.
+// sane before continuing with block processing.  These checks are supposed to
+// be context free but are not due to the treasury agenda.
 //
 // The flags do not modify the behavior of this function directly, however they
 // are needed to pass along to checkBlockHeaderSanity.
+//
+// Note that this is a giant hack to separate the original context free
+// function into two functions due to the treasury agenda induced contextual
+// isTreasuryEnabled flag.  The contextual checks have been pulled out in order
+// to maintain order and assumptions without having to discard the
+// isTreasuryEnabled checks from the function.
 func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
+	err := checkBlockSanityContextFree(block, timeSource, flags,
+		chainParams)
+	if err != nil {
+		return err
+	}
+	return checkBlockSanityContextual(block, timeSource, flags,
+		chainParams, isTreasuryEnabled)
+}
+
+// checkBlockSanityContextFree performs some preliminary checks on a block to
+// ensure it is sane before continuing with block processing.  These checks are
+// context free.
+func checkBlockSanityContextFree(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params) error {
 	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
 	err := checkBlockHeaderSanity(header, timeSource, flags, chainParams)
@@ -641,6 +683,16 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 			serializedSize)
 		return ruleError(ErrWrongBlockSize, str)
 	}
+
+	return nil
+}
+
+// checkBlockSanityContextual performs some preliminary checks on a block to ensure
+// it is sane before continuing with block processing.  These checks are
+// contextiual.
+func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
+	msgBlock := block.MsgBlock()
+	header := &msgBlock.Header
 
 	// The first transaction in a block's regular tree must be a coinbase.
 	transactions := block.Transactions()
