@@ -1664,17 +1664,6 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		blockTime = prevNode.CalcPastMedianTime()
 	}
 
-	// Record if we are on a TVI.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
-	if err != nil {
-		return err
-	}
-	var isTVI bool
-	if isTreasuryEnabled {
-		isTVI = standalone.IsTreasuryVoteInterval(uint64(block.Height()),
-			b.chainParams.TreasuryVoteInterval)
-	}
-
 	// The height of this block is one more than the referenced
 	// previous block.
 	blockHeight := prevNode.height + 1
@@ -1687,79 +1676,12 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			return ruleError(ErrUnfinalizedTx, str)
 		}
 	}
-	tspends := make([]*dcrutil.Tx, 0, len(block.STransactions()))
 	for _, stx := range block.STransactions() {
 		if !IsFinalizedTransaction(stx, blockHeight, blockTime) {
 			str := fmt.Sprintf("block contains unfinalized stake "+
 				"transaction %v", stx.Hash())
 			return ruleError(ErrUnfinalizedTx, str)
 
-		}
-
-		// While iterating STransactions collect TSpend data.
-		if isTreasuryEnabled && stake.IsTSpend(stx.MsgTx()) {
-			// If block is not TVI error out since it is not
-			// allowed to contain a TSpend. This check is also
-			// performed in checkBlockPositional.
-			if !isTVI {
-				str := fmt.Sprintf("block contains TSpend "+
-					"transaction (%v) while block is not "+
-					"at a TVI height (%v)", stx.Hash(),
-					block.Height())
-				return ruleError(ErrNotTVI, str)
-			}
-
-			// Assert that the tspend is inside the correct window.
-			exp := stx.MsgTx().Expiry
-			if !standalone.InsideTSpendWindow(blockHeight,
-				exp, b.chainParams.TreasuryVoteInterval,
-				b.chainParams.TreasuryVoteIntervalMultiplier) {
-				s, _ := standalone.CalculateTSpendWindowStart(exp,
-					b.chainParams.TreasuryVoteInterval,
-					b.chainParams.TreasuryVoteIntervalMultiplier)
-
-				str := fmt.Sprintf("block contains TSpend "+
-					"transaction (%v) that is outside "+
-					"of the valid window: height %v "+
-					"start %v expiry %v",
-					stx.Hash(), block.Height(), s, exp)
-				return ruleError(ErrInvalidTSpendWindow, str)
-			}
-
-			tspends = append(tspends, stx)
-
-			// Verify this TSpend hash has not been included in a
-			// prior block.
-			err = b.checkTSpendExists(block, prevNode, stx)
-			if err != nil {
-				str := fmt.Sprintf("block contains a TSpend "+
-					"transaction (%v) that has been mined "+
-					"in another block: %v", stx.Hash(), err)
-				return ruleError(ErrTSpendExists, str)
-			}
-
-			// Verify that this TSpend has enough votes to be
-			// included on the blockchain.
-			err = b.checkTSpendHasVotes(block, prevNode, stx)
-			if err != nil {
-				str := fmt.Sprintf("block contains a TSpend "+
-					"transaction (%v) that does not have "+
-					"enough votes: %v", stx.Hash(), err)
-				return ruleError(ErrNotEnoughTSpendVotes, str)
-			}
-		}
-	}
-
-	// Check the aggregate of all TSpend transactions is within bounds of
-	// the treasury account. This function is only called when we are on a
-	// TVI and if we have accumulated expenditures.
-	if isTreasuryEnabled && isTVI && len(tspends) > 0 {
-		// Verify TSpend expenditure is within range.
-		err = b.checkTSpendExpenditure(block, prevNode, tspends)
-		if err != nil {
-			str := fmt.Sprintf("block contains TSpend(s) are have "+
-				"an invalid expenditure: %v", err)
-			return ruleError(ErrInvalidExpenditure, str)
 		}
 	}
 
@@ -3382,6 +3304,88 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 	return scriptFlags, err
 }
 
+// tspendChecks verifies that a TSpend is allowed to be mined in the provided
+// block. It verifies that it is on a TVI, is within the correct window, has
+// not been mined before and that it doesn't overspend the treasury. This
+// function assumes that the treasury agenda is enabled.
+func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) error {
+	blockHeight := prevNode.height + 1
+
+	isTVI := standalone.IsTreasuryVoteInterval(uint64(block.Height()),
+		b.chainParams.TreasuryVoteInterval)
+
+	tspends := make([]*dcrutil.Tx, 0, len(block.STransactions()))
+	for _, stx := range block.STransactions() {
+		if !stake.IsTSpend(stx.MsgTx()) {
+			continue
+		}
+		// If block is not TVI error out since it is not
+		// allowed to contain a TSpend. This check is also
+		// performed in checkBlockPositional.
+		if !isTVI {
+			str := fmt.Sprintf("block contains TSpend "+
+				"transaction (%v) while block is not "+
+				"at a TVI height (%v)", stx.Hash(),
+				block.Height())
+			return ruleError(ErrNotTVI, str)
+		}
+
+		// Assert that the tspend is inside the correct window.
+		exp := stx.MsgTx().Expiry
+		if !standalone.InsideTSpendWindow(blockHeight,
+			exp, b.chainParams.TreasuryVoteInterval,
+			b.chainParams.TreasuryVoteIntervalMultiplier) {
+			s, _ := standalone.CalculateTSpendWindowStart(exp,
+				b.chainParams.TreasuryVoteInterval,
+				b.chainParams.TreasuryVoteIntervalMultiplier)
+
+			str := fmt.Sprintf("block contains TSpend "+
+				"transaction (%v) that is outside "+
+				"of the valid window: height %v "+
+				"start %v expiry %v",
+				stx.Hash(), block.Height(), s, exp)
+			return ruleError(ErrInvalidTSpendWindow, str)
+		}
+
+		tspends = append(tspends, stx)
+
+		// Verify this TSpend hash has not been included in a
+		// prior block.
+		err := b.checkTSpendExists(block, prevNode, stx)
+		if err != nil {
+			str := fmt.Sprintf("block contains a TSpend "+
+				"transaction (%v) that has been mined "+
+				"in another block: %v", stx.Hash(), err)
+			return ruleError(ErrTSpendExists, str)
+		}
+
+		// Verify that this TSpend has enough votes to be
+		// included on the blockchain.
+		err = b.checkTSpendHasVotes(block, prevNode, stx)
+		if err != nil {
+			str := fmt.Sprintf("block contains a TSpend "+
+				"transaction (%v) that does not have "+
+				"enough votes: %v", stx.Hash(), err)
+			return ruleError(ErrNotEnoughTSpendVotes, str)
+		}
+	}
+
+	// Check the aggregate of all TSpend transactions is within bounds of
+	// the treasury account. This function is only called when we are on a
+	// TVI and if we have accumulated expenditures.
+	if isTVI && len(tspends) > 0 {
+		// Verify TSpend expenditure is within range.
+		err := b.checkTSpendExpenditure(block, prevNode, tspends)
+		if err != nil {
+			str := fmt.Sprintf("block contains TSpend(s) are have "+
+				"an invalid expenditure: %v", err)
+			return ruleError(ErrInvalidExpenditure, str)
+		}
+	}
+
+	return nil
+}
+
 // checkConnectBlock performs several checks to confirm connecting the passed
 // block to the chain represented by the passed view does not violate any
 // rules.  In addition, the passed view is updated to spend all of the
@@ -3432,6 +3436,13 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		err = coinbasePaysToTreasuryBase(b.subsidyCache,
 			block.STransactions()[0], node.height, node.voters,
 			b.chainParams)
+		if err != nil {
+			return err
+		}
+
+		// Verify TSpends. This is done relatively late because the
+		// database needs to be coherent.
+		err = b.tspendChecks(node.parent, block)
 		if err != nil {
 			return err
 		}

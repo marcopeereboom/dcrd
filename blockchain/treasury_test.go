@@ -1799,8 +1799,8 @@ func TestTSpendExists(t *testing.T) {
 			b.AddSTransaction(tspend)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.AcceptedToSideChainWithExpectedTip(oldTip)
-	//g.AcceptTipBlock()
+	//g.AcceptedToSideChainWithExpectedTip(oldTip)
+	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 
 	// Reorg on next block
