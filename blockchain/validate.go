@@ -687,9 +687,9 @@ func checkBlockSanityContextFree(block *dcrutil.Block, timeSource MedianTimeSour
 	return nil
 }
 
-// checkBlockSanityContextual performs some preliminary checks on a block to ensure
-// it is sane before continuing with block processing.  These checks are
-// contextiual.
+// checkBlockSanityContextual performs some preliminary checks on a block to
+// ensure it is sane before continuing with block processing.  These checks are
+// contextual.
 func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
 	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
