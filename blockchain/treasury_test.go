@@ -1729,6 +1729,14 @@ func TestTSpendExists(t *testing.T) {
 		g.AcceptTipBlock()
 		outs = g.OldestCoinbaseOuts()
 	}
+	oldTip := g.TipName()
+
+	// XXX
+	ts, err := getTreasuryState(g, g.Tip().BlockHash())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("ts.Balance %v", ts)
 
 	// Mine tspend again.
 	_ = g.NextBlock("bexists0", nil, outs[1:], replaceTreasuryVersions,
@@ -1747,16 +1755,21 @@ func TestTSpendExists(t *testing.T) {
 	// ... -> b3
 	//      \-> bep0 ... -> bep3 -> bexists1
 	// ---------------------------------------------------------------------
-	// XXX add fork detection too
 	g.SetTip(startTip)
+	var nb *wire.MsgBlock
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bep%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		nb = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptedToSideChainWithExpectedTip(oldTip)
 		outs = g.OldestCoinbaseOuts()
 	}
+	ts, err = getTreasuryState(g, nb.Header.BlockHash())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("ts.Balance %v %v", nb.Header.BlockHash(), ts)
 
 	// Mine tspend again.
 	_ = g.NextBlock("bexists1", nil, outs[1:], replaceTreasuryVersions,
@@ -1765,6 +1778,9 @@ func TestTSpendExists(t *testing.T) {
 			// Add TSpend
 			b.AddSTransaction(tspend)
 		})
-	g.AcceptTipBlock()
+	g.SaveTipCoinbaseOuts()
+	g.AcceptedToSideChainWithExpectedTip(oldTip)
+	outs = g.OldestCoinbaseOuts()
 
+	// Reorg on next block
 }

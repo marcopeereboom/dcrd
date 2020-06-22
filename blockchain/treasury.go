@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v3/internal/dbnamespace"
@@ -563,7 +562,6 @@ func (b *BlockChain) checkTSpendExpenditure(block *dcrutil.Block, prevNode *bloc
 func (b *BlockChain) checkTSpendExists(block *dcrutil.Block, prevNode *blockNode, tspend *dcrutil.Tx) error {
 	hash := tspend.Hash()
 	trsyLog.Tracef(" checkTSpendExists: tspend %v", hash)
-	fmt.Printf(" checkTSpendExists: tspend %v\n", hash)
 	blocks, err := b.DbFetchTSpend(*hash)
 	if _, ok := err.(errDbTSpend); ok {
 		// Record does not exist.
@@ -572,7 +570,6 @@ func (b *BlockChain) checkTSpendExists(block *dcrutil.Block, prevNode *blockNode
 		return err
 	}
 
-	spew.Dump(blocks)
 	// Do fork detection on all blocks.
 	for _, v := range blocks {
 		// Lookup blockNode.
@@ -583,22 +580,16 @@ func (b *BlockChain) checkTSpendExists(block *dcrutil.Block, prevNode *blockNode
 			// This should not happen.
 			trsyLog.Errorf("  checkTSpendExists: block not found "+
 				"%v tspend %v", v, hash)
-			fmt.Printf("  checkTSpendExists: block not found "+
-				"%v tspend %v\n", v, hash)
 			continue
 		}
-		if prevNode.Ancestor(prevNode.height) == node {
-			spew.Dump("prevNode %v node %v", prevNode, node)
+
+		if prevNode.Ancestor(node.height) != node {
 			trsyLog.Errorf("  checkTSpendExists: not ancestor "+
 				"block %v tspend %v", v, hash)
-			fmt.Printf("  checkTSpendExists: not ancestor "+
-				"block %v tspend %v\n", v, hash)
 			continue
 		}
 		trsyLog.Errorf("  checkTSpendExists: is ancestor "+
 			"block %v tspend %v", v, hash)
-		fmt.Printf("  checkTSpendExists: is ancestor "+
-			"block %v tspend %v\n", v, hash)
 		return fmt.Errorf("tspend has already been mined on this "+
 			"chain %v", hash)
 	}
