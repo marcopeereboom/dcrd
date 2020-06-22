@@ -1687,9 +1687,9 @@ func TestTSpendExists(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
-	// Generate a TVI worth of rewards and try to spend more.
+	// Generate a TVI with votes.
 	//
-	//   ... -> b0 ... -> b7 -> bexists0
+	//   ... -> b0 ... -> b3
 	// ---------------------------------------------------------------------
 
 	voteCount := params.TicketsPerBlock
@@ -1708,8 +1708,7 @@ func TestTSpendExists(t *testing.T) {
 	// ---------------------------------------------------------------------
 	// Generate a TVI and mine same TSpend
 	//
-	//   ... -> be0 ... -> be7
-	//                  \-> bexists1
+	//   ... -> be0 ... -> be3 -> bexists0
 	// ---------------------------------------------------------------------
 
 	for i := uint64(0); i < tvi; i++ {
@@ -1732,6 +1731,7 @@ func TestTSpendExists(t *testing.T) {
 	}
 
 	// Mine tspend again.
+	startTip := g.TipName()
 	_ = g.NextBlock("bexists0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
@@ -1741,4 +1741,5 @@ func TestTSpendExists(t *testing.T) {
 	g.RejectTipBlock(ErrTSpendExists)
 
 	// XXX add fork detection too
+	g.SetTip(startTip)
 }
