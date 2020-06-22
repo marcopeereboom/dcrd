@@ -1710,7 +1710,7 @@ func TestTSpendExists(t *testing.T) {
 	//
 	//   ... -> be0 ... -> be3 -> bexists0
 	// ---------------------------------------------------------------------
-
+	startTip := g.TipName()
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("be%v", i)
 		if i == 0 {
@@ -1731,7 +1731,6 @@ func TestTSpendExists(t *testing.T) {
 	}
 
 	// Mine tspend again.
-	startTip := g.TipName()
 	_ = g.NextBlock("bexists0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
@@ -1740,6 +1739,32 @@ func TestTSpendExists(t *testing.T) {
 		})
 	g.RejectTipBlock(ErrTSpendExists)
 
+	// ---------------------------------------------------------------------
+	// Generate a TVI and mine same TSpend, should not exist since it is a
+	// fork.
+	//
+	//      /-> be0 ... -> be3 -> bexists0
+	// ... -> b3
+	//      \-> bep0 ... -> bep3 -> bexists1
+	// ---------------------------------------------------------------------
 	// XXX add fork detection too
 	g.SetTip(startTip)
+	for i := uint64(0); i < tvi; i++ {
+		name := fmt.Sprintf("bep%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// Mine tspend again.
+	_ = g.NextBlock("bexists1", nil, outs[1:], replaceTreasuryVersions,
+		replaceCoinbase,
+		func(b *wire.MsgBlock) {
+			// Add TSpend
+			b.AddSTransaction(tspend)
+		})
+	g.AcceptTipBlock()
+
 }
