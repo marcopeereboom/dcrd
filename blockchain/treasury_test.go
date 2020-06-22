@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -24,6 +25,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/slog"
 )
 
 const (
@@ -1588,7 +1590,25 @@ func TestTSpendWindow(t *testing.T) {
 	g.RejectTipBlock(ErrInvalidTSpendWindow)
 }
 
+type testLogger struct {
+	t *testing.T
+}
+
+func (l *testLogger) Write(p []byte) (int, error) {
+	s := string(p)
+	s = strings.TrimRight(s, "\r\n")
+	l.t.Log(s)
+	return 0, nil
+}
+
 func TestTSpendExists(t *testing.T) {
+	tlog := testLogger{t}
+	backendLogger := slog.NewBackend(&tlog)
+	log := backendLogger.Logger("TRSY")
+	log.SetLevel(slog.LevelTrace)
+	UseLogger(log)
+	UseTreasuryLogger(log)
+
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
@@ -1780,6 +1800,7 @@ func TestTSpendExists(t *testing.T) {
 		})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptedToSideChainWithExpectedTip(oldTip)
+	//g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 
 	// Reorg on next block
