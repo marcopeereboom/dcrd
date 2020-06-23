@@ -895,8 +895,6 @@ func countSpentStakeOutputs(block *dcrutil.Block, isTreasuryEnabled bool) int {
 			continue
 		}
 
-		// XXX this doesn't look right.
-
 		// Exclude TSpend.
 		if stake.IsTSpend(stx) {
 			continue
