@@ -385,10 +385,9 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	// if a slice was provided for the spent txout details, append an entry
 	// to it.
 	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
-	var isTSpend, isTreasuryBase bool
+	var isTSpend bool
 	if isTreasuryEnabled {
 		isTSpend = stake.IsTSpend(msgTx)
-		isTreasuryBase = stake.IsTreasuryBase(msgTx)
 	}
 	for txInIdx, txIn := range msgTx.TxIn {
 		// Ignore stakebase since it has no input.
@@ -397,12 +396,7 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 		}
 
 		// Ignore TSpend since it has no input.
-		if isTSpend && txInIdx == 0 {
-			continue
-		}
-
-		// Ignore treasury base since it has no input.
-		if isTreasuryBase && txInIdx == 0 {
+		if isTSpend {
 			continue
 		}
 
