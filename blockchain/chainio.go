@@ -691,7 +691,6 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx, isTreas
 	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
 		tx := txns[txIdx]
 		isVote := stake.IsSSGen(tx, isTreasuryEnabled)
-		// XXX do we need a check for treasurybase here?
 
 		// Loop backwards through all of the transaction inputs and read
 		// the associated stxo.
@@ -784,8 +783,13 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, isTreasury
 	blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
 		len(msgBlock.Transactions[1:]))
 	if len(msgBlock.STransactions) > 0 && isTreasuryEnabled {
-		// Skip treasury base.
-		blockTxns = append(blockTxns, msgBlock.STransactions[1:]...)
+		// Skip treasury base and remove tspends.
+		for _, v := range msgBlock.STransactions[1:] {
+			if stake.IsTSpend(v) {
+				continue
+			}
+			blockTxns = append(blockTxns, v)
+		}
 	} else {
 		blockTxns = append(blockTxns, msgBlock.STransactions...)
 	}
