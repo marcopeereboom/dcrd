@@ -1601,13 +1601,17 @@ func (l *testLogger) Write(p []byte) (int, error) {
 	return 0, nil
 }
 
-func TestTSpendExists(t *testing.T) {
+func logDcrd(t *testing.T) {
 	tlog := testLogger{t}
 	backendLogger := slog.NewBackend(&tlog)
 	log := backendLogger.Logger("TRSY")
 	log.SetLevel(slog.LevelTrace)
 	UseLogger(log)
 	UseTreasuryLogger(log)
+}
+
+func TestTSpendExists(t *testing.T) {
+	//logDcrd(t)
 
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
@@ -1628,6 +1632,7 @@ func TestTSpendExists(t *testing.T) {
 	// Dave off tvi and mul.
 	tvi := params.TreasuryVoteInterval
 	mul := params.TreasuryVoteIntervalMultiplier
+	cbm := params.CoinbaseMaturity
 
 	// Create a test harness initialized with the genesis block as the tip.
 	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
@@ -1659,149 +1664,179 @@ func TestTSpendExists(t *testing.T) {
 		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
 	}
 
-	// ---------------------------------------------------------------------
-	// Create TSPEND in mempool
-	// ---------------------------------------------------------------------
-	nextBlockHeight := g.Tip().Header.Height + 1
-	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
-		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
-	if err != nil {
-		t.Fatal(err)
-	}
-	end, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("nbh %v expiry %v start %v end %v",
-		nextBlockHeight, expiry, start, end)
-
-	tspendAmount := uint64(devsub)
-	tspendFee := uint64(0)
-	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(tspendAmount - tspendFee),
-		},
-	},
-		dcrutil.Amount(tspendFee), expiry)
-	tspendHash := tspend.TxHash()
-	t.Logf("tspend %v amount %v fee %v", tspendHash, tspendAmount-tspendFee,
-		tspendFee)
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to get to TVI.
-	//
-	//   ... -> bva19 -> bpretvi0 -> bpretvi1
-	// ---------------------------------------------------------------------
-
-	// Generate votes up to TVI. This is legal however they should NOT be
-	// counted in the totals since they are outside of the voting window.
-	outs := g.OldestCoinbaseOuts()
-	for i := uint32(0); i < start-nextBlockHeight; i++ {
-		name := fmt.Sprintf("bpretvi%v", i)
+	// Generate blocks outs to do fork tests with.
+	genBlocks := cbm * 8
+	for i := uint16(0); i < genBlocks; i++ {
+		outs := g.OldestCoinbaseOuts()
+		name := fmt.Sprintf("bouts%v", i)
 		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
-		outs = g.OldestCoinbaseOuts()
 	}
 
-	// ---------------------------------------------------------------------
-	// Generate a TVI with votes.
+	// Collect spendable outputs into two different slices.  The outs slice
+	// is intended to be used for regular transactions that spend from the
+	// output, while the ticketOuts slice is intended to be used for stake
+	// ticket purchases.
+	var ticketOuts [][]chaingen.SpendableOut
+	var txOuts []*chaingen.SpendableOut
+	for i := uint16(0); i < genBlocks; i++ {
+		t.Logf("collecting outs %v/%v", i, genBlocks)
+		coinbaseOuts := g.OldestCoinbaseOuts()
+		txOuts = append(txOuts, &coinbaseOuts[0])
+		ticketOuts = append(ticketOuts, coinbaseOuts[1:])
+	}
+
+	_ = tvi
+	_ = mul
+
+	//	// ---------------------------------------------------------------------
+	//	// Create TSPEND in mempool
+	//	// ---------------------------------------------------------------------
+	//	nextBlockHeight := g.Tip().Header.Height + 1
+	//	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
+	//		mul)
+	//	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	//	if err != nil {
+	//		t.Fatal(err)
+	//	}
+	//	end, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	//	if err != nil {
+	//		t.Fatal(err)
+	//	}
+	//	t.Logf("nbh %v expiry %v start %v end %v",
+	//		nextBlockHeight, expiry, start, end)
 	//
-	//   ... -> b0 ... -> b3
-	// ---------------------------------------------------------------------
-
-	voteCount := params.TicketsPerBlock
-	for i := uint64(0); i < tvi; i++ {
-		name := fmt.Sprintf("b%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase,
-			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
-				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
-				voteCount, false))
-		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
-		outs = g.OldestCoinbaseOuts()
-	}
-
-	// ---------------------------------------------------------------------
-	// Generate a TVI and mine same TSpend
+	//	tspendAmount := uint64(devsub)
+	//	tspendFee := uint64(0)
+	//	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+	//		{
+	//			Amount: dcrutil.Amount(tspendAmount - tspendFee),
+	//		},
+	//	},
+	//		dcrutil.Amount(tspendFee), expiry)
+	//	tspendHash := tspend.TxHash()
+	//	t.Logf("tspend %v amount %v fee %v", tspendHash, tspendAmount-tspendFee,
+	//		tspendFee)
 	//
-	//   ... -> be0 ... -> be3 -> bexists0
-	// ---------------------------------------------------------------------
-	startTip := g.TipName()
-	for i := uint64(0); i < tvi; i++ {
-		name := fmt.Sprintf("be%v", i)
-		if i == 0 {
-			// Mine tspend.
-			_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-				replaceCoinbase,
-				func(b *wire.MsgBlock) {
-					// Add TSpend
-					b.AddSTransaction(tspend)
-				})
-		} else {
-			_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-				replaceCoinbase)
-		}
-		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
-		outs = g.OldestCoinbaseOuts()
-	}
-	oldTip := g.TipName()
-
-	// XXX
-	ts, err := getTreasuryState(g, g.Tip().BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("ts.Balance %v", ts)
-
-	// Mine tspend again.
-	_ = g.NextBlock("bexists0", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
-	g.RejectTipBlock(ErrTSpendExists)
-
-	// ---------------------------------------------------------------------
-	// Generate a TVI and mine same TSpend, should not exist since it is a
-	// fork.
+	//	// ---------------------------------------------------------------------
+	//	// Generate enough blocks to get to TVI.
+	//	//
+	//	//   ... -> bouts -> bpretvi0 -> bpretvi1
+	//	// ---------------------------------------------------------------------
+	//	//// XXX
+	//	outs := g.OldestCoinbaseOuts()
 	//
-	//      /-> be0 ... -> be3 -> bexists0
-	// ... -> b3
-	//      \-> bep0 ... -> bep3 -> bexists1
-	// ---------------------------------------------------------------------
-	g.SetTip(startTip)
-	var nb *wire.MsgBlock
-	for i := uint64(0); i < tvi; i++ {
-		name := fmt.Sprintf("bep%v", i)
-		nb = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
-		g.SaveTipCoinbaseOuts()
-		g.AcceptedToSideChainWithExpectedTip(oldTip)
-		outs = g.OldestCoinbaseOuts()
-	}
-	ts, err = getTreasuryState(g, nb.Header.BlockHash())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("ts.Balance %v %v", nb.Header.BlockHash(), ts)
-
-	// Mine tspend again.
-	_ = g.NextBlock("bexists1", nil, outs[1:], replaceTreasuryVersions,
-		replaceCoinbase,
-		func(b *wire.MsgBlock) {
-			// Add TSpend
-			b.AddSTransaction(tspend)
-		})
-	g.SaveTipCoinbaseOuts()
-	//g.AcceptedToSideChainWithExpectedTip(oldTip)
-	g.AcceptTipBlock()
-	outs = g.OldestCoinbaseOuts()
-
-	// Reorg on next block
+	//	// Generate votes up to TVI. This is legal however they should NOT be
+	//	// counted in the totals since they are outside of the voting window.
+	//	for i := uint32(0); i < start-nextBlockHeight; i++ {
+	//		name := fmt.Sprintf("bpretvi%v", i)
+	//		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	//			replaceCoinbase)
+	//		g.SaveTipCoinbaseOuts()
+	//		g.AcceptTipBlock()
+	//		outs = g.OldestCoinbaseOuts()
+	//	}
+	//
+	//	// ---------------------------------------------------------------------
+	//	// Generate a TVI with votes.
+	//	//
+	//	//   ... -> b0 ... -> b3
+	//	// ---------------------------------------------------------------------
+	//
+	//	voteCount := params.TicketsPerBlock
+	//	for i := uint64(0); i < tvi; i++ {
+	//		name := fmt.Sprintf("b%v", i)
+	//		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	//			replaceCoinbase,
+	//			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
+	//				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
+	//				voteCount, false))
+	//		g.SaveTipCoinbaseOuts()
+	//		g.AcceptTipBlock()
+	//		outs = g.OldestCoinbaseOuts()
+	//	}
+	//
+	//	// ---------------------------------------------------------------------
+	//	// Generate a TVI and mine same TSpend
+	//	//
+	//	//   ... -> be0 ... -> be3 -> bexists0
+	//	// ---------------------------------------------------------------------
+	//	startTip := g.TipName()
+	//	o := 0 // out counter
+	//	for i := uint64(0); i < tvi; i++ {
+	//		name := fmt.Sprintf("be%v", i)
+	//		if i == 0 {
+	//			// Mine tspend.
+	//			_ = g.NextBlock(name, txOuts[o], ticketOuts[o],
+	//				replaceTreasuryVersions,
+	//				replaceCoinbase,
+	//				func(b *wire.MsgBlock) {
+	//					// Add TSpend
+	//					b.AddSTransaction(tspend)
+	//				})
+	//		} else {
+	//			_ = g.NextBlock(name, txOuts[o], ticketOuts[o],
+	//				replaceTreasuryVersions,
+	//				replaceCoinbase)
+	//		}
+	//		g.AcceptTipBlock()
+	//		o++
+	//	}
+	//	oldTip := g.TipName()
+	//
+	//	// XXX
+	//	ts, err := getTreasuryState(g, g.Tip().BlockHash())
+	//	if err != nil {
+	//		t.Fatal(err)
+	//	}
+	//	t.Logf("ts.Balance %v", ts)
+	//
+	//	// Mine tspend again.
+	//	_ = g.NextBlock("bexists0", nil, outs[1:], replaceTreasuryVersions,
+	//		replaceCoinbase,
+	//		func(b *wire.MsgBlock) {
+	//			// Add TSpend
+	//			b.AddSTransaction(tspend)
+	//		})
+	//	g.RejectTipBlock(ErrTSpendExists)
+	//
+	//	// ---------------------------------------------------------------------
+	//	// Generate a TVI and mine same TSpend, should not exist since it is a
+	//	// fork.
+	//	//
+	//	//      /-> be0 ... -> be3 -> bexists0
+	//	// ... -> b3
+	//	//      \-> bep0 ... -> bep3 -> bexists1
+	//	// ---------------------------------------------------------------------
+	//	g.SetTip(startTip)
+	//	var nb *wire.MsgBlock
+	//	for i := uint64(0); i < tvi; i++ {
+	//		name := fmt.Sprintf("bep%v", i)
+	//		nb = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	//			replaceCoinbase)
+	//		g.SaveTipCoinbaseOuts()
+	//		g.AcceptedToSideChainWithExpectedTip(oldTip)
+	//		outs = g.OldestCoinbaseOuts()
+	//	}
+	//	ts, err = getTreasuryState(g, nb.Header.BlockHash())
+	//	if err != nil {
+	//		t.Fatal(err)
+	//	}
+	//	t.Logf("ts.Balance %v %v", nb.Header.BlockHash(), ts)
+	//
+	//	// Mine tspend again.
+	//	_ = g.NextBlock("bexists1", nil, outs[1:], replaceTreasuryVersions,
+	//		replaceCoinbase,
+	//		func(b *wire.MsgBlock) {
+	//			// Add TSpend
+	//			b.AddSTransaction(tspend)
+	//		})
+	//	g.SaveTipCoinbaseOuts()
+	//	//g.AcceptedToSideChainWithExpectedTip(oldTip)
+	//	g.AcceptTipBlock()
+	//	outs = g.OldestCoinbaseOuts()
+	//
+	//	// Reorg on next block
 }
