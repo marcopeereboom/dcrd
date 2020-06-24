@@ -1674,19 +1674,20 @@ func TestTSpendExists(t *testing.T) {
 		tx := b.Transactions[1]
 		inputAmount := tx.TxIn[0].ValueIn
 		pkScript := tx.TxOut[0].PkScript
-		fee := tx.TxOut[0].Value - inputAmount
+		fee := inputAmount - tx.TxOut[0].Value
 		tx.TxOut = tx.TxOut[:0]
 
 		// Final outputs are the input amount minus the fee split into more than
 		// one output.  These are intended to provide additional utxos for
 		// testing.
 		const numOutputs = 5
-		amount := (inputAmount - fee) / numOutputs
+		outputAmount := inputAmount - fee
+		splitAmount := outputAmount / numOutputs
 		for i := 0; i < numOutputs; i++ {
 			if i == numOutputs-1 {
-				amount = inputAmount - fee - amount*(numOutputs-1)
+				splitAmount = outputAmount - splitAmount*(numOutputs-1)
 			}
-			tx.AddTxOut(wire.NewTxOut(amount, pkScript))
+			tx.AddTxOut(wire.NewTxOut(splitAmount, pkScript))
 			sout := chaingen.MakeSpendableOut(b, 1, uint32(i))
 			txOuts = append(txOuts, &sout)
 		}
