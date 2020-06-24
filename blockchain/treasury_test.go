@@ -1667,29 +1667,33 @@ func TestTSpendExists(t *testing.T) {
 	// splitSecondRegularTxOutputs is a munge function which modifies the
 	// provided block by replacing its second regular transaction with one that
 	// creates several utxos.
+	var txOuts []*chaingen.SpendableOut
 	splitSecondRegularTxOutputs := func(b *wire.MsgBlock) {
 		// Remove the current outputs of the second transaction while saving the
-		// relevant public key script for below.
+		// relevant public key script, input amount, and fee for below.
 		tx := b.Transactions[1]
+		inputAmount := tx.TxIn[0].ValueIn
 		pkScript := tx.TxOut[0].PkScript
+		fee := tx.TxOut[0].Value - inputAmount
 		tx.TxOut = tx.TxOut[:0]
 
-		// Final outputs are the input amount split into more than one output.
-		// These are intended to provide additional utxos for testing.
+		// Final outputs are the input amount minus the fee split into more than
+		// one output.  These are intended to provide additional utxos for
+		// testing.
 		const numOutputs = 5
-		inputAmount := tx.TxIn[0].ValueIn
-		amount := inputAmount / numOutputs
+		amount := (inputAmount - fee) / numOutputs
 		for i := 0; i < numOutputs; i++ {
 			if i == numOutputs-1 {
-				amount = inputAmount - amount*(numOutputs-1)
+				amount = inputAmount - fee - amount*(numOutputs-1)
 			}
 			tx.AddTxOut(wire.NewTxOut(amount, pkScript))
+			sout := chaingen.MakeSpendableOut(b, 1, uint32(i))
+			txOuts = append(txOuts, &sout)
 		}
 	}
 
 	// Generate blocks outs to do fork tests with.
 	genBlocks := cbm * 8
-	t.Logf("num saved outs: %v", g.NumSpendableCoinbaseOuts())
 	for i := uint16(0); i < genBlocks; i++ {
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("bouts%v", i)
@@ -1699,19 +1703,22 @@ func TestTSpendExists(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 	}
+	t.Logf("num saved outs: %v", g.NumSpendableCoinbaseOuts())
+	t.Logf("outs: %v", len(txOuts))
+	t.Logf(spew.Sdump(txOuts))
 
 	// Collect spendable outputs into two different slices.  The outs slice
 	// is intended to be used for regular transactions that spend from the
 	// output, while the ticketOuts slice is intended to be used for stake
 	// ticket purchases.
-	var ticketOuts [][]chaingen.SpendableOut
-	var txOuts []*chaingen.SpendableOut
-	for i := uint16(0); i < genBlocks; i++ {
-		t.Logf("collecting outs %v/%v", i, genBlocks)
-		coinbaseOuts := g.OldestCoinbaseOuts()
-		txOuts = append(txOuts, &coinbaseOuts[0])
-		ticketOuts = append(ticketOuts, coinbaseOuts[1:])
-	}
+	//var ticketOuts [][]chaingen.SpendableOut
+	//var txOuts []*chaingen.SpendableOut
+	//for i := uint16(0); i < genBlocks; i++ {
+	//	t.Logf("collecting outs %v/%v", i, genBlocks)
+	//	coinbaseOuts := g.OldestCoinbaseOuts()
+	//	txOuts = append(txOuts, &coinbaseOuts[0])
+	//	ticketOuts = append(ticketOuts, coinbaseOuts[1:])
+	//}
 
 	_ = tvi
 	_ = mul
