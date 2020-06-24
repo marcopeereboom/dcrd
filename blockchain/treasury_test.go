@@ -1664,13 +1664,38 @@ func TestTSpendExists(t *testing.T) {
 		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
 	}
 
+	// splitSecondRegularTxOutputs is a munge function which modifies the
+	// provided block by replacing its second regular transaction with one that
+	// creates several utxos.
+	splitSecondRegularTxOutputs := func(b *wire.MsgBlock) {
+		// Remove the current outputs of the second transaction while saving the
+		// relevant public key script for below.
+		tx := b.Transactions[1]
+		pkScript := tx.TxOut[0].PkScript
+		tx.TxOut = tx.TxOut[:0]
+
+		// Final outputs are the input amount split into more than one output.
+		// These are intended to provide additional utxos for testing.
+		const numOutputs = 5
+		inputAmount := tx.TxIn[0].ValueIn
+		amount := inputAmount / numOutputs
+		for i := 0; i < numOutputs; i++ {
+			if i == numOutputs-1 {
+				amount = inputAmount - amount*(numOutputs-1)
+			}
+			tx.AddTxOut(wire.NewTxOut(amount, pkScript))
+		}
+	}
+
 	// Generate blocks outs to do fork tests with.
 	genBlocks := cbm * 8
+	t.Logf("num saved outs: %v", g.NumSpendableCoinbaseOuts())
 	for i := uint16(0); i < genBlocks; i++ {
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("bouts%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-			replaceCoinbase)
+		_ = g.NextBlock(name, &outs[0], outs[1:],
+			replaceTreasuryVersions, replaceCoinbase,
+			splitSecondRegularTxOutputs)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
 	}
