@@ -551,7 +551,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	}
 	outs := g.OldestCoinbaseOuts()
 	name := "bnottvi0"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -572,7 +572,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	voteCount := params.TicketsPerBlock
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
@@ -597,7 +597,7 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvinotenough0"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -613,7 +613,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("btvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteNo},
@@ -630,7 +630,7 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvinotenough1"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -647,7 +647,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("btvi%v", tvi+i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteNo},
@@ -665,7 +665,7 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvienough0"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -715,7 +715,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bposttvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
@@ -729,7 +729,7 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bexpired0"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -776,7 +776,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bnovote%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteNo},
@@ -795,7 +795,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	for i := uint64(0); i < tvi; i++ {
 		t.Logf("totalVotes %v", totalVotes)
 		name := fmt.Sprintf("byesvote%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
@@ -818,7 +818,7 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bquorum0"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -850,7 +850,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	for i := uint64(0); i < tvi; i++ {
 		t.Logf("totalVotes %v", totalVotes)
 		name := fmt.Sprintf("byesvote%v", tvi+i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
@@ -890,7 +890,7 @@ func TestTSpendVoteCount(t *testing.T) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bquorum1"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -991,7 +991,7 @@ func TestTSpendExpenditures(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
@@ -1008,7 +1008,7 @@ func TestTSpendExpenditures(t *testing.T) {
 	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("b%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
@@ -1030,7 +1030,7 @@ func TestTSpendExpenditures(t *testing.T) {
 
 	// Try spending 1 atom more than treasury balance.
 	name := "btoomuch0"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -1108,7 +1108,7 @@ func TestTSpendExpenditures2(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
@@ -1123,7 +1123,7 @@ func TestTSpendExpenditures2(t *testing.T) {
 	// ---------------------------------------------------------------------
 	for i := uint64(0); i < 2*tvi*mul*params.TreasuryVoteIntervalPolicy; i++ {
 		name := fmt.Sprintf("b%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
@@ -1169,7 +1169,7 @@ func TestTSpendExpenditures2(t *testing.T) {
 	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("bv%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
@@ -1181,7 +1181,7 @@ func TestTSpendExpenditures2(t *testing.T) {
 
 	// Try spending > ~150% than treasury gain over policy interval.
 	name := "btoomuch0"
-	_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -1291,7 +1291,7 @@ func TestTSpendDupVote(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
@@ -1305,7 +1305,7 @@ func TestTSpendDupVote(t *testing.T) {
 
 	startTip := g.TipName()
 	voteCount := params.TicketsPerBlock
-	_ = g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		addTSpendVotes(t,
 			[]*chainhash.Hash{
@@ -1325,7 +1325,7 @@ func TestTSpendDupVote(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
-	_ = g.NextBlock("bdv1", nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock("bdv1", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		addTSpendVotes(t,
 			[]*chainhash.Hash{
@@ -1438,7 +1438,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
@@ -1455,7 +1455,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	voteCount := params.TicketsPerBlock
-	_ = g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, true))
 	g.RejectTipBlock(ErrBadTxInput)
@@ -1553,7 +1553,7 @@ func TestTSpendWindow(t *testing.T) {
 	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
@@ -1570,7 +1570,7 @@ func TestTSpendWindow(t *testing.T) {
 	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi*mul; i++ {
 		name := fmt.Sprintf("b%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
@@ -1581,7 +1581,7 @@ func TestTSpendWindow(t *testing.T) {
 	}
 
 	// Try accepting TSpend from the future.
-	_ = g.NextBlock("bvidaltoosoon0", nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock("bvidaltoosoon0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
@@ -1665,26 +1665,28 @@ func TestTSpendExists(t *testing.T) {
 	}
 
 	// splitSecondRegularTxOutputs is a munge function which modifies the
-	// provided block by replacing its second regular transaction with one that
-	// creates several utxos.
+	// provided block by replacing its second regular transaction with one
+	// that creates several utxos.
 	const splitTxNumOutputs = 6
 	splitSecondRegularTxOutputs := func(b *wire.MsgBlock) {
-		// Remove the current outputs of the second transaction while saving the
-		// relevant public key script, input amount, and fee for below.
+		// Remove the current outputs of the second transaction while
+		// saving the relevant public key script, input amount, and fee
+		// for below.
 		tx := b.Transactions[1]
 		inputAmount := tx.TxIn[0].ValueIn
 		pkScript := tx.TxOut[0].PkScript
 		fee := inputAmount - tx.TxOut[0].Value
 		tx.TxOut = tx.TxOut[:0]
 
-		// Final outputs are the input amount minus the fee split into more than
-		// one output.  These are intended to provide additional utxos for
-		// testing.
+		// Final outputs are the input amount minus the fee split into
+		// more than one output.  These are intended to provide
+		// additional utxos for testing.
 		outputAmount := inputAmount - fee
 		splitAmount := outputAmount / splitTxNumOutputs
 		for i := 0; i < splitTxNumOutputs; i++ {
 			if i == splitTxNumOutputs-1 {
-				splitAmount = outputAmount - splitAmount*(splitTxNumOutputs-1)
+				splitAmount = outputAmount -
+					splitAmount*(splitTxNumOutputs-1)
 			}
 			tx.AddTxOut(wire.NewTxOut(splitAmount, pkScript))
 		}
@@ -1703,7 +1705,8 @@ func TestTSpendExists(t *testing.T) {
 
 		souts := make([]chaingen.SpendableOut, 0, splitTxNumOutputs)
 		for j := 0; j < splitTxNumOutputs; j++ {
-			spendableOut := chaingen.MakeSpendableOut(g.Tip(), 1, uint32(j))
+			spendableOut := chaingen.MakeSpendableOut(g.Tip(), 1,
+				uint32(j))
 			souts = append(souts, spendableOut)
 		}
 		txOuts = append(txOuts, souts)
@@ -1768,7 +1771,7 @@ func TestTSpendExists(t *testing.T) {
 	voteCount := params.TicketsPerBlock
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("b%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase,
 			addTSpendVotes(t, []*chainhash.Hash{&tspendHash},
 				[]stake.TreasuryVoteT{stake.TreasuryVoteYes},
@@ -1779,79 +1782,69 @@ func TestTSpendExists(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
-	// Generate a TVI and mine same TSpend
+	// Generate a TVI and mine same TSpend, which has to be rejected.
 	//
-	//   ... -> be0 ... -> be3 -> bexists0
+	//   ... -> be0 ... -> be3 ->
+	//                         \-> bexists0
 	// ---------------------------------------------------------------------
-	//startTip := g.TipName()
+	startTip := g.TipName()
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("be%v", i)
 		if i == 0 {
 			// Mine tspend.
-			g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions,
+			g.NextBlock(name, nil, txOuts[i][1:],
+				replaceTreasuryVersions,
 				replaceCoinbase, func(b *wire.MsgBlock) {
 					// Add TSpend
 					b.AddSTransaction(tspend)
 				})
 		} else {
-			_ = g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions,
+			g.NextBlock(name, nil, txOuts[i][1:],
+				replaceTreasuryVersions,
 				replaceCoinbase)
 		}
 		g.AcceptTipBlock()
 	}
-	//oldTip := g.TipName()
+	oldTip := g.TipName()
+
+	// Mine tspend again.
+	g.NextBlock("bexists0", nil, outs[1:], replaceTreasuryVersions,
+		replaceCoinbase,
+		func(b *wire.MsgBlock) {
+			// Add TSpend
+			b.AddSTransaction(tspend)
+		})
+	g.RejectTipBlock(ErrTSpendExists)
+
+	// ---------------------------------------------------------------------
+	// Generate a TVI and mine same TSpend, should not exist since it is a
+	// fork.
 	//
-	//	// XXX
-	//	ts, err := getTreasuryState(g, g.Tip().BlockHash())
-	//	if err != nil {
-	//		t.Fatal(err)
-	//	}
-	//	t.Logf("ts.Balance %v", ts)
-	//
-	//	// Mine tspend again.
-	//	_ = g.NextBlock("bexists0", nil, outs[1:], replaceTreasuryVersions,
-	//		replaceCoinbase,
-	//		func(b *wire.MsgBlock) {
-	//			// Add TSpend
-	//			b.AddSTransaction(tspend)
-	//		})
-	//	g.RejectTipBlock(ErrTSpendExists)
-	//
-	//	// ---------------------------------------------------------------------
-	//	// Generate a TVI and mine same TSpend, should not exist since it is a
-	//	// fork.
-	//	//
-	//	//      /-> be0 ... -> be3 -> bexists0
-	//	// ... -> b3
-	//	//      \-> bep0 ... -> bep3 -> bexists1
-	//	// ---------------------------------------------------------------------
-	//	g.SetTip(startTip)
-	//	var nb *wire.MsgBlock
-	//	for i := uint64(0); i < tvi; i++ {
-	//		name := fmt.Sprintf("bep%v", i)
-	//		nb = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
-	//			replaceCoinbase)
-	//		g.SaveTipCoinbaseOuts()
-	//		g.AcceptedToSideChainWithExpectedTip(oldTip)
-	//		outs = g.OldestCoinbaseOuts()
-	//	}
-	//	ts, err = getTreasuryState(g, nb.Header.BlockHash())
-	//	if err != nil {
-	//		t.Fatal(err)
-	//	}
-	//	t.Logf("ts.Balance %v %v", nb.Header.BlockHash(), ts)
-	//
-	//	// Mine tspend again.
-	//	_ = g.NextBlock("bexists1", nil, outs[1:], replaceTreasuryVersions,
-	//		replaceCoinbase,
-	//		func(b *wire.MsgBlock) {
-	//			// Add TSpend
-	//			b.AddSTransaction(tspend)
-	//		})
-	//	g.SaveTipCoinbaseOuts()
-	//	//g.AcceptedToSideChainWithExpectedTip(oldTip)
-	//	g.AcceptTipBlock()
-	//	outs = g.OldestCoinbaseOuts()
-	//
+	//      /-> be0 ... -> be3 -> bexists0
+	// ... -> b3
+	//      \-> bep0 ... -> bep3 -> bexists1
+	// ---------------------------------------------------------------------
+	g.SetTip(startTip)
+	for i := uint64(0); i < tvi; i++ {
+		name := fmt.Sprintf("bep%v", i)
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptedToSideChainWithExpectedTip(oldTip)
+		outs = g.OldestCoinbaseOuts()
+	}
+
+	// Mine tspend again.
+	g.NextBlock("bexists1", nil, outs[1:], replaceTreasuryVersions,
+		replaceCoinbase,
+		func(b *wire.MsgBlock) {
+			// Add TSpend
+			b.AddSTransaction(tspend)
+		})
+	g.SaveTipCoinbaseOuts()
+	//g.AcceptedToSideChainWithExpectedTip(oldTip)
+	g.AcceptTipBlock()
+	outs = g.OldestCoinbaseOuts()
+
 	//	// Reorg on next block
 }
