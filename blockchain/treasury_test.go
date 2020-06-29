@@ -1825,25 +1825,73 @@ func TestTSpendExists(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
+	var nextFork uint64
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bep%v", i)
-		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions,
 			replaceCoinbase)
-		g.SaveTipCoinbaseOuts()
 		g.AcceptedToSideChainWithExpectedTip(oldTip)
-		outs = g.OldestCoinbaseOuts()
+		nextFork = i + 1
 	}
 
 	// Mine tspend again.
-	g.NextBlock("bexists1", nil, outs[1:], replaceTreasuryVersions,
+	g.NextBlock("bexists1", nil, txOuts[nextFork][1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		func(b *wire.MsgBlock) {
 			// Add TSpend
 			b.AddSTransaction(tspend)
 		})
-	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
-	outs = g.OldestCoinbaseOuts()
 
-	//	// Reorg on next block
+	// ---------------------------------------------------------------------
+	// Generate a TVI and mine same TSpend, should not exist since it is a
+	// fork.
+	//
+	//      /-> be0 ... -> be3 -> bexists0
+	// ... -> b3
+	//      \-> bep0 ... -> bep3 -> bexists1 ->bep4
+	//       \-> bepp0 ... -> bepp3 -> bexists2 -> bxxx0 .. bxxx3
+	// ---------------------------------------------------------------------
+
+	// Generate one more block to extend current best chain.
+	name := fmt.Sprintf("bep%v", nextFork)
+	g.NextBlock(name, nil, txOuts[nextFork+1][1:], replaceTreasuryVersions,
+		replaceCoinbase)
+	g.AcceptTipBlock()
+	oldTip = g.TipName()
+	oldHeight := g.Tip().Header.Height
+
+	// Create bepp fork
+	g.SetTip(startTip)
+	txIdx := uint64(0)
+	for i := uint64(0); i < tvi; i++ {
+		name := fmt.Sprintf("bepp%v", i)
+		g.NextBlock(name, nil, txOuts[i][1:],
+			replaceTreasuryVersions, replaceCoinbase)
+		g.AcceptedToSideChainWithExpectedTip(oldTip)
+		txIdx = i + 1
+	}
+
+	// Mine tspend yet again.
+	g.NextBlock("bexists2", nil, txOuts[txIdx][1:],
+		replaceTreasuryVersions, replaceCoinbase,
+		func(b *wire.MsgBlock) {
+			// Add TSpend
+			b.AddSTransaction(tspend)
+		})
+	g.AcceptedToSideChainWithExpectedTip(oldTip)
+	txIdx++
+
+	// Force reorg
+	for i := uint64(0); i < tvi; i++ {
+		name := fmt.Sprintf("bxxx%v", i)
+		b := g.NextBlock(name, nil, txOuts[txIdx][1:],
+			replaceTreasuryVersions, replaceCoinbase)
+		if b.Header.Height <= oldHeight {
+			g.AcceptedToSideChainWithExpectedTip(oldTip)
+		} else {
+			g.AcceptTipBlock()
+		}
+		txIdx++
+	}
 }
