@@ -1667,7 +1667,7 @@ func TestTSpendExists(t *testing.T) {
 	// splitSecondRegularTxOutputs is a munge function which modifies the
 	// provided block by replacing its second regular transaction with one that
 	// creates several utxos.
-	var txOuts []chaingen.SpendableOut
+	const splitTxNumOutputs = 6
 	splitSecondRegularTxOutputs := func(b *wire.MsgBlock) {
 		// Remove the current outputs of the second transaction while saving the
 		// relevant public key script, input amount, and fee for below.
@@ -1680,29 +1680,33 @@ func TestTSpendExists(t *testing.T) {
 		// Final outputs are the input amount minus the fee split into more than
 		// one output.  These are intended to provide additional utxos for
 		// testing.
-		const numOutputs = 5
 		outputAmount := inputAmount - fee
-		splitAmount := outputAmount / numOutputs
-		for i := 0; i < numOutputs; i++ {
-			if i == numOutputs-1 {
-				splitAmount = outputAmount - splitAmount*(numOutputs-1)
+		splitAmount := outputAmount / splitTxNumOutputs
+		for i := 0; i < splitTxNumOutputs; i++ {
+			if i == splitTxNumOutputs-1 {
+				splitAmount = outputAmount - splitAmount*(splitTxNumOutputs-1)
 			}
 			tx.AddTxOut(wire.NewTxOut(splitAmount, pkScript))
-			sout := chaingen.MakeSpendableOut(b, 1, uint32(i))
-			txOuts = append(txOuts, sout)
 		}
 	}
 
-	// Generate blocks outs to do fork tests with.
+	// Generate spendable outputs to do fork tests with.
+	var txOuts [][]chaingen.SpendableOut
 	genBlocks := cbm * 8
 	for i := uint16(0); i < genBlocks; i++ {
 		outs := g.OldestCoinbaseOuts()
 		name := fmt.Sprintf("bouts%v", i)
-		_ = g.NextBlock(name, &outs[0], outs[1:],
-			replaceTreasuryVersions, replaceCoinbase,
-			splitSecondRegularTxOutputs)
+		g.NextBlock(name, &outs[0], outs[1:], replaceTreasuryVersions,
+			replaceCoinbase, splitSecondRegularTxOutputs)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
+
+		souts := make([]chaingen.SpendableOut, 0, splitTxNumOutputs)
+		for j := 0; j < splitTxNumOutputs; j++ {
+			spendableOut := chaingen.MakeSpendableOut(g.Tip(), 1, uint32(j))
+			souts = append(souts, spendableOut)
+		}
+		txOuts = append(txOuts, souts)
 	}
 	t.Logf("num saved outs: %v", g.NumSpendableCoinbaseOuts())
 	t.Logf("outs: %v", len(txOuts))
@@ -1748,7 +1752,7 @@ func TestTSpendExists(t *testing.T) {
 	// counted in the totals since they are outside of the voting window.
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
-		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 			replaceCoinbase)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
@@ -1780,26 +1784,20 @@ func TestTSpendExists(t *testing.T) {
 	//   ... -> be0 ... -> be3 -> bexists0
 	// ---------------------------------------------------------------------
 	//startTip := g.TipName()
-	o := 0 // out counter
 	for i := uint64(0); i < tvi; i++ {
-		t.Logf("o %v [%v:%v]", o, o+1, o+1+5)
 		name := fmt.Sprintf("be%v", i)
 		if i == 0 {
 			// Mine tspend.
-			_ = g.NextBlock(name, &txOuts[o], txOuts[o+1:o+1+5],
-				replaceTreasuryVersions,
-				replaceCoinbase,
-				func(b *wire.MsgBlock) {
+			g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions,
+				replaceCoinbase, func(b *wire.MsgBlock) {
 					// Add TSpend
 					b.AddSTransaction(tspend)
 				})
 		} else {
-			_ = g.NextBlock(name, &txOuts[o], txOuts[o+1:o+1+5],
-				replaceTreasuryVersions,
+			_ = g.NextBlock(name, nil, txOuts[i][1:], replaceTreasuryVersions,
 				replaceCoinbase)
 		}
 		g.AcceptTipBlock()
-		o += 1 + 5 // 1 spend + 5 ticket purchases
 	}
 	//oldTip := g.TipName()
 	//
