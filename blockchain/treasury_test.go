@@ -1601,7 +1601,10 @@ func (l *testLogger) Write(p []byte) (int, error) {
 	return 0, nil
 }
 
-func logDcrd(t *testing.T) {
+func logDcrd(t *testing.T, enable bool) {
+	if enable == false {
+		return
+	}
 	tlog := testLogger{t}
 	backendLogger := slog.NewBackend(&tlog)
 	log := backendLogger.Logger("TRSY")
@@ -1611,7 +1614,7 @@ func logDcrd(t *testing.T) {
 }
 
 func TestTSpendExists(t *testing.T) {
-	//logDcrd(t)
+	logDcrd(t, false) // Make true to log dcrd output.
 
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
