@@ -1711,9 +1711,6 @@ func TestTSpendExists(t *testing.T) {
 		}
 		txOuts = append(txOuts, souts)
 	}
-	t.Logf("num saved outs: %v", g.NumSpendableCoinbaseOuts())
-	t.Logf("outs: %v", len(txOuts))
-	t.Logf(spew.Sdump(txOuts))
 
 	// ---------------------------------------------------------------------
 	// Create TSPEND in mempool
@@ -1749,10 +1746,8 @@ func TestTSpendExists(t *testing.T) {
 	//
 	//   ... -> bouts -> bpretvi0 -> bpretvi1
 	// ---------------------------------------------------------------------
-	outs := g.OldestCoinbaseOuts()
 
-	// Generate votes up to TVI. This is legal however they should NOT be
-	// counted in the totals since they are outside of the voting window.
+	outs := g.OldestCoinbaseOuts()
 	for i := uint32(0); i < start-nextBlockHeight; i++ {
 		name := fmt.Sprintf("bpretvi%v", i)
 		g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
@@ -1787,6 +1782,7 @@ func TestTSpendExists(t *testing.T) {
 	//   ... -> be0 ... -> be3 ->
 	//                         \-> bexists0
 	// ---------------------------------------------------------------------
+
 	startTip := g.TipName()
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("be%v", i)
@@ -1824,6 +1820,7 @@ func TestTSpendExists(t *testing.T) {
 	// ... -> b3
 	//      \-> bep0 ... -> bep3 -> bexists1
 	// ---------------------------------------------------------------------
+
 	g.SetTip(startTip)
 	for i := uint64(0); i < tvi; i++ {
 		name := fmt.Sprintf("bep%v", i)
@@ -1842,7 +1839,6 @@ func TestTSpendExists(t *testing.T) {
 			b.AddSTransaction(tspend)
 		})
 	g.SaveTipCoinbaseOuts()
-	//g.AcceptedToSideChainWithExpectedTip(oldTip)
 	g.AcceptTipBlock()
 	outs = g.OldestCoinbaseOuts()
 
