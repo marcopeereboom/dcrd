@@ -1014,6 +1014,16 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 		if err != nil {
 			return nil, err
 		}
+
+		// If there are votes the TxVersion must be TxVersionTreasury.
+		// This test is done late in order to allow older versions
+		// SSGen if there are no votes.
+		if !(len(votes) > 0 && tx.Version == wire.TxVersionTreasury) {
+			str := fmt.Sprintf("SSGen invalid tx version %v",
+				tx.Version)
+			return nil, stakeRuleError(ErrSSGenInvalidTxVersion,
+				str)
+		}
 	}
 
 	// Ensure that the tx height given in the last 8 bytes is StakeMaturity

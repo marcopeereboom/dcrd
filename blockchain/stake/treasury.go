@@ -34,6 +34,13 @@ import (
 // checkTAdd verifies that the provided MsgTx is a valid TADD.
 // Note: this function does not recognize treasurybase TADDs.
 func checkTAdd(mtx *wire.MsgTx) error {
+	// Require version TxVersionTreasury.
+	if mtx.Version != wire.TxVersionTreasury {
+		return stakeRuleError(ErrTAddInvalidTxVersion,
+			fmt.Sprintf("invalid TADD script version: %v",
+				mtx.Version))
+	}
+
 	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or 1
 	// stake change outputs.
 	if !(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
@@ -94,6 +101,13 @@ func IsTAdd(tx *wire.MsgTx) bool {
 // signature and public key without iterating over the same MsgTx over and over
 // again.
 func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
+	// Require version TxVersionTreasury.
+	if mtx.Version != wire.TxVersionTreasury {
+		return nil, nil, stakeRuleError(ErrTSpendInvalidTxVersion,
+			fmt.Sprintf("invalid TSpend script version: %v",
+				mtx.Version))
+	}
+
 	// A valid TSPEND consists of a single TxIn that contains a signature,
 	// a public key and an OP_TSPEND opcode.
 	//
@@ -219,6 +233,13 @@ func IsTSpend(tx *wire.MsgTx) bool {
 
 // checkTreasuryBase verifies that the provided MsgTx is a treasury base.
 func checkTreasuryBase(mtx *wire.MsgTx) error {
+	// Require version TxVersionTreasury.
+	if mtx.Version != wire.TxVersionTreasury {
+		return stakeRuleError(ErrTreasuryBaseInvalidTxVersion,
+			fmt.Sprintf("invalid treasurybase script version: %v",
+				mtx.Version))
+	}
+
 	// A TADD consists of one OP_TADD in PkScript[0] followed by an
 	// OP_RETURN <random> in  PkScript[1].
 	if len(mtx.TxIn) != 1 || len(mtx.TxOut) != 2 {

@@ -27,6 +27,10 @@ var (
 // that has a previous output transaction index set to the maximum value along
 // with a zero hash.
 func IsCoinBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
+	if isTreasuryEnabled && tx.Version != wire.TxVersionTreasury {
+		return false
+	}
+
 	// A coin base must only have one transaction input.
 	if len(tx.TxIn) != 1 {
 		return false

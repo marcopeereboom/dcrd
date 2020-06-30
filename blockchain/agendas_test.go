@@ -952,6 +952,7 @@ func TestTreasury(t *testing.T) {
 				tx := g.CreateTreasuryTAdd(&outs[0],
 					dcrutil.Amount(amount),
 					dcrutil.Amount(0))
+				tx.Version = wire.TxVersionTreasury
 				b.AddSTransaction(tx)
 			})
 		g.SaveTipCoinbaseOuts()
@@ -1030,6 +1031,7 @@ func TestTreasury(t *testing.T) {
 				&wire.TxOut{
 					PkScript: s,
 				})
+			b.STransactions[k].Version = wire.TxVersionTreasury
 
 			// Assert vote insertion worked.
 			_, err = stake.GetSSGenTreasuryVotes(s)
@@ -1061,6 +1063,7 @@ func TestTreasury(t *testing.T) {
 				tx := g.CreateTreasuryTAdd(&outs[0],
 					dcrutil.Amount(amount),
 					dcrutil.Amount(1))
+				tx.Version = wire.TxVersionTreasury
 				b.AddSTransaction(tx)
 			})
 		g.SaveTipCoinbaseOuts()

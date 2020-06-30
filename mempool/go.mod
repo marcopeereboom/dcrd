@@ -26,4 +26,5 @@ replace (
 	github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
 	github.com/decred/dcrd/mining/v3 => ../mining
 	github.com/decred/dcrd/txscript/v3 => ../txscript
+	github.com/decred/dcrd/wire => ../wire
 )

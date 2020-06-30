@@ -820,12 +820,13 @@ func TestSSGenErrors(t *testing.T) {
 // TestSSGenTreasuryVotes verifies that valid treasury votes return hashes.
 func TestSSGenTreasuryVotes(t *testing.T) {
 	var ssgenValidVote = dcrutil.NewTx(ssgenMsgTxValid)
+	ssgenValidVote.SetVersion(wire.TxVersionTreasury)
 	ssgenValidVote.SetTree(wire.TxTreeStake)
 	ssgenValidVote.SetIndex(0)
 
 	// Check null data
 	lastTxOut := ssgenMsgTxValid.TxOut[len(ssgenMsgTxValid.TxOut)-1]
-	if sc := txscript.GetScriptClass(ssgenMsgTxValid.Version, lastTxOut.PkScript,
+	if sc := txscript.GetScriptClass(0, lastTxOut.PkScript,
 		true); sc != txscript.NullDataTy {
 		t.Fatalf("Invalid script class, expected %v got %v",
 			txscript.NullDataTy, sc)

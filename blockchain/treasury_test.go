@@ -381,6 +381,8 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 				&wire.TxOut{
 					PkScript: s,
 				})
+			// Only TxVersionTreasury supports optional votes.
+			b.STransactions[k].Version = wire.TxVersionTreasury
 
 			// See if we shouild skip asserts. This is used for
 			// munging votes and bits.
@@ -416,6 +418,7 @@ func replaceCoinbase(b *wire.MsgBlock) {
 	coinbaseTx := b.Transactions[0]
 	devSubsidy := coinbaseTx.TxOut[0].Value
 	coinbaseTx.TxOut = coinbaseTx.TxOut[1:]
+	coinbaseTx.Version = wire.TxVersionTreasury
 	coinbaseTx.TxIn[0].ValueIn -= devSubsidy
 
 	// Assert devsub value
@@ -432,6 +435,7 @@ func replaceCoinbase(b *wire.MsgBlock) {
 		b.STransactions[k+1] = v
 	}
 	treasurybaseTx := wire.NewMsgTx()
+	treasurybaseTx.Version = wire.TxVersionTreasury
 	treasurybaseTx.AddTxIn(&wire.TxIn{
 		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
 			wire.MaxPrevOutIndex, wire.TxTreeRegular),

@@ -9,4 +9,7 @@ require (
 	github.com/decred/dcrd/wire v1.3.0
 )
 
-replace github.com/decred/dcrd/txscript/v3 => ../../txscript
+replace (
+	github.com/decred/dcrd/txscript/v3 => ../../txscript
+	github.com/decred/dcrd/wire => ../../wire
+)

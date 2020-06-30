@@ -108,6 +108,10 @@ const (
 	// treasury vote.
 	ErrSSGenDuplicateTreasuryVote
 
+	// ErrSSGenInvalidTxVersion indicates that this transaction has the
+	// wrong version.
+	ErrSSGenInvalidTxVersion
+
 	// ErrSSGenUnknownDiscriminator indicates that the supplied
 	// discriminator is unsupported.
 	ErrSSGenUnknownDiscriminator
@@ -196,6 +200,10 @@ const (
 	// the block.
 	ErrUnknownTicketSpent
 
+	// ErrTAddInvalidTxVersion indicates that this transaction has the
+	// wrong version.
+	ErrTAddInvalidTxVersion
+
 	// ErrTAddInvalidCount indicates that this transaction contains an
 	// invalid TADD script count.
 	ErrTAddInvalidCount
@@ -218,6 +226,10 @@ const (
 	// ErrTAddInvalid indicates that this transaction contains an invalid
 	// change script.
 	ErrTAddInvalidChange
+
+	// ErrTSpendInvalidTxVersion indicates that this transaction has
+	// the wrong version.
+	ErrTSpendInvalidTxVersion
 
 	// ErrTSpendInvalidLength indicates that this transaction has an
 	// invalid number of inputs and/or outputs.
@@ -258,6 +270,10 @@ const (
 	// ErrTSpendInvalidSpendScript indicates that this transaction contains
 	// an invalid P2SH or P2PH script.
 	ErrTSpendInvalidSpendScript
+
+	// ErrTreasuryBaseInvalidTxVersion indicates that this transaction has
+	// the wrong version.
+	ErrTreasuryBaseInvalidTxVersion
 
 	// ErrTreasuryBaseInvalidCount indicates that this transaction contains
 	// an invalid treasury base script count.
@@ -305,6 +321,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrSSGenInvalidTVLength:            "ErrSSGenInvalidTVLength",
 	ErrSSGenInvalidTreasuryVote:        "ErrSSGenInvalidTreasuryVote",
 	ErrSSGenDuplicateTreasuryVote:      "ErrSSGenDuplicateTreasuryVote",
+	ErrSSGenInvalidTxVersion:           "ErrSSGenInvalidTxVersion",
 	ErrSSGenUnknownDiscriminator:       "ErrSSGenUnknownDiscriminator",
 	ErrSSGenBadGenOuts:                 "ErrSSGenBadGenOuts",
 	ErrSSRtxWrongNumInputs:             "ErrSSRtxWrongNumInputs",
@@ -326,12 +343,14 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrMissingTicket:                   "ErrMissingTicket",
 	ErrDuplicateTicket:                 "ErrDuplicateTicket",
 	ErrUnknownTicketSpent:              "ErrUnknownTicketSpent",
+	ErrTAddInvalidTxVersion:            "ErrTAddInvalidTxVersion",
 	ErrTAddInvalidCount:                "ErrTAddInvalidCount",
 	ErrTAddInvalidVersion:              "ErrTAddInvalidVersion",
 	ErrTAddInvalidScriptLength:         "ErrTAddInvalidScriptLength",
 	ErrTAddInvalidLength:               "ErrTAddInvalidLength",
 	ErrTAddInvalidOpcode:               "ErrTAddInvalidOpcode",
 	ErrTAddInvalidChange:               "ErrTAddInvalidChange",
+	ErrTSpendInvalidTxVersion:          "ErrTSpendInvalidTxVersion",
 	ErrTSpendInvalidLength:             "ErrTSpendInvalidLength",
 	ErrTSpendInvalidVersion:            "ErrTSpendInvalidVersion",
 	ErrTSpendInvalidScriptLength:       "ErrTSpendInvalidScriptLength",
@@ -342,6 +361,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrTSpendInvalidTransaction:        "ErrTSpendInvalidTransaction",
 	ErrTSpendInvalidTGen:               "ErrTSpendInvalidTGen",
 	ErrTSpendInvalidSpendScript:        "ErrTSpendInvalidSpendScript",
+	ErrTreasuryBaseInvalidTxVersion:    "ErrTreasuryBaseInvalidTxVersion",
 	ErrTreasuryBaseInvalidCount:        "ErrTreasuryBaseInvalidCount",
 	ErrTreasuryBaseInvalidVersion:      "ErrTreasuryBaseInvalidVersion",
 	ErrTreasuryBaseInvalidOpcode0:      "ErrTreasuryBaseInvalidOpcode0",

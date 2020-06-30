@@ -599,6 +599,7 @@ func (g *Generator) CreateTreasuryTSpend(payouts []AddressAmountTuple, fee dcrut
 		panic(err)
 	}
 	msgTx := wire.NewMsgTx()
+	msgTx.Version = wire.TxVersionTreasury
 	msgTx.Expiry = expiry
 	msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
 

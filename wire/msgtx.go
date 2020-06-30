@@ -15,8 +15,18 @@ import (
 )
 
 const (
-	// TxVersion is the current latest supported transaction version.
+	// TxVersion is the current latest supported transaction version. This
+	// is only true until the treasury agenda becomes activated. Once that
+	// happens TxVersionTreasury becomes the lastest version.
 	TxVersion uint16 = 1
+
+	// TxVersionSeqLock is the transaction version that enables sequence
+	// locks.
+	TxVersionSeqLock uint16 = 2
+
+	// TxVersionTreasury is the transaction version that enables the
+	// treasury agenda.
+	TxVersionTreasury uint16 = 3
 
 	// MaxTxInSequenceNum is the maximum sequence number the sequence field
 	// of a transaction input can be.

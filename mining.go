@@ -526,7 +526,9 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 		// Stakebase enabled so zero out treasurySubsidy since it is
 		// included in the stake tree.
 
-		// DO NOTHING
+		// Set TxVersion to the new version that is required by the
+		// treasury agenda.
+		tx.Version = wire.TxVersionTreasury
 	} else {
 		treasurySubsidy = subsidyCache.CalcTreasurySubsidy(
 			nextBlockHeight, voters)
@@ -591,6 +593,9 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 // based on the passed block height to the treasury.
 func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
 	tx := wire.NewMsgTx()
+	// All treasury base transactions require TxVersionTreasury.
+	tx.Version = wire.TxVersionTreasury
+
 	tx.AddTxIn(&wire.TxIn{
 		// Stakebase transactions have no inputs, so previous outpoint
 		// is zero hash and max index.

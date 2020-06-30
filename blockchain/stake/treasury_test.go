@@ -119,6 +119,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					panic(err)
 				}
 				msgTx := wire.NewMsgTx()
+				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 				return msgTx
 			},
@@ -136,6 +137,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					panic(err)
 				}
 				msgTx := wire.NewMsgTx()
+				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 				return msgTx
 			},
@@ -154,6 +156,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					panic(err)
 				}
 				msgTx := wire.NewMsgTx()
+				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				// OP_RETURN <data>
@@ -202,6 +205,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					panic(err)
 				}
 				msgTx := wire.NewMsgTx()
+				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE},
@@ -230,6 +234,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					panic(err)
 				}
 				msgTx := wire.NewMsgTx()
+				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				// OP_RETURN <data>
@@ -279,6 +284,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					panic(err)
 				}
 				msgTx := wire.NewMsgTx()
+				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				// OP_RETURN <data>
@@ -335,6 +341,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					panic(err)
 				}
 				msgTx := wire.NewMsgTx()
+				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
 
 				// OP_TGEN
@@ -756,6 +763,7 @@ func TestTSpendGenerated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Deserialize: %v", err)
 	}
+	tx.Version = wire.TxVersionTreasury
 
 	err = checkTSpend(&tx)
 	if err != nil {
@@ -829,6 +837,7 @@ func TestTSpendErrors(t *testing.T) {
 	for i, tt := range tests {
 		test := dcrutil.NewTx(tt.tx)
 		test.SetTree(wire.TxTreeStake)
+		test.SetVersion(wire.TxVersionTreasury)
 		test.SetIndex(0)
 		err := checkTSpend(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
@@ -994,6 +1003,7 @@ func TestTAddErrors(t *testing.T) {
 	for i, tt := range tests {
 		test := dcrutil.NewTx(tt.tx)
 		test.SetTree(wire.TxTreeStake)
+		test.SetVersion(wire.TxVersionTreasury)
 		test.SetIndex(0)
 		err := checkTAdd(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
@@ -1298,6 +1308,7 @@ func TestTreasuryBaseErrors(t *testing.T) {
 		test := dcrutil.NewTx(tt.tx)
 		test.SetTree(wire.TxTreeStake)
 		test.SetIndex(0)
+		test.SetVersion(wire.TxVersionTreasury)
 		err := checkTreasuryBase(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
 			spew.Dump(tt.tx)
