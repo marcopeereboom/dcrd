@@ -66,6 +66,10 @@ func IsCoinBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 // IsTreasuryBase does a minimal check to see if a transaction is a treasury
 // base.
 func IsTreasuryBase(tx *wire.MsgTx) bool {
+	if tx.Version != wire.TxVersionTreasury {
+		return false
+	}
+
 	if len(tx.TxIn) != 1 || len(tx.TxOut) != 2 {
 		return false
 	}

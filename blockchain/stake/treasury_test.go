@@ -541,7 +541,7 @@ var tspendTxInValidPubkey = wire.TxIn{
 // tspendInvalidInCount has an invalid TxIn count but a valid TxOut count.
 var tspendInvalidInCount = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
 		{}, // 2 TxOuts is valid
@@ -554,7 +554,7 @@ var tspendInvalidInCount = &wire.MsgTx{
 // tspendInvalidOutCount has a valid TxIn count but an invalid TxOut count.
 var tspendInvalidOutCount = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInNoPubkey,
 	},
@@ -566,7 +566,7 @@ var tspendInvalidOutCount = &wire.MsgTx{
 // tspendInvalidVersion has an invalid version in an out script
 var tspendInvalidVersion = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInNoPubkey,
 	},
@@ -591,7 +591,7 @@ var tspendInvalidVersion = &wire.MsgTx{
 // tspendInvalidSignature has an invalid version in the in script
 var tspendInvalidSignature = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInNoPubkey,
 	},
@@ -614,7 +614,7 @@ var tspendInvalidSignature = &wire.MsgTx{
 // tspendInvalidSignature2 has an invalid version in the in script
 var tspendInvalidSignature2 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInInvalidPubkey,
 	},
@@ -637,7 +637,7 @@ var tspendInvalidSignature2 = &wire.MsgTx{
 // tspendInvalidOpcode has an invalid opcode in the first TxIn.
 var tspendInvalidOpcode = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInInvalidOpcode,
 	},
@@ -660,7 +660,7 @@ var tspendInvalidOpcode = &wire.MsgTx{
 // tspendInvalidPubkey has an invalid public key on the TSPEND.
 var tspendInvalidPubkey = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInInvalidPubkey2,
 	},
@@ -683,7 +683,7 @@ var tspendInvalidPubkey = &wire.MsgTx{
 // tspendInvalidScriptLength has an invalid TxOut that has a zero length.
 var tspendInvalidScriptLength = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInValidPubkey,
 	},
@@ -698,7 +698,7 @@ var tspendInvalidScriptLength = &wire.MsgTx{
 // tspendInvalidTransaction has an invalid hash on the OP_RETURN.
 var tspendInvalidTransaction = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInValidPubkey,
 	},
@@ -717,7 +717,7 @@ var tspendInvalidTransaction = &wire.MsgTx{
 // tspendInvalidTGen has an invalid TxOut that isn't tagged with an OP_TGEN.
 var tspendInvalidTGen = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInValidPubkey,
 	},
@@ -736,7 +736,7 @@ var tspendInvalidTGen = &wire.MsgTx{
 // script.
 var tspendInvalidP2SH = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		&tspendTxInValidPubkey,
 	},
@@ -747,6 +747,19 @@ var tspendInvalidP2SH = &wire.MsgTx{
 				0xc3, // OP_TGEN
 				0x00, // Invalid P2SH
 			}},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+var tspendInvalidTxVersion = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1, // Invalid version
+	TxIn: []*wire.TxIn{
+		&tspendTxInValidPubkey,
+	},
+	TxOut: []*wire.TxOut{
+		&tspendTxOutValidReturn,
 	},
 	LockTime: 0,
 	Expiry:   0,
@@ -833,11 +846,15 @@ func TestTSpendErrors(t *testing.T) {
 			tx:       tspendInvalidP2SH,
 			expected: RuleError{ErrorCode: ErrTSpendInvalidSpendScript},
 		},
+		{
+			name:     "tspendInvalidTxVersion",
+			tx:       tspendInvalidTxVersion,
+			expected: RuleError{ErrorCode: ErrTSpendInvalidTxVersion},
+		},
 	}
 	for i, tt := range tests {
 		test := dcrutil.NewTx(tt.tx)
 		test.SetTree(wire.TxTreeStake)
-		test.SetVersion(wire.TxVersionTreasury)
 		test.SetIndex(0)
 		err := checkTSpend(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
@@ -857,7 +874,7 @@ func TestTSpendErrors(t *testing.T) {
 // taddInvalidOutCount has a valid TxIn count but an invalid TxOut count.
 var taddInvalidOutCount = &wire.MsgTx{
 	SerType:  wire.TxSerializeFull,
-	Version:  1,
+	Version:  3,
 	TxIn:     []*wire.TxIn{},
 	TxOut:    []*wire.TxOut{},
 	LockTime: 0,
@@ -867,7 +884,7 @@ var taddInvalidOutCount = &wire.MsgTx{
 // taddInvalidOutCount2 has a valid TxIn count but an invalid TxOut count.
 var taddInvalidOutCount2 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
 		{},
@@ -881,7 +898,7 @@ var taddInvalidOutCount2 = &wire.MsgTx{
 // taddInvalidVersion has an invalid out script version.
 var taddInvalidVersion = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
 		{Version: 1},
@@ -894,7 +911,7 @@ var taddInvalidVersion = &wire.MsgTx{
 // taddInvalidScriptLength has a zero script length.
 var taddInvalidScriptLength = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
 		{Version: 0},
@@ -907,7 +924,7 @@ var taddInvalidScriptLength = &wire.MsgTx{
 // taddInvalidLength has an invalid out script.
 var taddInvalidLength = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
 		{PkScript: []byte{
@@ -922,7 +939,7 @@ var taddInvalidLength = &wire.MsgTx{
 // taddInvalidLength has an invalid out script opcode.
 var taddInvalidOpcode = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
 		{
@@ -938,7 +955,7 @@ var taddInvalidOpcode = &wire.MsgTx{
 // taddInvalidChange has an invalid out chnage script.
 var taddInvalidChange = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
 		{
@@ -949,6 +966,22 @@ var taddInvalidChange = &wire.MsgTx{
 		{
 			PkScript: []byte{
 				0x00, // Not OP_SSTXCHANGE
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// taddInvalidTxVersion has an invalid transaction version.
+var taddInvalidTxVersion = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1, // Invalid
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
+		{
+			PkScript: []byte{
+				0xc1, // OP_TADD
 			},
 		},
 	},
@@ -999,11 +1032,15 @@ func TestTAddErrors(t *testing.T) {
 			tx:       taddInvalidChange,
 			expected: RuleError{ErrorCode: ErrTAddInvalidChange},
 		},
+		{
+			name:     "taddInvalidTxVersion",
+			tx:       taddInvalidTxVersion,
+			expected: RuleError{ErrorCode: ErrTAddInvalidTxVersion},
+		},
 	}
 	for i, tt := range tests {
 		test := dcrutil.NewTx(tt.tx)
 		test.SetTree(wire.TxTreeStake)
-		test.SetVersion(wire.TxVersionTreasury)
 		test.SetIndex(0)
 		err := checkTAdd(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
@@ -1023,7 +1060,7 @@ func TestTAddErrors(t *testing.T) {
 // treasurybaseInvalidInCount has an invalid TxIn count.
 var treasurybaseInvalidInCount = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn:    []*wire.TxIn{},
 	TxOut: []*wire.TxOut{
 		{},
@@ -1036,7 +1073,7 @@ var treasurybaseInvalidInCount = &wire.MsgTx{
 // treasurybaseInvalidOutCount has an invalid TxOut count.
 var treasurybaseInvalidOutCount = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		{},
 	},
@@ -1048,7 +1085,7 @@ var treasurybaseInvalidOutCount = &wire.MsgTx{
 // treasurybaseInvalidVersion has an invalid out script version.
 var treasurybaseInvalidVersion = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		{},
 	},
@@ -1063,7 +1100,7 @@ var treasurybaseInvalidVersion = &wire.MsgTx{
 // treasurybaseInvalidOpcode0 has an invalid out script opcode.
 var treasurybaseInvalidOpcode0 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		{},
 	},
@@ -1089,7 +1126,7 @@ var treasurybaseInvalidOpcode0 = &wire.MsgTx{
 // treasurybaseInvalidOpcode0Len has an invalid out script opcode length.
 var treasurybaseInvalidOpcode0Len = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		{},
 	},
@@ -1113,7 +1150,7 @@ var treasurybaseInvalidOpcode0Len = &wire.MsgTx{
 // treasurybaseInvalidOpcode1 has an invalid out script opcode.
 var treasurybaseInvalidOpcode1 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		{},
 	},
@@ -1139,7 +1176,7 @@ var treasurybaseInvalidOpcode1 = &wire.MsgTx{
 // treasurybaseInvalidOpcode1Len has an invalid out script opcode length.
 var treasurybaseInvalidOpcode1Len = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		{},
 	},
@@ -1161,7 +1198,7 @@ var treasurybaseInvalidOpcode1Len = &wire.MsgTx{
 // script 1 opcode 1.
 var treasurybaseInvalidOpcodeDataPush = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		{},
 	},
@@ -1187,7 +1224,7 @@ var treasurybaseInvalidOpcodeDataPush = &wire.MsgTx{
 // treasurybaseInvalid has invalid in script constants.
 var treasurybaseInvalid = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
 	TxIn: []*wire.TxIn{
 		{
 			PreviousOutPoint: wire.OutPoint{
@@ -1217,7 +1254,38 @@ var treasurybaseInvalid = &wire.MsgTx{
 // treasurybaseInvalid2 has invalid in script constants.
 var treasurybaseInvalid2 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
-	Version: 1,
+	Version: 3,
+	TxIn: []*wire.TxIn{
+		{
+			PreviousOutPoint: wire.OutPoint{
+				Index: math.MaxUint32,
+				Hash:  chainhash.Hash{'m', 'o', 'o'},
+			},
+		},
+	},
+	TxOut: []*wire.TxOut{
+		{
+			PkScript: []byte{
+				0xc1, // OP_TADD
+			},
+		},
+		{
+			PkScript: []byte{
+				0x6a, // OP_RETURN
+				0x0c, // OP_DATA_12
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+			},
+		},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// treasurybaseInvalidTxVersion has an invalid transaction version.
+var treasurybaseInvalidTxVersion = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 1, // Invalid
 	TxIn: []*wire.TxIn{
 		{
 			PreviousOutPoint: wire.OutPoint{
@@ -1303,12 +1371,16 @@ func TestTreasuryBaseErrors(t *testing.T) {
 			tx:       treasurybaseInvalid2,
 			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalid},
 		},
+		{
+			name:     "treasurybaseInvalidTxVersion",
+			tx:       treasurybaseInvalidTxVersion,
+			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidTxVersion},
+		},
 	}
 	for i, tt := range tests {
 		test := dcrutil.NewTx(tt.tx)
 		test.SetTree(wire.TxTreeStake)
 		test.SetIndex(0)
-		test.SetVersion(wire.TxVersionTreasury)
 		err := checkTreasuryBase(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
 			spew.Dump(tt.tx)
