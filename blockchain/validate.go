@@ -14,7 +14,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -1363,9 +1362,9 @@ func checkCoinbaseUniqueHeightWithAddress(blockHeight int64, minReqOutputs, inde
 // assumes that there is no treasury address.
 func checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight int64, block *dcrutil.Block) error {
 	if len(block.MsgBlock().STransactions) == 0 {
-		return AssertError(fmt.Sprintf(
-			"checkCoinbaseUniqueHeightWithStakebase: %v",
-			spew.Sdump(block)))
+		str := fmt.Sprintf("checkCoinbaseUniqueHeightWithStakebase: " +
+			"has 0 stake transactions")
+		return AssertError(str)
 	}
 
 	// Coinbase output 0 is height + extranonce, so at least one outputs
