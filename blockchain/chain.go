@@ -542,9 +542,9 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
-		return fmt.Errorf("provided %v stxos for block %v (height %v) "+
-			"which spends %v outputs", len(stxos), node.hash,
-			node.height, countSpentOutputs(block, isTreasuryEnabled))
+		panicf("provided %v stxos for block %v (height %v) which spends %v "+
+			"outputs", len(stxos), node.hash, node.height,
+			countSpentOutputs(block, isTreasuryEnabled))
 	}
 
 	// Write any modified block index entries to the database before
