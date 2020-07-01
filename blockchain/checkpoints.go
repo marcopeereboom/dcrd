@@ -95,11 +95,15 @@ func (b *BlockChain) maybeUpdateMostRecentCheckpoint(node *blockNode) {
 
 // isNonstandardTransaction determines whether a transaction contains any
 // scripts which are not one of the standard types.
-func isNonstandardTransaction(tx *dcrutil.Tx, isTreasuryEnabled bool) bool {
+func isNonstandardTransaction(tx *dcrutil.Tx) bool {
 	// Check all of the output public key scripts for non-standard scripts.
 	for _, txOut := range tx.MsgTx().TxOut {
+		// It is ok to hard code isTreasuryEnabled to false here since
+		// there is no way the chain is going to have treasury
+		// transactions in it prior to activation since they are stake
+		// transactions and would be rejected as unknown types.
 		scriptClass := txscript.GetScriptClass(txOut.Version,
-			txOut.PkScript, isTreasuryEnabled)
+			txOut.PkScript, false)
 		if scriptClass == txscript.NonStandardTy {
 			return true
 		}
@@ -176,12 +180,8 @@ func (b *BlockChain) IsCheckpointCandidate(block *dcrutil.Block) (bool, error) {
 
 	// A checkpoint must have transactions that only contain standard
 	// scripts.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
-	if err != nil {
-		return false, err // XXX err == nil?
-	}
 	for _, tx := range block.Transactions() {
-		if isNonstandardTransaction(tx, isTreasuryEnabled) {
+		if isNonstandardTransaction(tx) {
 			return false, nil
 		}
 	}
