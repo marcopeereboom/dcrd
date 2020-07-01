@@ -534,14 +534,3 @@ func TestIsUnspendable(t *testing.T) {
 		}
 	}
 }
-
-// TestTreasury verifies that treasury scripts are properly detected.
-func TestTreasury(t *testing.T) {
-	script, err := PayToTreasury()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !isTreasuryAddScript(0, script) {
-		t.Fatalf("invalid PayToTreasury script")
-	}
-}
