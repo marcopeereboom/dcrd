@@ -25,7 +25,7 @@ const (
 	TxVersionSeqLock uint16 = 2
 
 	// TxVersionTreasury is the transaction version that enables the
-	// treasury agenda.
+	// decentralized treasury features.
 	TxVersionTreasury uint16 = 3
 
 	// MaxTxInSequenceNum is the maximum sequence number the sequence field
