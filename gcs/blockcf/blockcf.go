@@ -123,9 +123,8 @@ func Regular(block *wire.MsgBlock) (*gcs.FilterV1, error) {
 	// byte of the script and removing it allows users of the filter to only
 	// match against a normal P2PKH or P2SH script, instead of many extra
 	// matches for each tag.
-	isTreasuryEnabled := false // XX is this ok?
 	for _, tx := range block.STransactions {
-		switch stake.DetermineTxType(tx, isTreasuryEnabled) {
+		switch stake.DetermineTxType(tx) {
 		case stake.TxTypeSStx: // Ticket purchase
 			for _, in := range tx.TxIn {
 				data.AddOutPoint(&in.PreviousOutPoint)

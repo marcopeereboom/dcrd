@@ -101,8 +101,7 @@ func Key(merkleRoot *chainhash.Hash) [gcs.KeySize]byte {
 
 // isStakeOutput returns true if a script output is a stake type.
 func isStakeOutput(scriptVersion uint16, pkScript []byte) bool {
-	// XXX Is it ok to say treasury is false here?
-	class := txscript.GetScriptClass(scriptVersion, pkScript, false)
+	class := txscript.GetScriptClass(scriptVersion, pkScript)
 	return class == txscript.StakeSubmissionTy ||
 		class == txscript.StakeGenTy ||
 		class == txscript.StakeRevocationTy ||
@@ -322,10 +321,9 @@ func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, err
 	// byte of the script and removing it allows users of the filter to only
 	// match against a normal P2PKH or P2SH script, instead of many extra
 	// matches for each tag.
-	isTreasuryEnabled := false // XXX is it ok to call this with treasury disabled?
 	converter := makeCommitmentConverter(block.Header.FreshStake)
 	for _, tx := range block.STransactions {
-		switch stake.DetermineTxType(tx, isTreasuryEnabled) {
+		switch stake.DetermineTxType(tx) {
 		case stake.TxTypeSStx:
 			for txInIdx, txIn := range tx.TxIn {
 				prevOut := &txIn.PreviousOutPoint
