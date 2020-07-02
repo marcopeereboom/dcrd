@@ -3201,7 +3201,6 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 				// treasuryBase transaction.
 				// XXX not sure how to get to stxos here
 				//if txs[0].MsgTx().TxOut[0].Value != subsidyTax {
-				//	panicf(spew.Sdump(block))
 				//	panicf("subsidyTax %v txout %v", subsidyTax, txs[0].MsgTx().TxOut[0].Value)
 				//}
 			} else {

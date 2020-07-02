@@ -15,7 +15,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v3/chaingen"
@@ -265,7 +264,7 @@ func TestTreasuryDatabase(t *testing.T) {
 
 		if !reflect.DeepEqual(ts, *tsr) {
 			t.Fatalf("not same treasury state got %v wanted %v",
-				spew.Sdump(ts), spew.Sdump(*tsr))
+				ts, *tsr)
 		}
 	}
 }

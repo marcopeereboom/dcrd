@@ -11,7 +11,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
@@ -380,7 +379,6 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					BlockIndex:      wire.NullBlockIndex,
 					SignatureScript: tspendScript,
 				})
-				//t.Logf("%v", spew.Sdump(msgTx))
 
 				return msgTx
 			},
@@ -858,7 +856,6 @@ func TestTSpendErrors(t *testing.T) {
 		test.SetIndex(0)
 		err := checkTSpend(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
-			spew.Dump(tt.tx)
 			t.Errorf("%v: checkTSpend should have returned %v but "+
 				"instead returned %v: %v",
 				tt.name, tt.expected.(RuleError).GetCode(),
@@ -1044,7 +1041,6 @@ func TestTAddErrors(t *testing.T) {
 		test.SetIndex(0)
 		err := checkTAdd(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
-			spew.Dump(tt.tx)
 			t.Errorf("%v: checkTAdd should have returned %v but "+
 				"instead returned %v: %v",
 				tt.name, tt.expected.(RuleError).GetCode(),
@@ -1383,7 +1379,6 @@ func TestTreasuryBaseErrors(t *testing.T) {
 		test.SetIndex(0)
 		err := checkTreasuryBase(test.MsgTx())
 		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
-			spew.Dump(tt.tx)
 			t.Errorf("%v: checkTreasuryBase should have returned "+
 				"%v but instead returned %v: %v",
 				tt.name, tt.expected.(RuleError).GetCode(),
