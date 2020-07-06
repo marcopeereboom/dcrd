@@ -2849,8 +2849,8 @@ func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFla
 		scriptFlags |= txscript.ScriptVerifySHA256
 	}
 
-	// Enable validation of OP_TADD/OP_TSUB if the treasury agenda is
-	// active.
+	// Enable validation of treasury-related opcodes when the associated
+	// agenda is active.
 	isActive, err = chain.IsTreasuryAgendaActive()
 	if err != nil {
 		return 0, err
