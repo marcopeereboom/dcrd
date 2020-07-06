@@ -2528,7 +2528,7 @@ out:
 
 				isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive()
 				if err != nil {
-					srvrLog.Error("Could not obtain treasury agenda status: %v",
+					srvrLog.Errorf("Could not obtain treasury agenda status: %v",
 						err)
 					break
 				}
