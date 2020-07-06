@@ -41,7 +41,7 @@ func isStakeBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 //
 // See the CalcSequenceLock comments for more details.
 func (b *BlockChain) calcSequenceLock(node *blockNode, tx *dcrutil.Tx, view *UtxoViewpoint, isActive bool) (*SequenceLock, error) {
-	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(&node.parent.hash)
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return nil, err
 	}
