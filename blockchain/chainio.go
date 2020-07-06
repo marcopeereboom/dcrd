@@ -814,6 +814,7 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, isTreasury
 
 		return nil, err
 	}
+
 	return stxos, nil
 }
 
