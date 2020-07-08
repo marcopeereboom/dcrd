@@ -529,7 +529,7 @@ func (g *Generator) CreateTicketPurchaseTx(spend *SpendableOut, ticketPrice, fee
 //
 // The transaction consists of the following outputs:
 // - First output is an OP_TADD
-// - Second output is optional and but when used it is an OP_SSTXCHANGE.
+// - Second output is optional and when used it is an OP_SSTXCHANGE.
 func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.Amount) *wire.MsgTx {
 	// Calculate change and generate script to deliver it.
 	var (
