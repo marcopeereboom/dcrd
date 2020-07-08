@@ -480,7 +480,7 @@ type Params struct {
 	TreasuryVoteIntervalMultiplier uint64
 
 	// TreasuryVoteQuorumMultiplier and TreasuryVoteQuorumDivisor are used
-	// to calculate the TSpend voute quorum percentage.
+	// to calculate the TSpend vote quorum percentage.
 	TreasuryVoteQuorumMultiplier uint64
 	TreasuryVoteQuorumDivisor    uint64
 

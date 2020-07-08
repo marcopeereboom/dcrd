@@ -382,7 +382,7 @@ func RegNetParams() *Params {
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              tokenPayouts_RegNetParams(),
 
-		// Commandis used to generate simnet Pi keys:
+		// Commands to generate simnet Pi keys:
 		// $ treasurykey.go -regnet
 		// Private key: 68ab7efdac0eb99b1edf83b23374cc7a9c8d0a4183a2627afc8ea0437b20589e
 		// Public  key: 03b459ccf3ce4935a676414fd9ec93ecf7c9dad081a52ed6993bf073c627499388
