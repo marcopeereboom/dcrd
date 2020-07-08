@@ -361,10 +361,6 @@ func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.
 func (c *testRPCChain) TipGeneration() ([]chainhash.Hash, error) {
 	return c.tipGeneration, nil
 }
-func (c *testRPCChain) IsTreasuryAgendaActive() (bool, error) {
-	return false, nil
-}
-
 func (c *testRPCChain) TreasuryBalance(*string) (string, int64, int64, []int64, error) {
 	return "", 0, 0, []int64{}, fmt.Errorf("not implemented")
 }
