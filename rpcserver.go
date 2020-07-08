@@ -455,9 +455,6 @@ func newWorkState() *workState {
 // isTreasuryAgendaActive returns if the treasury agenda is active or not.
 func isTreasuryAgendaActive(s *rpcServer) (bool, error) {
 	chain := s.cfg.Chain
-	if chain.BestSnapshot() == nil {
-		panic("fixme rstaudt2")
-	}
 	hash := chain.BestSnapshot().Hash
 	isTreasuryEnabled, err := chain.IsTreasuryAgendaActiveByHash(&hash)
 	if err != nil {
