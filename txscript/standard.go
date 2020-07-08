@@ -556,12 +556,11 @@ func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 		return false
 	}
 
-	// The following opcode is optional and must be either an OP_RETURN or
-	// an OP_SSTXCHANGE.
-	// XXX This must not check the OP_RETURN case; that is isTreasuryBase.
+	// The following opcode is optional and must be either an OP_RETURN
+	// (treasury base) or an OP_SSTXCHANGE (not treasury base). Reject the
+	// OP_RETURN case since that makes it a treasury base.
 	if tokenizer.Next() {
-		if !(tokenizer.Opcode() == OP_RETURN ||
-			tokenizer.Opcode() == OP_SSTXCHANGE) {
+		if tokenizer.Opcode() != OP_SSTXCHANGE {
 			return false
 		}
 	}
