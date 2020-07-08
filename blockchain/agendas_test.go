@@ -307,9 +307,9 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// for the fix sequence locks agenda, and, finally, ensure it is always
 	// available to vote by removing the time constraints to prevent test
 	// failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDFixLNSeqLocks
+	const fslVoteID = chaincfg.VoteIDFixLNSeqLocks
 	params = cloneParams(params)
-	fslVersion, deployment, err := findDeployment(params, tVoteID)
+	fslVersion, deployment, err := findDeployment(params, fslVoteID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +335,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgenda(tVoteID)
+	g.AdvanceFromSVHToActiveAgenda(fslVoteID)
 
 	// ---------------------------------------------------------------------
 	// Perform a series of sequence lock tests now that fix sequence locks
