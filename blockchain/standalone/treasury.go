@@ -21,7 +21,7 @@ func CalculateTSpendExpiry(nextBlockHeight int64, tvi, multiplier uint64) uint32
 }
 
 // IsTreasuryVoteInterval returns true if the passed height is on a Treasury
-// Vote Intercal.
+// Vote Interval.
 func IsTreasuryVoteInterval(height, tvi uint64) bool {
 	return height%tvi == 0
 }
@@ -49,7 +49,7 @@ func CalculateTSpendWindowEnd(expiry uint32, tvi uint64) (uint32, error) {
 }
 
 // InsideTSpendWindow returns true if the provided block height is inside the
-// treasury vote windowe of the provided expiry.
+// treasury vote window of the provided expiry.
 // This function should only be called with an expiry that is on a TVI.
 func InsideTSpendWindow(blockHeight int64, expiry uint32, tvi, multiplier uint64) bool {
 	s, err := CalculateTSpendWindowStart(expiry, tvi, multiplier)
