@@ -665,7 +665,6 @@ func isTicketPurchaseTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[0]
-	// XXX ok to call with treasury disabled?
 	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
 		false)
 	return scriptClass == txscript.StakeSubmissionTy
@@ -684,7 +683,6 @@ func isVoteTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[2]
-	// XXX ok to call with treasury disabled?
 	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
 		false)
 	return scriptClass == txscript.StakeGenTy
@@ -704,7 +702,6 @@ func isRevocationTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[0]
-	// XXX ok to call with treasury disabled?
 	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
 		false)
 	return scriptClass == txscript.StakeRevocationTy
