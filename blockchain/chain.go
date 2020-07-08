@@ -1407,7 +1407,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// this block.  Also, in the case the block votes against
 		// the parent, its regular transaction tree must be
 		// disconnected.
-		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parentHash)
 		if err != nil {
 			return 0, err
 		}
