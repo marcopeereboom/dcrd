@@ -120,6 +120,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx := wire.NewMsgTx()
 				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
+				msgTx.AddTxIn(&wire.TxIn{}) // On input required
 				return msgTx
 			},
 			is:       IsTAdd,
@@ -216,7 +217,8 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				if err != nil {
 					panic(err)
 				}
-				msgTx.AddTxOut(wire.NewTxOut(0, changeScript))
+				msgTx.AddTxOut(wire.NewTxOut(1, changeScript))
+				msgTx.AddTxIn(&wire.TxIn{}) // On input required
 				return msgTx
 			},
 			is:       IsTAdd,
@@ -882,9 +884,24 @@ var taddInvalidOutCount = &wire.MsgTx{
 var taddInvalidOutCount2 = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 3,
-	TxIn:    []*wire.TxIn{},
+	TxIn: []*wire.TxIn{
+		{}, // Valid TxIn count
+	},
 	TxOut: []*wire.TxOut{
 		{},
+		{},
+		{},
+	},
+	LockTime: 0,
+	Expiry:   0,
+}
+
+// taddInvalidOutCount3 has a valid TxIn count but an invalid TxIn count.
+var taddInvalidOutCount3 = &wire.MsgTx{
+	SerType: wire.TxSerializeFull,
+	Version: 3,
+	TxIn:    []*wire.TxIn{},
+	TxOut: []*wire.TxOut{
 		{},
 		{},
 	},
@@ -896,7 +913,9 @@ var taddInvalidOutCount2 = &wire.MsgTx{
 var taddInvalidVersion = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 3,
-	TxIn:    []*wire.TxIn{},
+	TxIn: []*wire.TxIn{
+		{}, // Empty TxIn
+	},
 	TxOut: []*wire.TxOut{
 		{Version: 1},
 		{Version: 0},
@@ -909,7 +928,9 @@ var taddInvalidVersion = &wire.MsgTx{
 var taddInvalidScriptLength = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 3,
-	TxIn:    []*wire.TxIn{},
+	TxIn: []*wire.TxIn{
+		{}, // Empty TxIn
+	},
 	TxOut: []*wire.TxOut{
 		{Version: 0},
 		{Version: 0},
@@ -922,7 +943,9 @@ var taddInvalidScriptLength = &wire.MsgTx{
 var taddInvalidLength = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 3,
-	TxIn:    []*wire.TxIn{},
+	TxIn: []*wire.TxIn{
+		{}, // Empty TxIn
+	},
 	TxOut: []*wire.TxOut{
 		{PkScript: []byte{
 			0xc2, // OP_TSPEND instead of OP_TADD
@@ -937,7 +960,9 @@ var taddInvalidLength = &wire.MsgTx{
 var taddInvalidOpcode = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 3,
-	TxIn:    []*wire.TxIn{},
+	TxIn: []*wire.TxIn{
+		{}, // Empty TxIn
+	},
 	TxOut: []*wire.TxOut{
 		{
 			PkScript: []byte{
@@ -953,7 +978,9 @@ var taddInvalidOpcode = &wire.MsgTx{
 var taddInvalidChange = &wire.MsgTx{
 	SerType: wire.TxSerializeFull,
 	Version: 3,
-	TxIn:    []*wire.TxIn{},
+	TxIn: []*wire.TxIn{
+		{}, // Empty TxIn
+	},
 	TxOut: []*wire.TxOut{
 		{
 			PkScript: []byte{
@@ -1002,6 +1029,11 @@ func TestTAddErrors(t *testing.T) {
 		{
 			name:     "taddInvalidOutCount2",
 			tx:       taddInvalidOutCount2,
+			expected: RuleError{ErrorCode: ErrTAddInvalidCount},
+		},
+		{
+			name:     "taddInvalidOutCount3",
+			tx:       taddInvalidOutCount3,
 			expected: RuleError{ErrorCode: ErrTAddInvalidCount},
 		},
 		{

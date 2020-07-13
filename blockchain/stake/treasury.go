@@ -42,11 +42,11 @@ func checkTAdd(mtx *wire.MsgTx) error {
 	}
 
 	// A TADD consists of one OP_TADD in PkScript[0] followed by 0 or 1
-	// stake change outputs.
-	if !(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) {
+	// stake change outputs. It also requires at least one input.
+	if !(len(mtx.TxOut) == 1 || len(mtx.TxOut) == 2) || len(mtx.TxIn) < 1 {
 		return stakeRuleError(ErrTAddInvalidCount,
-			fmt.Sprintf("invalid TADD script out count: %v",
-				len(mtx.TxOut)))
+			fmt.Sprintf("invalid TADD script out count: %v %v",
+				len(mtx.TxIn), len(mtx.TxOut)))
 	}
 
 	// Verify all TxOut script versions and lengths.
@@ -273,6 +273,7 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 				" OP_DATA_12 script")
 	}
 	// XXX validate extra nonce in OP_DATA_12 payload.
+	// check this in contextual
 
 	// The previous output of a coin base must have a max value index and a
 	// zero hash.
