@@ -587,7 +587,7 @@ func isTreasuryAddScript(scriptVersion uint16, script []byte) bool {
 // NOTE: This function is only valid for version 0 scripts.  It will always
 // return false for other script versions.
 func isTreasurySpendScript(scriptVersion uint16, script []byte) bool {
-	// An OP_TSPEND OUTPUT script consists of one or more OP_TGEN +
+	// An OP_TSPEND OUTPUT script consists of one or more OP_TGEN.
 	// The only currently supported script version is 0.
 	if scriptVersion != 0 {
 		return false
