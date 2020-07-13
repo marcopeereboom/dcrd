@@ -286,7 +286,7 @@ var regNetParams = &chaincfg.Params{
 		9: {{
 			Vote: chaincfg.Vote{
 				Id:          chaincfg.VoteIDTreasury,
-				Description: "Enable TADD/TSPEND/TGEN treasury opcodes",
+				Description: "Enable decentralized Treasury opcodes as defined in DCP0006",
 				Mask:        0x0006, // Bits 1 and 2
 				Choices: []chaincfg.Choice{{
 					Id:          "abstain",
