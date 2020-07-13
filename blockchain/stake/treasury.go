@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -95,7 +95,7 @@ func IsTAdd(tx *wire.MsgTx) bool {
 }
 
 // CheckTSpend verifies if a MsgTx is a valid TSPEND and returns the DER
-// encodes signature without the sighash byte and the compressed public key if
+// encoded signature without the sighash byte and the compressed public key if
 // successful. This function DOES NOT check the signature or if the public key
 // is a well known PI key. This is a convenience function to obtain the
 // signature and public key without iterating over the same MsgTx over and over
@@ -114,7 +114,7 @@ func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
 	// There must be at least two outputs. The first must contain an
 	// OP_RETURN followed by a 32 byte data push of a random number. This
 	// is used to randomize the transaction hash.
-	// The second output must be a TGEN tagged P2SH or P2PH script.
+	// The second output must be a TGEN tagged P2SH or P2PKH script.
 	if len(mtx.TxIn) != 1 || len(mtx.TxOut) < 2 {
 		return nil, nil, stakeRuleError(ErrTSpendInvalidLength,
 			fmt.Sprintf("invalid TSPEND script lengths in: %v "+
@@ -129,7 +129,7 @@ func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
 					"TxOut: %v", k))
 		}
 
-		// Make there is a script.
+		// Make sure there is a script.
 		if len(txOut.PkScript) == 0 {
 			return nil, nil, stakeRuleError(ErrTSpendInvalidScriptLength,
 				fmt.Sprintf("invalid TxOut script length %v: "+
@@ -202,7 +202,7 @@ func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
 				"followed by a 32 byte data push")
 	}
 
-	// Verify that the TxOut's contains a P2PH or P2PH scripts.
+	// Verify that the TxOut's contains a P2PKH or P2PKH scripts.
 	for k, txOut := range mtx.TxOut[1:] {
 		// All tx outs are tagged with OP_TGEN
 		if txOut.PkScript[0] != txscript.OP_TGEN {
@@ -213,7 +213,7 @@ func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
 		if !(txscript.IsPubKeyHashScript(txOut.PkScript[1:]) ||
 			txscript.IsPayToScriptHash(txOut.PkScript[1:])) {
 			return nil, nil, stakeRuleError(ErrTSpendInvalidSpendScript,
-				fmt.Sprintf("Output is not P2PH: %v", k))
+				fmt.Sprintf("Output is not P2PKH: %v", k))
 		}
 	}
 
