@@ -789,19 +789,15 @@ func GetSSGenTreasuryVotes(PkScript []byte) ([]TreasuryVoteTuple, error) {
 	}
 
 	// Return hashes, this is the success path.
-	votes := make([]TreasuryVoteTuple, 0, 7) // Max 7 votes
-	vmap := make(map[string]struct{}, 7)     // Collision detection
+	votes := make([]TreasuryVoteTuple, 0, 7)     // Max 7 votes
+	vmap := make(map[chainhash.Hash]struct{}, 7) // Collision detection
 	for i := start + 2; ; i += size {
+
 		if len(PkScript[i:]) < size {
 			break
 		}
-		// Exclude vote bits.
-		hash, err := chainhash.NewHash(PkScript[i : size+i-1])
-		if err != nil {
-			// This cannot happen due to the if statement
-			// above.
-			panic(err)
-		}
+		var hash chainhash.Hash
+		copy(hash[:], PkScript[i:size+i-1])
 		vote := TreasuryVoteT(PkScript[size+i-1])
 		if !IsTreasuryVote(vote) {
 			str := fmt.Sprintf("SSGen invalid treasury "+
@@ -812,18 +808,18 @@ func GetSSGenTreasuryVotes(PkScript []byte) ([]TreasuryVoteTuple, error) {
 		}
 
 		// Ensure there are no duplicate TSpend votes.
-		if _, ok := vmap[hash.String()]; ok {
+		if _, ok := vmap[hash]; ok {
 			str := fmt.Sprintf("SSGen duplicate treasury "+
 				"vote %v", hash)
 			return nil,
 				stakeRuleError(ErrSSGenDuplicateTreasuryVote,
 					str)
 		}
-		vmap[hash.String()] = struct{}{}
+		vmap[hash] = struct{}{}
 
 		// Store votes in order of appearance.
 		votes = append(votes, TreasuryVoteTuple{
-			Hash: *hash,
+			Hash: hash,
 			Vote: vote,
 		})
 	}
