@@ -536,7 +536,10 @@ func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.
 		err          error
 	)
 	change := spend.amount - amount - fee
-	if change != 0 {
+	if change < 0 {
+		panic(fmt.Sprintf("negative change %v", change))
+	}
+	if change > 0 {
 		changeScript, err = txscript.PayToSStxChange(g.p2shOpTrueAddr)
 		if err != nil {
 			panic(err)
@@ -604,12 +607,7 @@ func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmount
 
 	// OP_TGEN
 	for _, v := range payouts {
-		p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE},
-			chaincfg.RegNetParams())
-		if err != nil {
-			panic(err)
-		}
-		p2shOpTrueScript, err := txscript.PayToAddrScript(p2shOpTrueAddr)
+		p2shOpTrueScript, err := txscript.PayToAddrScript(g.p2shOpTrueAddr)
 		if err != nil {
 			panic(err)
 		}
