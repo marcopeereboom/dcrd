@@ -2491,18 +2491,28 @@ func (g *Generator) NumSpendableCoinbaseOuts() int {
 // saveCoinbaseOuts adds the proof-of-work outputs of the coinbase tx in the
 // passed block to the list of spendable outputs.
 func (g *Generator) saveCoinbaseOuts(b *wire.MsgBlock) {
-	x := uint32(0)
-	if len(b.Transactions[0].TxOut) == 7 {
-		// Treasury enabled
-		x = 1
-	}
 	g.spendableOuts = append(g.spendableOuts, []SpendableOut{
-		MakeSpendableOut(b, 0, 2-x),
-		MakeSpendableOut(b, 0, 3-x),
-		MakeSpendableOut(b, 0, 4-x),
-		MakeSpendableOut(b, 0, 5-x),
-		MakeSpendableOut(b, 0, 6-x),
-		MakeSpendableOut(b, 0, 7-x),
+		MakeSpendableOut(b, 0, 2),
+		MakeSpendableOut(b, 0, 3),
+		MakeSpendableOut(b, 0, 4),
+		MakeSpendableOut(b, 0, 5),
+		MakeSpendableOut(b, 0, 6),
+		MakeSpendableOut(b, 0, 7),
+	})
+	g.prevCollectedHash = b.BlockHash()
+}
+
+// saveCoinbaseOutsWithTreasury adds the proof-of-work outputs of the coinbase tx in the
+// passed block to the list of spendable outputs. The offset changed due to
+// treasury agenda.
+func (g *Generator) saveCoinbaseOutsWithTreasury(b *wire.MsgBlock) {
+	g.spendableOuts = append(g.spendableOuts, []SpendableOut{
+		MakeSpendableOut(b, 0, 1),
+		MakeSpendableOut(b, 0, 2),
+		MakeSpendableOut(b, 0, 3),
+		MakeSpendableOut(b, 0, 4),
+		MakeSpendableOut(b, 0, 5),
+		MakeSpendableOut(b, 0, 6),
 	})
 	g.prevCollectedHash = b.BlockHash()
 }
@@ -2511,6 +2521,12 @@ func (g *Generator) saveCoinbaseOuts(b *wire.MsgBlock) {
 // current tip block to the list of spendable outputs.
 func (g *Generator) SaveTipCoinbaseOuts() {
 	g.saveCoinbaseOuts(g.tip)
+}
+
+// SaveTipCoinbaseOutsWithTreasury adds the proof-of-work outputs of the
+// coinbase tx in the current tip block to the list of spendable outputs.
+func (g *Generator) SaveTipCoinbaseOutsWithTreasury() {
+	g.saveCoinbaseOutsWithTreasury(g.tip)
 }
 
 // SaveSpendableCoinbaseOuts adds all proof-of-work coinbase outputs starting

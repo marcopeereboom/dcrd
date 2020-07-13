@@ -955,7 +955,7 @@ func TestTreasury(t *testing.T) {
 				tx.Version = wire.TxVersionTreasury
 				b.AddSTransaction(tx)
 			})
-		g.SaveTipCoinbaseOuts()
+		g.SaveTipCoinbaseOutsWithTreasury()
 		g.AcceptTipBlock()
 	}
 	iterations := 1
@@ -1066,7 +1066,7 @@ func TestTreasury(t *testing.T) {
 				tx.Version = wire.TxVersionTreasury
 				b.AddSTransaction(tx)
 			})
-		g.SaveTipCoinbaseOuts()
+		g.SaveTipCoinbaseOutsWithTreasury()
 		g.AcceptTipBlock()
 	}
 	iterations += 1
@@ -1109,7 +1109,7 @@ func TestTreasury(t *testing.T) {
 			g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
 				replaceCoinbase)
 		}
-		g.SaveTipCoinbaseOuts()
+		g.SaveTipCoinbaseOutsWithTreasury()
 		g.AcceptTipBlock()
 	}
 	iterations += 2 // We generate 2*blockCount
