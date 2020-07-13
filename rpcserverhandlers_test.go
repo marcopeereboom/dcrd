@@ -2571,7 +2571,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range txns {
 		rawTxn, err := createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations)
+			int64(blkHeader.Height), confirmations, false /* No treasury */)
 		if err != nil {
 			t.Fatalf("error creating tx raw result: %+v", err)
 		}
@@ -2582,7 +2582,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range stxns {
 		rawSTxn, err := createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations)
+			int64(blkHeader.Height), confirmations, false /* No treasury */)
 		if err != nil {
 			t.Fatalf("error creating stx raw result: %+v", err)
 		}
