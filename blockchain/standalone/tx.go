@@ -53,6 +53,10 @@ func IsCoinBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 			return false
 		}
 		l := len(tx.TxIn[0].SignatureScript)
+		if l == 0 || len(tx.TxOut[0].PkScript) == 0 ||
+			len(tx.TxOut[1].PkScript) == 0 {
+			return false
+		}
 		if tx.TxIn[0].SignatureScript[l-1] == txscript.OP_TSPEND &&
 			tx.TxOut[0].PkScript[0] == txscript.OP_RETURN &&
 			tx.TxOut[1].PkScript[0] == txscript.OP_TGEN {
