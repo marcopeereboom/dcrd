@@ -617,11 +617,9 @@ func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmount
 		msgTx.AddTxOut(wire.NewTxOut(int64(v.Amount), script))
 	}
 
-	// Placeholder TxIn
+	// Treasury spend transactions have no inputs since the funds are sourced
+	// from an special account, so previous outpoint is zero hash and max index.
 	msgTx.AddTxIn(&wire.TxIn{
-		// Stakebase transactions have no
-		// inputs, so previous outpoint is zero
-		// hash and max index.
 		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
 			wire.MaxPrevOutIndex, wire.TxTreeRegular),
 		Sequence:        wire.MaxTxInSequenceNum,
