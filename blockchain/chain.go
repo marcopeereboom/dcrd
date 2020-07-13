@@ -1032,8 +1032,11 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		}
 		nextBlockToDetach = parent
 
-		// XXX is this right by looking at the parent?
-		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+		// Determine if treasury agenda is active.
+		isTreasuryEnabled, err := b.isTreasuryAgendaActive(n.parent)
+		if err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
@@ -1106,7 +1109,8 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// Store the loaded block as parent of next iteration.
 		prevBlockAttached = block
 
-		isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+		// Determine if treasury agenda is active.
+		isTreasuryEnabled, err := b.isTreasuryAgendaActive(n.parent)
 		if err != nil {
 			return err
 		}
