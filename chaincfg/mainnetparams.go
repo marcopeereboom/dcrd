@@ -290,7 +290,7 @@ func MainNetParams() *Params {
 			8: {{
 				Vote: Vote{
 					Id:          VoteIDTreasury,
-					Description: "Enable TADD/TSPEND/TGEN treasury opcodes",
+					Description: "Enable decentralized Treasury opcodes as defined in DCP0006",
 					Mask:        0x0006, // Bits 1 and 2
 					Choices: []Choice{{
 						Id:          "abstain",
@@ -312,8 +312,8 @@ func MainNetParams() *Params {
 						IsNo:        false,
 					}},
 				},
-				StartTime:  1577836800, // Jan 1st, 2020
-				ExpireTime: 1580515199, // Jan 31st, 2020 23:59.59
+				StartTime:  1596240000, // Aug 1st, 2020
+				ExpireTime: 1627776000, // Aud 1st, 2021
 			}},
 		},
 

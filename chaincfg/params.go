@@ -143,7 +143,7 @@ const (
 	VoteIDHeaderCommitments = "headercommitments"
 
 	// VoteIDTreasury is the vote ID for the agenda that enables the
-	// TADD/TSUB treasury opcodes.
+	// decentralized treasury opcodes defined by DCP0006.
 	VoteIDTreasury = "treasury"
 )
 
@@ -485,7 +485,7 @@ type Params struct {
 	TreasuryVoteQuorumDivisor    uint64
 
 	// TreasuryVoteRequiredMultiplier and TreasuryVoteRequiredDivisor are
-	// used to calculate the required number of vote percentage.
+	// used to calculate the required number of votes percentage.
 	TreasuryVoteRequiredMultiplier uint64
 	TreasuryVoteRequiredDivisor    uint64
 
