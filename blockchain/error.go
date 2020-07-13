@@ -507,31 +507,31 @@ const (
 	// treasurybase transaction.
 	ErrMultipleTreasuryBases
 
-	// ErrUnknownPiKey indicates that the provided ipublic Pi Key is not
-	// a well known kwy.
+	// ErrUnknownPiKey indicates that the provided public Pi Key is not
+	// a well known key.
 	ErrUnknownPiKey
 
-	// ErrInvalidPiSignature indicates that a TSPEND transaction was not
-	// properly signed.
+	// ErrInvalidPiSignature indicates that a treasury spend transaction
+	// was not properly signed.
 	ErrInvalidPiSignature
 
-	// ErrNotTVI indicates that a TSPEND transaction appeared on a non-TVI
-	// block.
+	// ErrNotTVI indicates that a treasury spend transaction appeared in a
+	// block that is not at a TVI interval.
 	ErrNotTVI
 
-	// ErrInvalidTSpendWindow indicates that this TSPEND transactoin is
-	// outside of the allowed window.
+	// ErrInvalidTSpendWindow indicates that this treasury spend
+	// transaction is outside of the allowed window.
 	ErrInvalidTSpendWindow
 
-	// ErrNotEnoughTSpendVotes indicates that a TSPEND transaction does not
-	// have enough votes to be included in block.
+	// ErrNotEnoughTSpendVotes indicates that a treasury spend transaction
+	// does not have enough votes to be included in block.
 	ErrNotEnoughTSpendVotes
 
-	// ErrTSpendExists indicates that a TSPEND has been mined in a block on
-	// the current chain.
+	// ErrTSpendExists indicates that a duplicate treasury spend
+	// transaction has been mined on a TVI in the current best chain.
 	ErrTSpendExists
 
-	// ErrInvalidExpenditure indicates that a TSPEND transaction
+	// ErrInvalidExpenditure indicates that a treasury spend transaction
 	// expenditure is out of range.
 	ErrInvalidExpenditure
 
