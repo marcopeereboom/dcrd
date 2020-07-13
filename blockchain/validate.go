@@ -214,26 +214,9 @@ func IsFinalizedTransaction(tx *dcrutil.Tx, blockHeight int64, blockTime time.Ti
 	return true
 }
 
-// CheckTransactionSanity performs some preliminary checks on a transaction to
-// ensure it is sane.  These checks are supposed to be context free but cannot
-// be due to the treasury agenda.
-//
-// Note that this is a giant hack to separate the original context free
-// function into two functions due to the treasury agenda induced contextual
-// isTreasuryEnabled flag.  The contextual checks have been pulled out in order
-// to maintain order and assumptions without having to discard the
-// isTreasuryEnabled checks from the function.
-func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
-	err := CheckTransactionSanityContextFree(tx, params)
-	if err != nil {
-		return err
-	}
-	return CheckTransactionSanityContextual(tx, params, isTreasuryEnabled)
-}
-
-// CheckTransactionSanityContextFree performs some preliminary checks on a
+// checkTransactionSanityContextFree performs some preliminary checks on a
 // transaction to ensure it is sane.  These checks are context free.
-func CheckTransactionSanityContextFree(tx *wire.MsgTx, params *chaincfg.Params) error {
+func checkTransactionSanityContextFree(tx *wire.MsgTx, params *chaincfg.Params) error {
 	// A transaction must have at least one input.
 	if len(tx.TxIn) == 0 {
 		return ruleError(ErrNoTxInputs, "transaction has no inputs")
@@ -256,20 +239,23 @@ func CheckTransactionSanityContextFree(tx *wire.MsgTx, params *chaincfg.Params) 
 	return nil
 }
 
-// CheckTransactionSanityContextual performs some preliminary checks on a
+// checkTransactionSanityContextual performs some preliminary checks on a
 // transaction to ensure it is sane.  These checks are contextual.
-func CheckTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
+func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
 	// Coinbase script length must be between min and max length.
 	isVote := stake.IsSSGen(tx, isTreasuryEnabled)
 	isTicket := !isVote && stake.IsSStx(tx)
 	isRevocation := !isVote && !isTicket && stake.IsSSRtx(tx)
-	var isTAdd, isTSpend bool
+	var isTreasuryBase, isTAdd, isTSpend bool
 	if isTreasuryEnabled {
-		isTAdd = !isRevocation && stake.IsTAdd(tx)
+		isTreasuryBase = !isRevocation && stake.IsTreasuryBase(tx)
+		isTAdd = !isTreasuryBase && stake.IsTAdd(tx)
 		isTSpend = !isTAdd && stake.IsTSpend(tx)
 	}
 	// XXX do we need to check treasury base here?
-	if isTSpend {
+	if isTreasuryBase {
+		// XXX Do checks
+	} else if isTSpend {
 		// XXX Do checks
 	} else if isTAdd {
 		// XXX Do checks
@@ -407,6 +393,23 @@ func CheckTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 	}
 
 	return nil
+}
+
+// CheckTransactionSanity performs some preliminary checks on a transaction to
+// ensure it is sane.  These checks are supposed to be context free but cannot
+// be due to the treasury agenda.
+//
+// Note that this is a giant hack to separate the original context free
+// function into two functions due to the treasury agenda induced contextual
+// isTreasuryEnabled flag.  The contextual checks have been pulled out in order
+// to maintain order and assumptions without having to discard the
+// isTreasuryEnabled checks from the function.
+func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
+	err := checkTransactionSanityContextFree(tx, params)
+	if err != nil {
+		return err
+	}
+	return checkTransactionSanityContextual(tx, params, isTreasuryEnabled)
 }
 
 // checkProofOfStake ensures that all ticket purchases in the block pay at least
