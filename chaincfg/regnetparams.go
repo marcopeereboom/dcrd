@@ -396,7 +396,7 @@ func RegNetParams() *Params {
 			hexDecode("03b459ccf3ce4935a676414fd9ec93ecf7c9dad081a52ed6993bf073c627499388"),
 			hexDecode("02e3af1209f4d39dd8b448ef0a5375befa85bbc50be0aa0936379d67444184a2c3"),
 		},
-		TreasuryVoteInterval:           4, // PNOOMA every 4 blocks for regnet
+		TreasuryVoteInterval:           4, // every 4 blocks for regnet
 		TreasuryVoteIntervalMultiplier: 2, // 2 * 4 block Expiry.
 		TreasuryVoteIntervalPolicy:     4, // 4 * 2 * 4 blocks for policy checks.
 

@@ -226,7 +226,7 @@ func SimNetParams() *Params {
 			hexDecode("02b2c110e7b560aa9e1545dd18dd9f7e74a3ba036297a696050c0256f1f69479d7"),
 		},
 
-		TreasuryVoteInterval:           4, // PNOOMA every 4 blocks for simnet
+		TreasuryVoteInterval:           4, // every 4 blocks for simnet
 		TreasuryVoteIntervalMultiplier: 2, // 2 * 4 block Expiry.
 		TreasuryVoteIntervalPolicy:     4, // 4 * 2 * 4 blocks for policy checks.
 
