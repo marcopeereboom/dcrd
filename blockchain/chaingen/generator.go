@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"math"
 	"math/big"
@@ -578,7 +577,7 @@ type AddressAmountTuple struct {
 // - First output is an OP_RETURN <32 byte randome data>
 // - Second and other outputs are OP_TGEN P2PH/P2SH
 // accounting.
-func (g *Generator) CreateTreasuryTSpend(payouts []AddressAmountTuple, fee dcrutil.Amount, expiry uint32) *wire.MsgTx {
+func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmountTuple, fee dcrutil.Amount, expiry uint32) *wire.MsgTx {
 	// Calculate total payout.
 	totalPayout := int64(0)
 	for _, v := range payouts {
@@ -633,12 +632,6 @@ func (g *Generator) CreateTreasuryTSpend(payouts []AddressAmountTuple, fee dcrut
 		BlockIndex:      wire.NullBlockIndex,
 		SignatureScript: []byte{},
 	})
-
-	// This key comes from chaincfg/regnetparams.go
-	privKey, err := hex.DecodeString("68ab7efdac0eb99b1edf83b23374cc7a9c8d0a4183a2627afc8ea0437b20589e")
-	if err != nil {
-		panic(err)
-	}
 
 	sigscript, err := txscript.SignatureScript(msgTx, 0, nil,
 		txscript.SigHashAll, privKey,

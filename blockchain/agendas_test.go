@@ -994,7 +994,7 @@ func TestTreasury(t *testing.T) {
 		tspendAmount += i + 1
 		tspendFee++
 	}
-	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{
 			Amount: dcrutil.Amount(tspendAmount - tspendFee),
 		},

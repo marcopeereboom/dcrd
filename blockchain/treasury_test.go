@@ -36,9 +36,10 @@ const (
 )
 
 var (
-	values []byte
-	empty  []byte
-	many   []byte
+	values  []byte
+	empty   []byte
+	many    []byte
+	privKey []byte
 )
 
 func init() {
@@ -52,6 +53,12 @@ func init() {
 		panic(err)
 	}
 	many, err = hex.DecodeString(tooManyValues)
+	if err != nil {
+		panic(err)
+	}
+
+	// This key comes from chaincfg/regnetparams.go
+	privKey, err = hex.DecodeString("68ab7efdac0eb99b1edf83b23374cc7a9c8d0a4183a2627afc8ea0437b20589e")
 	if err != nil {
 		panic(err)
 	}
@@ -531,7 +538,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	t.Logf("nbh %v expiry %v start %v end %v",
 		nextBlockHeight, expiry, start, end)
 
-	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{
 			Amount: dcrutil.Amount(tspendAmount - tspendFee),
 		},
@@ -765,7 +772,7 @@ func TestTSpendVoteCount(t *testing.T) {
 			start, g.Tip().Header.Height+uint32(tvi))
 	}
 
-	tspend = g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+	tspend = g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{
 			Amount: dcrutil.Amount(tspendAmount - tspendFee),
 		},
@@ -973,7 +980,7 @@ func TestTSpendExpenditures(t *testing.T) {
 	tspendAmount := devsub*(tvi*mul-uint64(params.CoinbaseMaturity)+
 		uint64(start-nextBlockHeight)) + 1 // One atom too many
 	tspendFee := uint64(0)
-	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{
 			Amount: dcrutil.Amount(tspendAmount - tspendFee),
 		},
@@ -1159,7 +1166,7 @@ func TestTSpendExpenditures2(t *testing.T) {
 	x := tvi * mul * params.TreasuryVoteIntervalPolicy * devsub
 	tspendAmount := x + x/2 + devsub*2 // 150% including maturity
 	tspendFee := uint64(0)
-	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{
 			Amount: dcrutil.Amount(tspendAmount - tspendFee),
 		},
@@ -1264,18 +1271,21 @@ func TestTSpendDupVote(t *testing.T) {
 	tspendAmount := devsub * (tvi*mul - uint64(params.CoinbaseMaturity) +
 		uint64(start-nextBlockHeight))
 	tspendFee := uint64(0)
-	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(tspendAmount - tspendFee),
+	tspend := g.CreateTreasuryTSpend(privKey,
+		[]chaingen.AddressAmountTuple{
+
+			{
+				Amount: dcrutil.Amount(tspendAmount - tspendFee),
+			},
 		},
-	},
 		dcrutil.Amount(tspendFee), expiry)
 	tspendHash := tspend.TxHash()
-	tspend2 := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
-		{
-			Amount: dcrutil.Amount(tspendAmount - tspendFee),
+	tspend2 := g.CreateTreasuryTSpend(privKey,
+		[]chaingen.AddressAmountTuple{
+			{
+				Amount: dcrutil.Amount(tspendAmount - tspendFee),
+			},
 		},
-	},
 		dcrutil.Amount(tspendFee), expiry)
 	tspendHash2 := tspend2.TxHash()
 	t.Logf("tspend %v amount %v fee %v",
@@ -1417,11 +1427,12 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	tspendHashes := make([]*chainhash.Hash, maxTspends+1)
 	tspendVotes := make([]stake.TreasuryVoteT, maxTspends+1)
 	for i := 0; i < maxTspends+1; i++ {
-		tspends[i] = g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
-			{
-				Amount: dcrutil.Amount(tspendAmount - tspendFee),
+		tspends[i] = g.CreateTreasuryTSpend(privKey,
+			[]chaingen.AddressAmountTuple{
+				{
+					Amount: dcrutil.Amount(tspendAmount - tspendFee),
+				},
 			},
-		},
 			dcrutil.Amount(tspendFee), expiry)
 		hash := tspends[i].TxHash()
 		tspendHashes[i] = &hash
@@ -1535,7 +1546,7 @@ func TestTSpendWindow(t *testing.T) {
 	tspendAmount := devsub * (tvi*mul - uint64(params.CoinbaseMaturity) +
 		uint64(start-nextBlockHeight))
 	tspendFee := uint64(0)
-	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{
 			Amount: dcrutil.Amount(tspendAmount - tspendFee),
 		},
@@ -1737,7 +1748,7 @@ func TestTSpendExists(t *testing.T) {
 
 	tspendAmount := uint64(devsub)
 	tspendFee := uint64(0)
-	tspend := g.CreateTreasuryTSpend([]chaingen.AddressAmountTuple{
+	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
 		{
 			Amount: dcrutil.Amount(tspendAmount - tspendFee),
 		},
