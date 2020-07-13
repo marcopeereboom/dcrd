@@ -772,62 +772,62 @@ func GetSSGenTreasuryVotes(PkScript []byte) ([]TreasuryVoteTuple, error) {
 	}
 
 	// Ensure discriminator is TV.
-	const size = chainhash.HashSize + 1
-	if bytes.Equal(PkScript[start:start+2], []byte{'T', 'V'}) {
-		// Since this is a 'T','V' we expect N hashes and their vote
-		// bits.
-		if len(PkScript[start+2:]) < size ||
-			len(PkScript[start+2:])%size != 0 {
-			str := fmt.Sprintf("SSGen 'T','V' invalid " +
-				"length")
-			return nil, stakeRuleError(ErrSSGenInvalidTVLength,
-				str)
-		}
-
-		// Return hashes, this is the success path.
-		votes := make([]TreasuryVoteTuple, 0, 7) // Max 7 votes
-		vmap := make(map[string]struct{}, 7)     // Collision detection
-		for i := start + 2; ; i += size {
-			if len(PkScript[i:]) < size {
-				break
-			}
-			// Exclude vote bits.
-			hash, err := chainhash.NewHash(PkScript[i : size+i-1])
-			if err != nil {
-				// This cannot happen due to the if statement
-				// above.
-				panic(err)
-			}
-			vote := TreasuryVoteT(PkScript[size+i-1])
-			if !IsTreasuryVote(vote) {
-				str := fmt.Sprintf("SSGen invalid treasury "+
-					"vote bits 0x%0x", vote)
-				return nil,
-					stakeRuleError(ErrSSGenInvalidTreasuryVote,
-						str)
-			}
-
-			// Ensure there are no duplicate TSpend votes.
-			if _, ok := vmap[hash.String()]; ok {
-				str := fmt.Sprintf("SSGen duplicate treasury "+
-					"vote %v", hash)
-				return nil,
-					stakeRuleError(ErrSSGenDuplicateTreasuryVote,
-						str)
-			}
-			vmap[hash.String()] = struct{}{}
-
-			// Store votes in order of appearance.
-			votes = append(votes, TreasuryVoteTuple{
-				Hash: *hash,
-				Vote: vote,
-			})
-		}
-		return votes, nil
+	if !bytes.Equal(PkScript[start:start+2], []byte{'T', 'V'}) {
+		str := fmt.Sprintf("last SSGen unknown type discriminator: "+
+			"0x%x 0x%x", PkScript[start], PkScript[start+1])
+		return nil, stakeRuleError(ErrSSGenUnknownDiscriminator, str)
 	}
-	str := fmt.Sprintf("last SSGen unknown type discriminator: 0x%x 0x%x",
-		PkScript[start], PkScript[start+1])
-	return nil, stakeRuleError(ErrSSGenUnknownDiscriminator, str)
+
+	// Since this is a 'T','V' we expect N hashes and their vote bits.
+	const size = chainhash.HashSize + 1
+	if len(PkScript[start+2:]) < size ||
+		len(PkScript[start+2:])%size != 0 {
+		str := fmt.Sprintf("SSGen 'T','V' invalid " +
+			"length")
+		return nil, stakeRuleError(ErrSSGenInvalidTVLength,
+			str)
+	}
+
+	// Return hashes, this is the success path.
+	votes := make([]TreasuryVoteTuple, 0, 7) // Max 7 votes
+	vmap := make(map[string]struct{}, 7)     // Collision detection
+	for i := start + 2; ; i += size {
+		if len(PkScript[i:]) < size {
+			break
+		}
+		// Exclude vote bits.
+		hash, err := chainhash.NewHash(PkScript[i : size+i-1])
+		if err != nil {
+			// This cannot happen due to the if statement
+			// above.
+			panic(err)
+		}
+		vote := TreasuryVoteT(PkScript[size+i-1])
+		if !IsTreasuryVote(vote) {
+			str := fmt.Sprintf("SSGen invalid treasury "+
+				"vote bits 0x%0x", vote)
+			return nil,
+				stakeRuleError(ErrSSGenInvalidTreasuryVote,
+					str)
+		}
+
+		// Ensure there are no duplicate TSpend votes.
+		if _, ok := vmap[hash.String()]; ok {
+			str := fmt.Sprintf("SSGen duplicate treasury "+
+				"vote %v", hash)
+			return nil,
+				stakeRuleError(ErrSSGenDuplicateTreasuryVote,
+					str)
+		}
+		vmap[hash.String()] = struct{}{}
+
+		// Store votes in order of appearance.
+		votes = append(votes, TreasuryVoteTuple{
+			Hash: *hash,
+			Vote: vote,
+		})
+	}
+	return votes, nil
 }
 
 // CheckSSGenVotes returns an error if a transaction is not a stake submission
@@ -920,7 +920,7 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	}
 
 	// Ensure the number of outputs is equal to the number of inputs found
-	// in the original SStx + 2.
+	// in the original SStx + 3.
 	// TODO: Do this in validate, requires DB and valid chain.
 
 	// Ensure that the second input is an SStx tagged output.
@@ -997,7 +997,7 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	// Check to see if the last output is an OP_RETURN followed by a 2 byte
 	// data push that designates what the data is that follows the
 	// discriminator. In the case of 'T','V' the next data push should be N
-	// hashes. If it is we need to decrease the count on OP_SSRTX tests by
+	// hashes. If it is we need to decrease the count on OP_SSGEN tests by
 	// one. This check is only valid if the treasury agenda is active,
 	txOutLen := len(tx.TxOut)
 	lastTxOut := tx.TxOut[len(tx.TxOut)-1]
