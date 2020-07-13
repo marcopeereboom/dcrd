@@ -887,10 +887,9 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 	// A block must not contain anything other than ticket purchases prior to
 	// stake validation height.
 	//
-	// Note that we allow treasury operationsbefore stakeValidationHeight.
+	// Note that we allow treasury operations before stakeValidationHeight.
 	if header.Height < stakeValidationHeight {
-		if int64(len(msgBlock.STransactions)) != totalTickets &&
-			int64(len(msgBlock.STransactions)) != totalTreasury {
+		if int64(len(msgBlock.STransactions)) != totalTickets+totalTreasury {
 			errStr := fmt.Sprintf("block contains stake "+
 				"transactions other than ticket purchases before "+
 				"stake validation height %d (total: %d, expected %d)",
