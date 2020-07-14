@@ -445,10 +445,10 @@ func replaceCoinbase(b *wire.MsgBlock) {
 	treasurybaseTx.AddTxIn(&wire.TxIn{
 		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
 			wire.MaxPrevOutIndex, wire.TxTreeRegular),
-		Sequence:        wire.MaxTxInSequenceNum,
-		BlockHeight:     wire.NullBlockHeight,
-		BlockIndex:      wire.NullBlockIndex,
-		SignatureScript: coinbaseTx.TxIn[0].SignatureScript,
+		Sequence:    wire.MaxTxInSequenceNum,
+		BlockHeight: wire.NullBlockHeight,
+		BlockIndex:  wire.NullBlockIndex,
+		// Required 0 len SignatureScript
 	})
 	treasurybaseTx.TxIn[0].ValueIn = devSubsidy
 	treasurybaseTx.AddTxOut(&wire.TxOut{

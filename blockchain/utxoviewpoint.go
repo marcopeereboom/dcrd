@@ -381,6 +381,11 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 		return nil
 	}
 
+	// Treasurybase transactions don't have any inputs to spend.
+	if isTreasuryEnabled && standalone.IsTreasuryBase(msgTx) {
+		return nil
+	}
+
 	// Spend the referenced utxos by marking them spent in the view and,
 	// if a slice was provided for the spent txout details, append an entry
 	// to it.

@@ -278,12 +278,10 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 
 		// It is oK to reuse MinCoinbaseScriptLen and
 		// MaxCoinbaseScriptLen.
-		slen := len(tx.TxIn[0].SignatureScript)
-		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
+		if len(tx.TxIn[0].SignatureScript) != 0 {
 			str := fmt.Sprintf("treasurybase transaction script "+
-				"length of %d is out of range (min: %d, max: "+
-				"%d)", slen, MinCoinbaseScriptLen,
-				MaxCoinbaseScriptLen)
+				"length is not zero: %v",
+				len(tx.TxIn[0].SignatureScript))
 			return ruleError(ErrBadTreasurybaseScriptLen, str)
 		}
 	} else if isTSpend {
@@ -2453,6 +2451,11 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 	// Coinbase transactions have no inputs.
 	msgTx := tx.MsgTx()
 	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
+		return 0, nil
+	}
+
+	// Treasurybase transactions have no inputs.
+	if isTreasuryEnabled && standalone.IsTreasuryBase(msgTx) {
 		return 0, nil
 	}
 
