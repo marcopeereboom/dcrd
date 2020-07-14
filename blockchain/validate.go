@@ -287,7 +287,6 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 			return ruleError(ErrBadTreasurybaseScriptLen, str)
 		}
 	} else if isTSpend {
-		// XXX replace ErrBadTreasurybaseOutpoint with TSpend
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
 			str := fmt.Sprintf("tspend transaction did not " +
