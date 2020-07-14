@@ -252,13 +252,37 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 		isTAdd = !isTreasuryBase && stake.IsTAdd(tx)
 		isTSpend = !isTAdd && stake.IsTSpend(tx)
 	}
-	// XXX do we need to check treasury base here?
+
 	if isTreasuryBase {
 		// XXX Do checks
 	} else if isTSpend {
 		// XXX Do checks
 	} else if isTAdd {
-		// XXX Do checks
+		// TAdd must be sum(in) - (tadd + change) must be >= 0
+		var totalIn, totalOut int64
+		for idx, txIn := range tx.TxIn {
+			// Inputs may not be 0 or negative.
+			if txIn.ValueIn < 0 {
+				str := fmt.Sprintf("tadd input is negative "+
+					"idx %v value %v", idx, totalIn)
+				return ruleError(ErrBadTxInput, str)
+			}
+			totalIn += txIn.ValueIn
+		}
+		for idx, txOut := range tx.TxOut {
+			// Outputs may not be 0 or negative.
+			if txOut.Value < 0 {
+				str := fmt.Sprintf("tadd output is negative "+
+					"idx %v value %v", idx, totalOut)
+				return ruleError(ErrBadTxOutValue, str)
+			}
+			totalOut += txOut.Value
+		}
+		if totalIn-totalOut < 0 {
+			str := fmt.Sprintf("tadd plus change exceeds input "+
+				" total: in %v out %v", totalIn, totalOut)
+			return ruleError(ErrBadTxOutValue, str)
+		}
 	} else if standalone.IsCoinBaseTx(tx, isTreasuryEnabled) {
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {

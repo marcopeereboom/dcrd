@@ -2156,3 +2156,161 @@ func TestTreasuryBalance(t *testing.T) {
 			ts.Balance, expected)
 	}
 }
+
+func createTAdd(change int, spend chaingen.SpendableOut, params *chaincfg.Params) func(b *wire.MsgBlock) {
+	p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE},
+		params)
+	if err != nil {
+		panic(err)
+	}
+
+	return func(b *wire.MsgBlock) {
+		// Add TADD
+		amount := spend.Amount()
+		tx := wire.NewMsgTx()
+		tx.AddTxIn(&wire.TxIn{
+			PreviousOutPoint: spend.PrevOut(),
+			Sequence:         wire.MaxTxInSequenceNum,
+			ValueIn:          int64(amount),
+			BlockHeight:      spend.BlockHeight(),
+			BlockIndex:       spend.BlockIndex(),
+			SignatureScript: []byte{txscript.OP_DATA_1,
+				txscript.OP_TRUE},
+		})
+
+		// Add Negative vhange
+		changeScript, err := txscript.PayToSStxChange(p2shOpTrueAddr)
+		if err != nil {
+			panic(err)
+		}
+		tx.AddTxOut(wire.NewTxOut(int64(amount),
+			[]byte{txscript.OP_TADD}))
+		tx.AddTxOut(wire.NewTxOut(-1, changeScript))
+		tx.Version = wire.TxVersionTreasury
+		b.AddSTransaction(tx)
+	}
+}
+
+func TestTAddCorners(t *testing.T) {
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Dave off tvi and mul.
+	tvi := params.TreasuryVoteInterval
+	mul := params.TreasuryVoteIntervalMultiplier
+	cbm := params.CoinbaseMaturity
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the fix sequence locks agenda, and, finally, ensure it is always
+	// available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
+	const tVoteID = chaincfg.VoteIDTreasury
+	params = cloneParams(params)
+	tVersion, deployment, err := findDeployment(params, tVoteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDeploymentTimeConstraints(deployment)
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
+	defer teardownFunc()
+
+	// replaceTreasuryVersions is a munge function which modifies the
+	// provided block by replacing the block, stake, and vote versions with the
+	// fix sequence locks deployment version.
+	replaceTreasuryVersions := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
+		chaingen.ReplaceStakeVersion(tVersion)(b)
+		chaingen.ReplaceVoteVersions(tVersion)(b)
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks with the appropriate vote bits set
+	// to reach one block prior to the treasury agenda becoming active.
+	// ---------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+	g.AdvanceFromSVHToActiveAgenda(tVoteID)
+
+	// Ensure treasury agenda is active.
+	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	if err != nil {
+		t.Fatalf("IsTreasuryAgendaActive: %v", err)
+	}
+	if !gotActive {
+		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
+	}
+
+	// splitSecondRegularTxOutputs is a munge function which modifies the
+	// provided block by replacing its second regular transaction with one
+	// that creates several utxos.
+	const splitTxNumOutputs = 6
+	splitSecondRegularTxOutputs := func(b *wire.MsgBlock) {
+		// Remove the current outputs of the second transaction while
+		// saving the relevant public key script, input amount, and fee
+		// for below.
+		tx := b.Transactions[1]
+		inputAmount := tx.TxIn[0].ValueIn
+		pkScript := tx.TxOut[0].PkScript
+		fee := inputAmount - tx.TxOut[0].Value
+		tx.TxOut = tx.TxOut[:0]
+
+		// Final outputs are the input amount minus the fee split into
+		// more than one output.  These are intended to provide
+		// additional utxos for testing.
+		outputAmount := inputAmount - fee
+		splitAmount := outputAmount / splitTxNumOutputs
+		for i := 0; i < splitTxNumOutputs; i++ {
+			if i == splitTxNumOutputs-1 {
+				splitAmount = outputAmount -
+					splitAmount*(splitTxNumOutputs-1)
+			}
+			tx.AddTxOut(wire.NewTxOut(splitAmount, pkScript))
+		}
+	}
+
+	// Generate spendable outputs to do fork tests with.
+	var txOuts [][]chaingen.SpendableOut
+	genBlocks := cbm * 8
+	for i := uint16(0); i < genBlocks; i++ {
+		outs := g.OldestCoinbaseOuts()
+		name := fmt.Sprintf("bouts%v", i)
+		g.NextBlock(name, &outs[0], outs[1:], replaceTreasuryVersions,
+			replaceCoinbase, splitSecondRegularTxOutputs)
+		g.SaveTipCoinbaseOutsWithTreasury()
+		g.AcceptTipBlock()
+
+		souts := make([]chaingen.SpendableOut, 0, splitTxNumOutputs)
+		for j := 0; j < splitTxNumOutputs; j++ {
+			spendableOut := chaingen.MakeSpendableOut(g.Tip(), 1,
+				uint32(j))
+			souts = append(souts, spendableOut)
+		}
+		txOuts = append(txOuts, souts)
+	}
+
+	// ---------------------------------------------------------------------
+	// Create TAdd with negative change.
+	//
+	//   ... -> bn0
+	// ---------------------------------------------------------------------
+
+	g.NextBlock("bn0", nil, txOuts[0][1:], replaceTreasuryVersions,
+		replaceCoinbase,
+		createTAdd(-1, txOuts[0][0], params))
+	g.RejectTipBlock(ErrBadTxOutValue)
+
+	// ---------------------------------------------------------------------
+	// Create TAdd with negative amount.
+	//
+	//   ... -> bn1
+	// ---------------------------------------------------------------------
+
+	//g.SaveTipCoinbaseOutsWithTreasury()
+	//g.AcceptTipBlock()
+
+	_ = tvi
+	_ = mul
+}
