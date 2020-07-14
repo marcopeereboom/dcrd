@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/schnorr"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -158,32 +159,25 @@ func CheckTSpend(mtx *wire.MsgTx) ([]byte, []byte, error) {
 		data := tokenizer.Data()
 		switch i {
 		case 0:
-			// Check signature encoding
-			var err1, err2 error
-			if len(data) > 0 {
-				hashType := txscript.SigHashType(data[len(data)-1])
-				sigBytes := data[:len(data)-1]
-				err1 = txscript.CheckHashTypeEncoding(hashType)
-				err2 = txscript.CheckSignatureEncoding(sigBytes)
-				if err1 == nil && err2 == nil {
-					signature = sigBytes
-					continue
-				}
+			// Check signature length.
+			if len(data) == schnorr.SignatureSize {
+				signature = data
+				continue
 			}
 			return nil, nil, stakeRuleError(ErrTSpendInvalidSignature,
-				fmt.Sprintf("TSPEND invalid signature: "+
-					"%v %v (%v) (%v)",
-					i, len(data), err1, err2))
+				fmt.Sprintf("TSPEND invalid signature length: "+
+					"%v:", len(data)))
 		case 1:
-			// Check public key encoding
+			// Check public key encoding.
 			if txscript.IsStrictCompressedPubKeyEncoding(data) {
 				pubKey = data
 				continue
 			}
 			return nil, nil, stakeRuleError(ErrTSpendInvalidPubkey,
-				fmt.Sprintf("TSPEND invalid pubkey %v", i))
+				fmt.Sprintf("TSPEND invalid public key length:"+
+					" %v", len(data)))
 		case 2:
-			// Check for OP_TSPEND
+			// Check for OP_TSPEND.
 			if opcode == txscript.OP_TSPEND {
 				continue
 			}

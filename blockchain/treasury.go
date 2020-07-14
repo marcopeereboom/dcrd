@@ -14,8 +14,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v3/internal/dbnamespace"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
-	"github.com/decred/dcrd/dcrec/secp256k1/v3"
-	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/schnorr"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
@@ -438,13 +437,13 @@ func verifyTSpendSignature(msgTx *wire.MsgTx, signature, pubKey []byte) error {
 	}
 
 	// Lift Signature from bytes.
-	sig, err := ecdsa.ParseDERSignature(signature)
+	sig, err := schnorr.ParseSignature(signature)
 	if err != nil {
 		return fmt.Errorf("ParseDERSignature: %v", err)
 	}
 
 	// Lift public PI key from bytes.
-	pk, err := secp256k1.ParsePubKey(pubKey)
+	pk, err := schnorr.ParsePubKey(pubKey)
 	if err != nil {
 		return fmt.Errorf("ParsePubKey: %v", err)
 	}

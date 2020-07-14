@@ -615,3 +615,25 @@ func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, pk
 		isTreasuryEnabled)
 	return mergedScript, nil
 }
+
+// TSpendSignatureScript creates an input signature for the provided tx, which
+// is expected to be a treasury spend transaction, to authorize coins to be
+// spent from the treasury.  The private key must correspond to one of the
+// valid public keys for a Pi instance recognized by consensus.
+func TSpendSignatureScript(msgTx *wire.MsgTx, privKey []byte) ([]byte, error) {
+	hash, err := CalcSignatureHash(nil, SigHashAll, msgTx, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	priv := secp256k1.PrivKeyFromBytes(privKey)
+	sig, err := schnorr.Sign(priv, hash)
+	if err != nil {
+		return nil, fmt.Errorf("cannot sign tx input: %s", err)
+	}
+	sigBytes := sig.Serialize()
+	pkBytes := priv.PubKey().SerializeCompressed()
+
+	return NewScriptBuilder().AddData(sigBytes).AddData(pkBytes).
+		AddOp(OP_TSPEND).Script()
+}

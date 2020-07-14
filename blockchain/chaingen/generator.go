@@ -17,7 +17,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
@@ -629,13 +628,12 @@ func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmount
 		SignatureScript: []byte{},
 	})
 
-	sigscript, err := txscript.SignatureScript(msgTx, 0, nil,
-		txscript.SigHashAll, privKey,
-		dcrec.STEcdsaSecp256k1, true)
+	// Calculate TSpend signature without SigHashType.
+	sigscript, err := txscript.TSpendSignatureScript(msgTx, privKey)
 	if err != nil {
 		panic(err)
 	}
-	msgTx.TxIn[0].SignatureScript = append(sigscript, txscript.OP_TSPEND)
+	msgTx.TxIn[0].SignatureScript = sigscript
 
 	return msgTx
 }
