@@ -46,6 +46,13 @@ const (
 	// MaxCoinbaseScriptLen is the maximum length a coinbase script can be.
 	MaxCoinbaseScriptLen = 100
 
+	// MinTreasurybaseScriptLen is the minimum length a treasurybase script can
+	// be.
+	MinTreasurybaseScriptLen = 2
+
+	// MaxTreasurybaseScriptLen is the maximum length a treasurybase script can be.
+	MaxTreasurybaseScriptLen = 125
+
 	// maxUniqueCoinbaseNullDataSize is the maximum number of bytes allowed
 	// in the pushed data output of the coinbase output that is used to
 	// ensure the coinbase has a unique hash.
@@ -281,12 +288,11 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 	} else if isTSpend {
 		// Check script length of stake base signature.
 		slen := len(tx.TxIn[0].SignatureScript)
-		// XXX introduce new maxima
-		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
+		if slen < MinTreasurybaseScriptLen || slen > MaxTreasurybaseScriptLen {
 			str := fmt.Sprintf("tspend transaction script "+
 				"length of %d is out of range (min: %d, max: "+
-				"%d)", slen, MinCoinbaseScriptLen,
-				MaxCoinbaseScriptLen)
+				"%d)", slen, MinTreasurybaseScriptLen,
+				MaxTreasurybaseScriptLen)
 			return ruleError(ErrBadStakebaseScriptLen, str)
 		}
 
@@ -299,32 +305,6 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 				"want %x)", tx.TxIn[0].SignatureScript,
 				params.StakeBaseSigScript)
 			return ruleError(ErrBadStakebaseScrVal, str)
-		}
-	} else if isTAdd {
-		// TAdd must be sum(in) - (tadd + change) must be >= 0
-		var totalIn, totalOut int64
-		for idx, txIn := range tx.TxIn {
-			// Inputs may not be 0 or negative.
-			if txIn.ValueIn < 0 {
-				str := fmt.Sprintf("tadd input is negative "+
-					"idx %v value %v", idx, totalIn)
-				return ruleError(ErrBadTxInput, str)
-			}
-			totalIn += txIn.ValueIn
-		}
-		for idx, txOut := range tx.TxOut {
-			// Outputs may not be 0 or negative.
-			if txOut.Value < 0 {
-				str := fmt.Sprintf("tadd output is negative "+
-					"idx %v value %v", idx, totalOut)
-				return ruleError(ErrBadTxOutValue, str)
-			}
-			totalOut += txOut.Value
-		}
-		if totalIn-totalOut < 0 {
-			str := fmt.Sprintf("tadd plus change exceeds input "+
-				" total: in %v out %v", totalIn, totalOut)
-			return ruleError(ErrBadTxOutValue, str)
 		}
 	} else if standalone.IsCoinBaseTx(tx, isTreasuryEnabled) {
 		// The referenced outpoint must be null.
