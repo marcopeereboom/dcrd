@@ -48,7 +48,7 @@ const (
 
 	// MinTreasurybaseScriptLen is the minimum length a treasurybase script can
 	// be.
-	MinTreasurybaseScriptLen = 2
+	MinTreasurybaseScriptLen = 45
 
 	// MaxTreasurybaseScriptLen is the maximum length a treasurybase script can be.
 	MaxTreasurybaseScriptLen = 125
@@ -261,31 +261,46 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 	}
 
 	if isTreasuryBase {
+		//// The referenced outpoint must be null.
+		//if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
+		//	str := fmt.Sprintf("treasurybase transaction did not " +
+		//		"use a null outpoint")
+		//	return ruleError(ErrBadTreasurybaseOutpoint, str)
+		//}
+
+		//// The fraud proof must also be null.
+		//if !isNullFraudProof(tx.TxIn[0]) {
+		//	str := fmt.Sprintf("treasurybase transaction fraud " +
+		//		"proof was non-null")
+		//	return ruleError(ErrBadTreasurybaseFraudProof, str)
+		//}
+
+		//// It is oK to reuse MinCoinbaseScriptLen and
+		//// MaxCoinbaseScriptLen.
+		//slen := len(tx.TxIn[0].SignatureScript)
+		//if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
+		//	str := fmt.Sprintf("treasurybase transaction script "+
+		//		"length of %d is out of range (min: %d, max: "+
+		//		"%d)", slen, MinCoinbaseScriptLen,
+		//		MaxCoinbaseScriptLen)
+		//	return ruleError(ErrBadTreasurybaseScriptLen, str)
+		//}
+	} else if isTSpend {
+		// XXX replace ErrBadTreasurybaseOutpoint with TSpend
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
-			str := fmt.Sprintf("treasurybase transaction did not " +
+			str := fmt.Sprintf("tspend transaction did not " +
 				"use a null outpoint")
 			return ruleError(ErrBadTreasurybaseOutpoint, str)
 		}
 
 		// The fraud proof must also be null.
 		if !isNullFraudProof(tx.TxIn[0]) {
-			str := fmt.Sprintf("treasurybase transaction fraud " +
+			str := fmt.Sprintf("tspend transaction fraud " +
 				"proof was non-null")
 			return ruleError(ErrBadTreasurybaseFraudProof, str)
 		}
 
-		// It is oK to reuse MinCoinbaseScriptLen and
-		// MaxCoinbaseScriptLen.
-		slen := len(tx.TxIn[0].SignatureScript)
-		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
-			str := fmt.Sprintf("treasurybase transaction script "+
-				"length of %d is out of range (min: %d, max: "+
-				"%d)", slen, MinCoinbaseScriptLen,
-				MaxCoinbaseScriptLen)
-			return ruleError(ErrBadTreasurybaseScriptLen, str)
-		}
-	} else if isTSpend {
 		// Check script length of stake base signature.
 		slen := len(tx.TxIn[0].SignatureScript)
 		if slen < MinTreasurybaseScriptLen || slen > MaxTreasurybaseScriptLen {
@@ -294,17 +309,6 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 				"%d)", slen, MinTreasurybaseScriptLen,
 				MaxTreasurybaseScriptLen)
 			return ruleError(ErrBadStakebaseScriptLen, str)
-		}
-
-		// The script must be set to the one specified by the network.
-		// Check script length of stake base signature.
-		if !bytes.Equal(tx.TxIn[0].SignatureScript,
-			params.StakeBaseSigScript) {
-			str := fmt.Sprintf("tspend transaction signature "+
-				"script was set to disallowed value (got %x, "+
-				"want %x)", tx.TxIn[0].SignatureScript,
-				params.StakeBaseSigScript)
-			return ruleError(ErrBadStakebaseScrVal, str)
 		}
 	} else if standalone.IsCoinBaseTx(tx, isTreasuryEnabled) {
 		// The referenced outpoint must be null.
