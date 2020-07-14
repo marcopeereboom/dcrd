@@ -276,8 +276,7 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 			return ruleError(ErrBadTreasurybaseFraudProof, str)
 		}
 
-		// It is oK to reuse MinCoinbaseScriptLen and
-		// MaxCoinbaseScriptLen.
+		// SignatureScript length must be zero.
 		if len(tx.TxIn[0].SignatureScript) != 0 {
 			str := fmt.Sprintf("treasurybase transaction script "+
 				"length is not zero: %v",
