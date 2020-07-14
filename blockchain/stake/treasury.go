@@ -272,8 +272,6 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 			"second treasurybase output must be an OP_RETURN "+
 				" OP_DATA_12 script")
 	}
-	// XXX validate extra nonce in OP_DATA_12 payload.
-	// check this in contextual
 
 	// The previous output of a coin base must have a max value index and a
 	// zero hash.
