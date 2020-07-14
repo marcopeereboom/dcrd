@@ -254,7 +254,30 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 	}
 
 	if isTreasuryBase {
-		// XXX Do checks
+		// The referenced outpoint must be null.
+		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
+			str := fmt.Sprintf("treasurybase transaction did not " +
+				"use a null outpoint")
+			return ruleError(ErrBadTreasurybaseOutpoint, str)
+		}
+
+		// The fraud proof must also be null.
+		if !isNullFraudProof(tx.TxIn[0]) {
+			str := fmt.Sprintf("treasurybase transaction fraud " +
+				"proof was non-null")
+			return ruleError(ErrBadTreasurybaseFraudProof, str)
+		}
+
+		// It is oK to reuse MinCoinbaseScriptLen and
+		// MaxCoinbaseScriptLen.
+		slen := len(tx.TxIn[0].SignatureScript)
+		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
+			str := fmt.Sprintf("treasurybase transaction script "+
+				"length of %d is out of range (min: %d, max: "+
+				"%d)", slen, MinCoinbaseScriptLen,
+				MaxCoinbaseScriptLen)
+			return ruleError(ErrBadTreasurybaseScriptLen, str)
+		}
 	} else if isTSpend {
 		// XXX Do checks
 	} else if isTAdd {

@@ -125,6 +125,9 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrNotEnoughTSpendVotes, "ErrNotEnoughTSpendVotes"},
 		{ErrTSpendExists, "ErrTSpendExists"},
 		{ErrInvalidExpenditure, "ErrInvalidExpenditure"},
+		{ErrBadTreasurybaseOutpoint, "ErrBadTreasurybaseOutpoint"},
+		{ErrBadTreasurybaseFraudProof, "ErrBadTreasurybaseFraudProof"},
+		{ErrBadTreasurybaseScriptLen, "ErrBadTreasurybaseScriptLen"},
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 
