@@ -547,6 +547,18 @@ const (
 	// for a treasurybase transaction is not within the valid range.
 	ErrBadTreasurybaseScriptLen
 
+	// ErrBadTSpendOutpoint indicates that the outpoint used by a
+	// treasury spend as input was non-null.
+	ErrBadTSpendOutpoint
+
+	// ErrBadTSpendFraudProof indicates that the fraud proof for a tspend
+	// input was non-null.
+	ErrBadTSpendFraudProof
+
+	// ErrBadTSpendScriptLen indicates the length of the signature script
+	// for a tpend transaction is not within the valid range.
+	ErrBadTSpendScriptLen
+
 	// numErrorCodes is the maximum error code number used in tests.
 	numErrorCodes
 )
@@ -665,6 +677,9 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrBadTreasurybaseOutpoint:   "ErrBadTreasurybaseOutpoint",
 	ErrBadTreasurybaseFraudProof: "ErrBadTreasurybaseFraudProof",
 	ErrBadTreasurybaseScriptLen:  "ErrBadTreasurybaseScriptLen",
+	ErrBadTSpendOutpoint:         "ErrBadTSpendOutpoint",
+	ErrBadTSpendFraudProof:       "ErrBadTSpendFraudProof",
+	ErrBadTSpendScriptLen:        "ErrBadTSpendScriptLen",
 	ErrInvalidTemplateParent:     "ErrInvalidTemplateParent",
 }
 
