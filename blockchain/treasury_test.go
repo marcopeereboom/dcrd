@@ -1909,3 +1909,250 @@ func TestTSpendExists(t *testing.T) {
 		txIdx++
 	}
 }
+
+func TestTreasuryBalance(t *testing.T) {
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the fix sequence locks agenda, and, finally, ensure it is always
+	// available to vote by removing the time constraints to prevent test
+	// failures when the real expiration time passes.
+	const tVoteID = chaincfg.VoteIDTreasury
+	params = cloneParams(params)
+	tVersion, deployment, err := findDeployment(params, tVoteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDeploymentTimeConstraints(deployment)
+
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
+	defer teardownFunc()
+
+	// replaceTreasuryVersions is a munge function which modifies the
+	// provided block by replacing the block, stake, and vote versions with the
+	// fix sequence locks deployment version.
+	replaceTreasuryVersions := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
+		chaingen.ReplaceStakeVersion(tVersion)(b)
+		chaingen.ReplaceVoteVersions(tVersion)(b)
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate and accept enough blocks with the appropriate vote bits set
+	// to reach one block prior to the treasury agenda becoming active.
+	// ---------------------------------------------------------------------
+
+	g.AdvanceToStakeValidationHeight()
+	g.AdvanceFromSVHToActiveAgenda(tVoteID)
+
+	// Ensure treasury agenda is active.
+	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	if err != nil {
+		t.Fatalf("IsTreasuryAgendaActive: %v", err)
+	}
+	if !gotActive {
+		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
+	}
+
+	// ---------------------------------------------------------------------
+	// Create 10 blocks that has a tadd without change.
+	//
+	//   ... -> b0
+	// ---------------------------------------------------------------------
+
+	blockCount := 10
+	expectedTotal := devsub *
+		(blockCount - int(params.CoinbaseMaturity)) // dev subsidy
+	skippedTotal := 0
+	for i := 0; i < blockCount; i++ {
+		amount := i + 1
+		if i < blockCount-int(params.CoinbaseMaturity) {
+			expectedTotal += amount
+		} else {
+			skippedTotal += amount
+		}
+		outs := g.OldestCoinbaseOuts()
+		name := fmt.Sprintf("b%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase,
+			func(b *wire.MsgBlock) {
+				// Add TADD
+				tx := g.CreateTreasuryTAdd(&outs[0],
+					dcrutil.Amount(amount),
+					dcrutil.Amount(0))
+				tx.Version = wire.TxVersionTreasury
+				b.AddSTransaction(tx)
+			})
+		g.SaveTipCoinbaseOutsWithTreasury()
+		g.AcceptTipBlock()
+	}
+	iterations := 1
+
+	ts, err := getTreasuryState(g, g.Tip().BlockHash())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ts.Balance != int64(expectedTotal) {
+		t.Fatalf("invalid balance: total %v expected %v",
+			ts.Balance, expectedTotal)
+	}
+	if ts.Values[1] != int64(blockCount) {
+		t.Fatalf("invalid Value: total %v expected %v",
+			ts.Values[0], int64(blockCount))
+	}
+
+	// ---------------------------------------------------------------------
+	// Create 10 blocks that has a tadd with change. Pretend that the TSpend
+	// transaction is in the mempool and vote on it.
+	//
+	//   ... -> b10
+	// ---------------------------------------------------------------------
+
+	// This looks a little funky but it was coppied from the prior TSPEND
+	// test that created this many tspends. Since that is no longer
+	// possible use the for loop to get to the same totals.
+	var tspendAmount, tspendFee int
+	expiry := uint32(92 + 4*2 - 2) // XXX use proper variables to calculate this
+	for i := 0; i < blockCount*2+int(params.CoinbaseMaturity); i++ {
+		if i > (blockCount * 2) {
+			// skip last CoinbaseMaturity blocks
+			break
+		}
+		tspendAmount += i + 1
+		tspendFee++
+	}
+	tspend := g.CreateTreasuryTSpend(privKey, []chaingen.AddressAmountTuple{
+		{
+			Amount: dcrutil.Amount(tspendAmount - tspendFee),
+		},
+	},
+		dcrutil.Amount(tspendFee), expiry)
+	tspendHash := tspend.TxHash()
+	t.Logf("tspend %v amount %v fee %v", tspendHash, tspendAmount-tspendFee,
+		tspendFee)
+
+	// treasury votes munger
+	addTSpendVotes := func(b *wire.MsgBlock) {
+		// Find SSGEN and append Yes vote.
+		for k, v := range b.STransactions {
+			if !stake.IsSSGen(v, true) { // Yes treasury
+				continue
+			}
+			if len(v.TxOut) != 3 {
+				t.Fatalf("expected SSGEN.TxOut len 3 got %v",
+					len(v.TxOut))
+			}
+
+			// Append vote: OP_RET OP_DATA <TV> <tspend hash> <vote bits>
+			vote := make([]byte, 2+chainhash.HashSize+1)
+			vote[0] = 'T'
+			vote[1] = 'V'
+			copy(vote[2:], tspendHash[:])
+			vote[len(vote)-1] = 0x01 // Yes
+			s, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).
+				AddData(vote).Script()
+			if err != nil {
+				t.Fatal(err)
+			}
+			b.STransactions[k].TxOut = append(b.STransactions[k].TxOut,
+				&wire.TxOut{
+					PkScript: s,
+				})
+			b.STransactions[k].Version = wire.TxVersionTreasury
+
+			// Assert vote insertion worked.
+			_, err = stake.GetSSGenTreasuryVotes(s)
+			if err != nil {
+				t.Fatalf("expected treasury vote: %v", err)
+			}
+
+			// Assert this remains a valid SSGEN.
+			err = stake.CheckSSGen(b.STransactions[k], true) // Yes treasury
+			if err != nil {
+				t.Fatalf("expected SSGen: %v", err)
+			}
+		}
+	}
+
+	expectedTotal += skippedTotal
+	expectedTotal += devsub * blockCount // dev subsidy
+	for i := blockCount; i < blockCount*2; i++ {
+		amount := i + 1
+		if i < (blockCount*2)-int(params.CoinbaseMaturity) {
+			expectedTotal += amount
+		}
+		outs := g.OldestCoinbaseOuts()
+		name := fmt.Sprintf("b%v", i)
+		_ = g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+			replaceCoinbase,
+			addTSpendVotes,
+			func(b *wire.MsgBlock) {
+				tx := g.CreateTreasuryTAdd(&outs[0],
+					dcrutil.Amount(amount),
+					dcrutil.Amount(1))
+				tx.Version = wire.TxVersionTreasury
+				b.AddSTransaction(tx)
+			})
+		g.SaveTipCoinbaseOutsWithTreasury()
+		g.AcceptTipBlock()
+	}
+	iterations += 1
+
+	ts, err = getTreasuryState(g, g.Tip().BlockHash())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ts.Balance != int64(expectedTotal) {
+		t.Fatalf("invalid balance: total %v expected %v",
+			ts.Balance, expectedTotal)
+	}
+	if ts.Values[1] != int64(blockCount*2) {
+		t.Fatalf("invalid Value: total %v expected %v",
+			ts.Values[0], int64(blockCount)*2)
+	}
+
+	// ---------------------------------------------------------------------
+	// Create 20 blocks that has a tspend and params.CoinbaseMaturity more
+	// to bring treasury balance back to 0.
+	//
+	//   ... -> b20
+	// ---------------------------------------------------------------------
+
+	var doneTSpend bool
+	for i := 0; i < blockCount*2+int(params.CoinbaseMaturity); i++ {
+		outs := g.OldestCoinbaseOuts()
+		name := fmt.Sprintf("b%v", i+blockCount*2)
+		if (g.Tip().Header.Height+1)%4 == 0 && !doneTSpend {
+			// Insert TSPEND
+			g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+				replaceCoinbase,
+				func(b *wire.MsgBlock) {
+					// Add TSpend
+					b.AddSTransaction(tspend)
+				})
+			doneTSpend = true
+		} else {
+			g.NextBlock(name, nil, outs[1:], replaceTreasuryVersions,
+				replaceCoinbase)
+		}
+		g.SaveTipCoinbaseOutsWithTreasury()
+		g.AcceptTipBlock()
+	}
+	iterations += 2 // We generate 2*blockCount
+
+	ts, err = getTreasuryState(g, g.Tip().BlockHash())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := int64(devsub * blockCount * iterations) // Expected devsub
+	if ts.Balance != expected {
+		t.Fatalf("invalid balance: total %v expected %v",
+			ts.Balance, expected)
+	}
+}
