@@ -279,7 +279,27 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 			return ruleError(ErrBadTreasurybaseScriptLen, str)
 		}
 	} else if isTSpend {
-		// XXX Do checks
+		// Check script length of stake base signature.
+		slen := len(tx.TxIn[0].SignatureScript)
+		// XXX introduce new maxima
+		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
+			str := fmt.Sprintf("tspend transaction script "+
+				"length of %d is out of range (min: %d, max: "+
+				"%d)", slen, MinCoinbaseScriptLen,
+				MaxCoinbaseScriptLen)
+			return ruleError(ErrBadStakebaseScriptLen, str)
+		}
+
+		// The script must be set to the one specified by the network.
+		// Check script length of stake base signature.
+		if !bytes.Equal(tx.TxIn[0].SignatureScript,
+			params.StakeBaseSigScript) {
+			str := fmt.Sprintf("tspend transaction signature "+
+				"script was set to disallowed value (got %x, "+
+				"want %x)", tx.TxIn[0].SignatureScript,
+				params.StakeBaseSigScript)
+			return ruleError(ErrBadStakebaseScrVal, str)
+		}
 	} else if isTAdd {
 		// TAdd must be sum(in) - (tadd + change) must be >= 0
 		var totalIn, totalOut int64
