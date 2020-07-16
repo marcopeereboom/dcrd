@@ -699,11 +699,11 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 	const baseConsensusScriptVerifyFlags = txscript.ScriptVerifyCleanStack |
 		txscript.ScriptVerifyCheckLockTimeVerify
 
-	// Clone the parameters so they can be mutated, find the correct
-	// deployment for the Treasury features agenda as well as the yes vote
-	// choice within it, and, finally, ensure it is always available to
-	// vote by removing the time constraints to prevent test failures when
-	// the real expiration time passes.
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the Treasury features agenda as well as the yes vote choice within
+	// it, and, finally, ensure it is always available to vote by removing the
+	// time constraints to prevent test failures when the real expiration time
+	// passes.
 	params = cloneParams(params)
 	deploymentVer, deployment, err := findDeployment(params,
 		chaincfg.VoteIDTreasury)
@@ -778,46 +778,45 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
-			node = newFakeNode(node, int32(deploymentVer),
-				deploymentVer, 0, curTimestamp)
+			node = newFakeNode(node, int32(deploymentVer), deploymentVer, 0,
+				curTimestamp)
 
-			// Create fake votes that vote yes on the agenda to
-			// ensure it is activated.
+			// Create fake votes that vote yes on the agenda to ensure it is
+			// activated.
 			for j := uint16(0); j < params.TicketsPerBlock; j++ {
 				node.votes = append(node.votes, stake.VoteVersionTuple{
 					Version: deploymentVer,
 					Bits:    yesChoice.Bits | 0x01,
 				})
 			}
+			bc.index.AddNode(node)
 			bc.bestChain.SetTip(node)
 			curTimestamp = curTimestamp.Add(time.Second)
 		}
 
-		// Ensure the agenda reports the expected activation status for
-		// the current block.
+		// Ensure the agenda reports the expected activation status for the
+		// current block.
 		gotActive, err := bc.isTreasuryAgendaActive(node.parent)
 		if err != nil {
 			t.Errorf("%s: unexpected err: %v", test.name, err)
 			continue
 		}
 		if gotActive != test.curActive {
-			t.Errorf("%s: mismatched current active status - got: "+
-				"%v, want: %v", test.name, gotActive,
-				test.curActive)
+			t.Errorf("%s: mismatched current active status - got: %v, want: %v",
+				test.name, gotActive, test.curActive)
 			continue
 		}
 
-		// Ensure the agenda reports the expected activation status for
-		// the NEXT block
+		// Ensure the agenda reports the expected activation status for the NEXT
+		// block
 		gotActive, err = bc.IsTreasuryAgendaActive(&node.hash)
 		if err != nil {
 			t.Errorf("%s: unexpected err: %v", test.name, err)
 			continue
 		}
 		if gotActive != test.nextActive {
-			t.Errorf("%s: mismatched next active status - got: %v, "+
-				"want: %v", test.name, gotActive,
-				test.nextActive)
+			t.Errorf("%s: mismatched next active status - got: %v, want: %v",
+				test.name, gotActive, test.nextActive)
 			continue
 		}
 
@@ -828,8 +827,8 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 			continue
 		}
 		if gotFlags != test.expectedFlags {
-			t.Errorf("%s: mismatched flags - got %v, want %v",
-				test.name, gotFlags, test.expectedFlags)
+			t.Errorf("%s: mismatched flags - got %v, want %v", test.name,
+				gotFlags, test.expectedFlags)
 			continue
 		}
 	}
