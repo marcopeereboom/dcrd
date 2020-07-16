@@ -85,7 +85,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 		return nil, err
 	}
 
-	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(parent.Hash())
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(tip.parent)
 	if err != nil {
 		return nil, err
 	}
