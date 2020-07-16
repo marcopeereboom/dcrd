@@ -1458,8 +1458,7 @@ func checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight int64, block *dcrutil
 		tokenizer := txscript.MakeScriptTokenizer(scriptVersion,
 			pkScript[1:])
 		if tokenizer.Next() && tokenizer.Done() &&
-			tokenizer.Opcode() !=
-				txscript.OP_PUSHDATA4 {
+			tokenizer.Opcode() != txscript.OP_PUSHDATA4 {
 			nullData = tokenizer.Data()
 		}
 	}
