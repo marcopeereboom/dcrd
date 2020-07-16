@@ -763,6 +763,12 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 // as defined in DCP0006, has passed and is now active for the block AFTER the
 // given block.
 //
+// NOTE: Unlike IsTreasuryAgendaActive, this version returns false to indicate
+// the it is not active in the case the hash is not found instead of an error.
+//
+// This is necessary because this particular version is needed before the full
+// context is available.
+//
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (bool, error) {
 	// NOTE: The requirement for the node being fully validated here is strictly
@@ -771,8 +777,8 @@ func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (boo
 	// available, but there is not currently any tracking to be able to
 	// efficiently determine that state.
 	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.NodeStatus(prevNode).HasValidated() {
-		return false, HashError(prevHash.String())
+	if prevNode == nil {
+		return false, nil // Not found means not active.
 	}
 	return b.isTreasuryAgendaActive(prevNode)
 }
@@ -783,8 +789,13 @@ func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (boo
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil || !b.index.NodeStatus(prevNode).HasValidated() {
+		return false, HashError(prevHash.String())
+	}
+
 	b.chainLock.Lock()
-	isActive, err := b.isTreasuryAgendaActiveByHash(prevHash)
+	isActive, err := b.isTreasuryAgendaActive(prevNode)
 	b.chainLock.Unlock()
 	return isActive, err
 }
