@@ -380,7 +380,8 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 	//
 	// Also ensure that non-stake transaction output scripts do not contain any
 	// stake opcodes.
-	isStakeTx := isVote || isTicket || isRevocation || isTAdd || isTSpend
+	isStakeTx := isVote || isTicket || isRevocation || isTAdd || isTSpend ||
+		isTreasuryBase
 	var totalAtom int64
 	for txOutIdx, txOut := range tx.TxOut {
 		atom := txOut.Value
