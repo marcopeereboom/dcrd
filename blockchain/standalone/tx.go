@@ -44,19 +44,22 @@ func IsCoinBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 	}
 
 	// We need to do additional testing when treasury is enabled or a
-	// TSPEND will be recognized as a coinbase transaction. We will rely on
-	// the fact that a pre-treasury coinbase has at least 2 outputs that
-	// start with an OP_RETURN and at least one OP_TGEN. We also check the
-	// last TxIn[0].SignatureScript byte for an OP_TSPEND.
+	// TSPEND will be recognized as a coinbase transaction.
 	if isTreasuryEnabled {
+		// TSpends have at least 2 outputs.
 		if len(tx.TxOut) < 2 {
 			return false
 		}
+		// TSpends have scripts in TxIn[0] and all TxOut.
 		l := len(tx.TxIn[0].SignatureScript)
-		if l == 0 || len(tx.TxOut[0].PkScript) == 0 ||
+		if l == 0 ||
+			len(tx.TxOut[0].PkScript) == 0 ||
 			len(tx.TxOut[1].PkScript) == 0 {
 			return false
 		}
+		// TSpends have a TSpend opcode as the last byte of TxIn 0 and
+		// an OP_RETURN followed by at least one OP_TGEN in the zeroth
+		// TxOut script.
 		if tx.TxIn[0].SignatureScript[l-1] == txscript.OP_TSPEND &&
 			tx.TxOut[0].PkScript[0] == txscript.OP_RETURN &&
 			tx.TxOut[1].PkScript[0] == txscript.OP_TGEN {
