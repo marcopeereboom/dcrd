@@ -533,8 +533,6 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			node.height, prevHash, tip.hash, tip.height)
 	}
 
-	// Determine if treasury is active. This really shouldn't fail and
-	// maybe we should consider a panic.
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
@@ -1034,9 +1032,6 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 
 		// Determine if treasury agenda is active.
 		isTreasuryEnabled, err := b.isTreasuryAgendaActive(n.parent)
-		if err != nil {
-			return err
-		}
 		if err != nil {
 			return err
 		}
