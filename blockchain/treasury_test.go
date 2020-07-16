@@ -413,6 +413,25 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 
 const devsub = 5000000000
 
+// standardCoinbaseOpReturn returns an OP_RETURN datapush for a treasurybase.
+// This code was copied from minig.go.
+func standardCoinbaseOpReturn(height uint32) []byte {
+	extraNonce, err := wire.RandomUint64()
+	if err != nil {
+		panic(err)
+	}
+
+	enData := make([]byte, 12)
+	binary.LittleEndian.PutUint32(enData[0:4], height)
+	binary.LittleEndian.PutUint64(enData[4:12], extraNonce)
+	extraNonceScript, err := txscript.GenerateProvablyPruneableOut(enData)
+	if err != nil {
+		panic(err)
+	}
+
+	return extraNonceScript
+}
+
 // replaceCoinbase is a munge function that takes the coinbase and removes the
 // treasury payout and moves it to a TADD treasury agenda based version. It
 // also bumps all STransactions indexes by 1 since we require treasurybase to
@@ -907,6 +926,19 @@ func TestTSpendVoteCount(t *testing.T) {
 			b.AddSTransaction(tspend)
 		})
 	g.AcceptTipBlock()
+}
+
+// getTreasuryState retrieves the treasury state for the provided hash.
+func getTreasuryState(g *chaingenHarness, hash chainhash.Hash) (*TreasuryState, error) {
+	var (
+		tsr *TreasuryState
+		err error
+	)
+	err = g.chain.db.View(func(dbTx database.Tx) error {
+		tsr, err = dbFetchTreasuryBalance(dbTx, hash)
+		return err
+	})
+	return tsr, nil
 }
 
 func TestTSpendExpenditures(t *testing.T) {

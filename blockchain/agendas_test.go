@@ -5,15 +5,12 @@
 package blockchain
 
 import (
-	"encoding/binary"
 	"testing"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3/chaingen"
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
@@ -843,76 +840,4 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 func TestTreasuryFeaturesDeployment(t *testing.T) {
 	testTreasuryFeaturesDeployment(t, chaincfg.MainNetParams())
 	testTreasuryFeaturesDeployment(t, chaincfg.RegNetParams())
-}
-
-// getTreasuryState retrieves the treasury state for the provided hash.
-func getTreasuryState(g *chaingenHarness, hash chainhash.Hash) (*TreasuryState, error) {
-	var (
-		tsr *TreasuryState
-		err error
-	)
-	err = g.chain.db.View(func(dbTx database.Tx) error {
-		tsr, err = dbFetchTreasuryBalance(dbTx, hash)
-		return err
-	})
-	return tsr, nil
-}
-
-// standardCoinbaseOpReturn returns an OP_RETURN datapush for a treasurybase.
-// This code was copied from minig.go.
-func standardCoinbaseOpReturn(height uint32) []byte {
-	extraNonce, err := wire.RandomUint64()
-	if err != nil {
-		panic(err)
-	}
-
-	enData := make([]byte, 12)
-	binary.LittleEndian.PutUint32(enData[0:4], height)
-	binary.LittleEndian.PutUint64(enData[4:12], extraNonce)
-	extraNonceScript, err := txscript.GenerateProvablyPruneableOut(enData)
-	if err != nil {
-		panic(err)
-	}
-
-	return extraNonceScript
-}
-
-// TestTreasuryActivation ensures that treasury opcodes work as expected.
-func TestTreasuryActivation(t *testing.T) {
-	// Use a set of test chain parameters which allow for quicker vote
-	// activation as compared to various existing network params.
-	params := quickVoteActivationParams()
-
-	// Clone the parameters so they can be mutated, find the correct deployment
-	// for the fix sequence locks agenda, and, finally, ensure it is always
-	// available to vote by removing the time constraints to prevent test
-	// failures when the real expiration time passes.
-	const tVoteID = chaincfg.VoteIDTreasury
-	params = cloneParams(params)
-	_, deployment, err := findDeployment(params, tVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	removeDeploymentTimeConstraints(deployment)
-
-	// Create a test harness initialized with the genesis block as the tip.
-	g, teardownFunc := newChaingenHarness(t, params, "treasurytest")
-	defer teardownFunc()
-
-	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the treasury agenda becoming active.
-	// ---------------------------------------------------------------------
-
-	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgenda(tVoteID)
-
-	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
-	if err != nil {
-		t.Fatalf("IsTreasuryAgendaActive: %v", err)
-	}
-	if !gotActive {
-		t.Fatalf("IsTreasuryAgendaActive: expected enabled treasury")
-	}
 }
