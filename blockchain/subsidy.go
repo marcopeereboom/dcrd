@@ -80,7 +80,7 @@ func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
 }
 
 // coinbasePaysToTreasuryAddress checks to see if a given block's coinbase
-// correctly pays the treasury. This is the old functions that used an address
+// correctly pays the treasury. This is the old function that used an address
 // for treasury payout.
 func coinbasePaysToTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
 	// Treasury subsidy only applies from block 2 onwards.
@@ -122,10 +122,10 @@ func coinbasePaysToTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dc
 	return nil
 }
 
-// coinbasePaysToTreasuryBase checks to see if a given block's coinbase
-// correctly pays the treasury. This is the new function that uses the treasury
-// base for the payout.
-func coinbasePaysToTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
+// checkTreasuryBase checks to see if a given block's coinbase correctly pays
+// the treasury. This is the new function that uses the treasury base for the
+// payout.
+func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
 	// Treasury subsidy only applies from block 2 onwards.
 	if height <= 1 {
 		return nil
