@@ -280,13 +280,6 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 	return nil
 }
 
-// CheckTreasuryBase verifies that the provided MsgTx is a treasury base.
-// XXX this is an exported function for the time being. We probably do not want
-// to do that for release.
-func CheckTreasuryBase(mtx *wire.MsgTx) error {
-	return checkTreasuryBase(mtx)
-}
-
 // IsTreasuryBase returns true if the provided transaction is a treasury base
 // transaction.
 func IsTreasuryBase(tx *wire.MsgTx) bool {
