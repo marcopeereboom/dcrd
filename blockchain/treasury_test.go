@@ -2251,7 +2251,7 @@ func TestTAddCorners(t *testing.T) {
 
 	// replaceTreasuryVersions is a munge function which modifies the
 	// provided block by replacing the block, stake, and vote versions with the
-	// fix sequence locks deployment version.
+	// treasury agenda version.
 	replaceTreasuryVersions := func(b *wire.MsgBlock) {
 		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
 		chaingen.ReplaceStakeVersion(tVersion)(b)
