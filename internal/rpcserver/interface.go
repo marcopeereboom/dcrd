@@ -411,10 +411,12 @@ type Chain interface {
 	// parent of the current tip.
 	TipGeneration() ([]chainhash.Hash, error)
 
-	// TreasuryBalance wraps blockchain.TreasuryBalance.
-	TreasuryBalance(*string) (string, int64, int64, []int64, error)
+	// TreasuryBalance returns the treasury balance at the provided hash'
+	// block.
+	TreasuryBalance(hash *string) (string, int64, int64, []int64, error)
 
-	// IsTreasuryAgendaActiveByHash wraps blockchain.IsTreasuryAgendaActiveByHash.
+	// IsTreasuryAgendaActiveByHash returs true if the treasury is enabled
+	// at the provided hash' block.
 	IsTreasuryAgendaActiveByHash(*chainhash.Hash) (bool, error)
 }
 
