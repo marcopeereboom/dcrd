@@ -142,12 +142,13 @@ func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, he
 	}
 
 	treasuryOutput := tx.MsgTx().TxOut[0]
-	if treasuryOutput.Version != params.OrganizationPkScriptVersion {
+	if treasuryOutput.Version != 0 {
 		str := fmt.Sprintf("treasury output version %d is instead of %d",
-			treasuryOutput.Version, params.OrganizationPkScriptVersion)
+			treasuryOutput.Version, 0)
 		return ruleError(ErrNoTax, str)
 	}
-	if !bytes.Equal(treasuryOutput.PkScript, []byte{txscript.OP_TADD}) {
+	if len(treasuryOutput.PkScript) != 1 ||
+		treasuryOutput.PkScript[0] != txscript.OP_TADD {
 		str := fmt.Sprintf("treasury output script is %x instead of %x",
 			treasuryOutput.PkScript, params.OrganizationPkScript)
 		return ruleError(ErrNoTax, str)
