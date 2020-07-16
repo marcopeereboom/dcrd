@@ -591,7 +591,7 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 
 // createTreasuryBaseTx returns a coinbase transaction paying an appropriate subsidy
 // based on the passed block height to the treasury.
-func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
+func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, opReturnPkScript []byte, nextBlockHeight int64, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
 	tx := wire.NewMsgTx()
 	// All treasury base transactions require TxVersionTreasury.
 	tx.Version = wire.TxVersionTreasury
@@ -604,7 +604,7 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript 
 		Sequence:        wire.MaxTxInSequenceNum,
 		BlockHeight:     wire.NullBlockHeight,
 		BlockIndex:      wire.NullBlockIndex,
-		SignatureScript: coinbaseScript,
+		SignatureScript: nil, // Must be nil by consensus.
 	})
 
 	// Create a stakebase with correct block subsidy and extranonce.
@@ -794,9 +794,8 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 				return nil, err
 			}
 			treasuryBase, err := createTreasuryBaseTx(subsidyCache,
-				coinbaseScript, opReturnTreasury,
-				topBlock.Height(), tipHeader.Voters,
-				bm.cfg.ChainParams)
+				opReturnTreasury, topBlock.Height(),
+				tipHeader.Voters, bm.cfg.ChainParams)
 			if err != nil {
 				return nil, err
 			}
@@ -1636,10 +1635,7 @@ mempoolLoop:
 			return nil, err
 		}
 		treasuryBase, err = createTreasuryBaseTx(g.subsidyCache,
-			coinbaseScript,
-			opReturnTreasury,
-			nextBlockHeight,
-			uint16(voters),
+			opReturnTreasury, nextBlockHeight, uint16(voters),
 			g.chainParams)
 		if err != nil {
 			return nil, err

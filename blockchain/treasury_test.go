@@ -413,23 +413,17 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 
 const devsub = 5000000000
 
-// standardCoinbaseOpReturn returns an OP_RETURN datapush for a treasurybase.
-// This code was copied from minig.go.
-func standardCoinbaseOpReturn(height uint32) []byte {
-	extraNonce, err := wire.RandomUint64()
-	if err != nil {
-		panic(err)
-	}
-
-	enData := make([]byte, 12)
+// standardTreasurybaseOpReturn returns an OP_RETURN datapush for a
+// treasurybase.  This code was copied from minig.go.
+func standardTreasurybaseOpReturn(height uint32) []byte {
+	enData := make([]byte, 4)
 	binary.LittleEndian.PutUint32(enData[0:4], height)
-	binary.LittleEndian.PutUint64(enData[4:12], extraNonce)
-	extraNonceScript, err := txscript.GenerateProvablyPruneableOut(enData)
+	script, err := txscript.GenerateProvablyPruneableOut(enData)
 	if err != nil {
 		panic(err)
 	}
 
-	return extraNonceScript
+	return script
 }
 
 // replaceCoinbase is a munge function that takes the coinbase and removes the
@@ -474,14 +468,19 @@ func replaceCoinbase(b *wire.MsgBlock) {
 		Value:    devSubsidy,
 		PkScript: []byte{txscript.OP_TADD},
 	})
-	// Extranonce.
+	// Encoded height.
 	treasurybaseTx.AddTxOut(&wire.TxOut{
 		Value:    0,
-		PkScript: standardCoinbaseOpReturn(b.Header.Height),
+		PkScript: standardTreasurybaseOpReturn(b.Header.Height),
 	})
 	retTx := dcrutil.NewTx(treasurybaseTx) // XXX why do I have to do this?
 	retTx.SetTree(wire.TxTreeStake)        // XXX why do I have to do this?
 	b.STransactions[0] = retTx.MsgTx()     // XXX why do I have to do this?
+
+	// Sanity check treasury base.
+	if !standalone.IsTreasuryBase(retTx.MsgTx()) {
+		panic("not treasury base")
+	}
 }
 
 func TestTSpendVoteCount(t *testing.T) {

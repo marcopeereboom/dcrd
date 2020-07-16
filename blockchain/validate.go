@@ -1460,19 +1460,12 @@ func checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight int64, block *dcrutil
 		tokenizer := txscript.MakeScriptTokenizer(scriptVersion,
 			pkScript[1:])
 		if tokenizer.Next() && tokenizer.Done() &&
-			tokenizer.Opcode() <=
+			tokenizer.Opcode() ==
 				txscript.OP_PUSHDATA4 {
 			nullData = tokenizer.Data()
 		}
 	}
-	if len(nullData) > maxUniqueCoinbaseNullDataSize {
-		str := fmt.Sprintf("block %s treasurybase output 0 pushes %d "+
-			"bytes which is more than allowed value of %d",
-			block.Hash(), len(nullData),
-			maxUniqueCoinbaseNullDataSize)
-		return ruleError(ErrFirstTxNotOpReturn, str)
-	}
-	if len(nullData) < 4 {
+	if len(nullData) != 4 {
 		str := fmt.Sprintf("block %s treasurybase output 0 pushes %d "+
 			"bytes which is too short to encode height",
 			block.Hash(), len(nullData))

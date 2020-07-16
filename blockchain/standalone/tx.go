@@ -91,14 +91,18 @@ func IsTreasuryBase(tx *wire.MsgTx) bool {
 		return false
 	}
 
+	if len(tx.TxIn[0].SignatureScript) != 0 {
+		return false
+	}
+
 	if len(tx.TxOut[0].PkScript) != 1 ||
 		tx.TxOut[0].PkScript[0] != txscript.OP_TADD {
 		return false
 	}
 
-	if len(tx.TxOut[1].PkScript) != 14 ||
+	if len(tx.TxOut[1].PkScript) != 6 ||
 		tx.TxOut[1].PkScript[0] != txscript.OP_RETURN ||
-		tx.TxOut[1].PkScript[1] != txscript.OP_DATA_12 {
+		tx.TxOut[1].PkScript[1] != txscript.OP_DATA_4 {
 		return false
 	}
 

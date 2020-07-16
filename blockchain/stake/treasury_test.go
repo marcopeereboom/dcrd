@@ -119,7 +119,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx := wire.NewMsgTx()
 				msgTx.Version = wire.TxVersionTreasury
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
-				msgTx.AddTxIn(&wire.TxIn{}) // On input required
+				msgTx.AddTxIn(&wire.TxIn{}) // One input required
 				return msgTx
 			},
 			is:       IsTAdd,
@@ -173,10 +173,6 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				}
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
-				// treasurybase
-				coinbaseFlags := "/dcrd/"
-				coinbaseScript := make([]byte, len(coinbaseFlags)+2)
-				copy(coinbaseScript[2:], coinbaseFlags)
 				msgTx.AddTxIn(&wire.TxIn{
 					// Stakebase transactions have no
 					// inputs, so previous outpoint is zero
@@ -186,7 +182,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					Sequence:        wire.MaxTxInSequenceNum,
 					BlockHeight:     wire.NullBlockHeight,
 					BlockIndex:      wire.NullBlockIndex,
-					SignatureScript: coinbaseScript,
+					SignatureScript: nil, // XXX this needs an input
 				})
 				return msgTx
 			},
@@ -238,7 +234,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				// OP_RETURN <data>
-				payload := make([]byte, 12) // extra nonce size
+				payload := make([]byte, 4) // le encoded height
 				_, err = rand.Read(payload)
 				if err != nil {
 					panic(err)
@@ -253,9 +249,6 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				// treasurybase
-				coinbaseFlags := "/dcrd/"
-				coinbaseScript := make([]byte, len(coinbaseFlags)+2)
-				copy(coinbaseScript[2:], coinbaseFlags)
 				msgTx.AddTxIn(&wire.TxIn{
 					// Stakebase transactions have no
 					// inputs, so previous outpoint is zero
@@ -265,7 +258,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					Sequence:        wire.MaxTxInSequenceNum,
 					BlockHeight:     wire.NullBlockHeight,
 					BlockIndex:      wire.NullBlockIndex,
-					SignatureScript: coinbaseScript,
+					SignatureScript: nil,
 				})
 
 				return msgTx
@@ -288,7 +281,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
 				// OP_RETURN <data>
-				payload := make([]byte, 12) // extra nonce size
+				payload := make([]byte, 4) // le encoded height
 				_, err = rand.Read(payload)
 				if err != nil {
 					panic(err)
@@ -302,10 +295,6 @@ func TestTreasuryIsFunctions(t *testing.T) {
 				}
 				msgTx.AddTxOut(wire.NewTxOut(0, script))
 
-				// treasurybase
-				coinbaseFlags := "/dcrd/"
-				coinbaseScript := make([]byte, len(coinbaseFlags)+2)
-				copy(coinbaseScript[2:], coinbaseFlags)
 				msgTx.AddTxIn(&wire.TxIn{
 					// Stakebase transactions have no
 					// inputs, so previous outpoint is zero
@@ -315,7 +304,7 @@ func TestTreasuryIsFunctions(t *testing.T) {
 					Sequence:        wire.MaxTxInSequenceNum,
 					BlockHeight:     wire.NullBlockHeight,
 					BlockIndex:      wire.NullBlockIndex,
-					SignatureScript: coinbaseScript,
+					SignatureScript: nil,
 				})
 
 				return msgTx
@@ -1234,9 +1223,8 @@ var treasurybaseInvalidOpcodeDataPush = &wire.MsgTx{
 		{
 			PkScript: []byte{
 				0x6a, // OP_RETURN
-				0x0d, // OP_DATA_13 instead of OP_DATA_12
-				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				0x00, 0x00, 0x00, 0x00,
+				0x05, // OP_DATA_5 instead of OP_DATA_4
+				0x00, 0x00, 0x00, 0x00, 0x00,
 			},
 		},
 	},
@@ -1264,8 +1252,7 @@ var treasurybaseInvalid = &wire.MsgTx{
 		{
 			PkScript: []byte{
 				0x6a, // OP_RETURN
-				0x0c, // OP_DATA_12
-				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x04, // OP_DATA_4
 				0x00, 0x00, 0x00, 0x00,
 			},
 		},
@@ -1295,8 +1282,7 @@ var treasurybaseInvalid2 = &wire.MsgTx{
 		{
 			PkScript: []byte{
 				0x6a, // OP_RETURN
-				0x0c, // OP_DATA_12
-				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x04, // OP_DATA_4
 				0x00, 0x00, 0x00, 0x00,
 			},
 		},

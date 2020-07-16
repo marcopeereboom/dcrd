@@ -6,7 +6,6 @@ package stake
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/schnorr"
 	"github.com/decred/dcrd/txscript/v3"
@@ -241,6 +240,13 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 				"%v %v", len(mtx.TxIn), len(mtx.TxOut)))
 	}
 
+	// Ensure that there is no SignatureScript on the zeroth input.
+	if len(mtx.TxIn[0].SignatureScript) != 0 {
+		return stakeRuleError(ErrTreasuryBaseInvalidLength,
+			fmt.Sprintf("invalid treasurybase in script length: %v",
+				len(mtx.TxIn[0].SignatureScript)))
+	}
+
 	// Verify all TxOut script versions.
 	for k := range mtx.TxOut {
 		if mtx.TxOut[k].Version != consensusVersion {
@@ -257,19 +263,16 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 			"first treasurybase output must be a TADD")
 	}
 
-	// Required OP_RETURN, OP_DATA_12 + 12 bytes = 14 bytes total.
-	if len(mtx.TxOut[1].PkScript) != 14 ||
+	// Required OP_RETURN, OP_DATA_4 <le encoded height> = 6 bytes total.
+	if len(mtx.TxOut[1].PkScript) != 6 ||
 		mtx.TxOut[1].PkScript[0] != txscript.OP_RETURN ||
-		mtx.TxOut[1].PkScript[1] != txscript.OP_DATA_12 {
+		mtx.TxOut[1].PkScript[1] != txscript.OP_DATA_4 {
 		return stakeRuleError(ErrTreasuryBaseInvalidOpcode1,
 			"second treasurybase output must be an OP_RETURN "+
-				" OP_DATA_12 script")
+				" OP_DATA_4 script")
 	}
 
-	// The previous output of a coin base must have a max value index and a
-	// zero hash.
-	prevOut := &mtx.TxIn[0].PreviousOutPoint
-	if prevOut.Index != math.MaxUint32 || prevOut.Hash != *zeroHash {
+	if !isNullOutpoint(mtx) {
 		return stakeRuleError(ErrTreasuryBaseInvalid,
 			"invalid treasurybase constants")
 	}

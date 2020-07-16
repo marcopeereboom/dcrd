@@ -280,6 +280,10 @@ const (
 	// an invalid treasury base script count.
 	ErrTreasuryBaseInvalidCount
 
+	// ErrTreasuryBaseInvalidLength indicates that this transaction contains
+	// an invalid treasury base input script length.
+	ErrTreasuryBaseInvalidLength
+
 	// ErrTreasuryBaseInvalidVersion indicates that this transaction has an
 	// invalid version in an output script.
 	ErrTreasuryBaseInvalidVersion
@@ -364,6 +368,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrTSpendInvalidSpendScript:        "ErrTSpendInvalidSpendScript",
 	ErrTreasuryBaseInvalidTxVersion:    "ErrTreasuryBaseInvalidTxVersion",
 	ErrTreasuryBaseInvalidCount:        "ErrTreasuryBaseInvalidCount",
+	ErrTreasuryBaseInvalidLength:       "ErrTreasuryBaseInvalidLength",
 	ErrTreasuryBaseInvalidVersion:      "ErrTreasuryBaseInvalidVersion",
 	ErrTreasuryBaseInvalidOpcode0:      "ErrTreasuryBaseInvalidOpcode0",
 	ErrTreasuryBaseInvalidOpcode1:      "ErrTreasuryBaseInvalidOpcode1",
