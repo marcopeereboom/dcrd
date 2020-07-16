@@ -101,7 +101,8 @@ const (
 	// Vote length.
 	ErrSSGenInvalidTVLength
 
-	// ErrSSGenInvalidVote indicates that this is an invalid treasury vote.
+	// ErrSSGenInvalidTreasuryVote indicates that this is an invalid
+	// treasury vote.
 	ErrSSGenInvalidTreasuryVote
 
 	// ErrSSGenDuplicateTreasuryVote indicates that there is a duplicate
@@ -216,15 +217,15 @@ const (
 	// length output script.
 	ErrTAddInvalidScriptLength
 
-	// ErrTAddInvalidtLength indicates that output 0 is not exactly 1 byte.
+	// ErrTAddInvalidLength indicates that output 0 is not exactly 1 byte.
 	ErrTAddInvalidLength
 
 	// ErrTAddInvalidOpcode indicates that this transaction does not have a
 	// TADD opcode.
 	ErrTAddInvalidOpcode
 
-	// ErrTAddInvalid indicates that this transaction contains an invalid
-	// change script.
+	// ErrTAddInvalidChange indicates that this transaction contains an
+	// invalid change script.
 	ErrTAddInvalidChange
 
 	// ErrTSpendInvalidTxVersion indicates that this transaction has
@@ -283,16 +284,16 @@ const (
 	// invalid version in an output script.
 	ErrTreasuryBaseInvalidVersion
 
-	// ErrTreasuryInvalidOpcode0 indicates that this transaction does not
-	// have a TADD opcode in TxOut[0].
+	// ErrTreasuryBaseInvalidOpcode0 indicates that this transaction does
+	// not have a TADD opcode in TxOut[0].
 	ErrTreasuryBaseInvalidOpcode0
 
-	// ErrTreasuryInvalidOpcode1 indicates that this transaction does not
-	// have an OP_RETURN opcode in TxOut[1].
+	// ErrTreasuryBaseInvalidOpcode1 indicates that this transaction does
+	// not have an OP_RETURN opcode in TxOut[1].
 	ErrTreasuryBaseInvalidOpcode1
 
 	// ErrTreasuryBaseInvalid indicates that this transaction contains
-	// invalid stakebase TxIn constants.
+	// invalid treasurybase TxIn constants.
 	ErrTreasuryBaseInvalid
 )
 
