@@ -1513,10 +1513,9 @@ func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasury
 // they spend tickets that are actually allowed to vote per the lottery.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) checkAllowedVotes(parentStakeNode *stake.Node, block *wire.MsgBlock) error {
-	// See if the treasury agenda was active at the parent.
-	pHash := &block.Header.PrevBlock
-	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(pHash)
+func (b *BlockChain) checkAllowedVotes(prevNode *blockNode, parentStakeNode *stake.Node, block *wire.MsgBlock) error {
+	// Determine if the treasury agenda is active as of the block being checked.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
 	if err != nil {
 		return err
 	}
@@ -1735,7 +1734,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		if err != nil {
 			return err
 		}
-		err = b.checkAllowedVotes(parentStakeNode, block.MsgBlock())
+		err = b.checkAllowedVotes(prevNode, parentStakeNode, block.MsgBlock())
 		if err != nil {
 			return err
 		}
@@ -2907,10 +2906,10 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 // createLegacySeqLockView returns a view to use when calculating sequence locks
 // for the transactions in the regular tree that preserves the same incorrect
 // semantics that were present in previous versions of the software.
-func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view *UtxoViewpoint) (*UtxoViewpoint, error) {
-	// See if the treasury agenda was active at the parent.
-	pHash := &parent.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActiveByHash(pHash)
+func (b *BlockChain) createLegacySeqLockView(prevNode *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint) (*UtxoViewpoint, error) {
+	// Determine if the treasury agenda is active as of the block the view is
+	// being created for.
+	isTreasuryEnabled, err := view.blockChain.isTreasuryAgendaActive(prevNode)
 	if err != nil {
 		return nil, err
 	}
@@ -3535,8 +3534,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 	if lnFeaturesActive && !fixSeqLocksActive {
 		var err error
-		legacySeqLockView, err = b.createLegacySeqLockView(block, parent,
-			view)
+		legacySeqLockView, err = b.createLegacySeqLockView(node.parent, block,
+			parent, view)
 		if err != nil {
 			return err
 		}
