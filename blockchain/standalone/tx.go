@@ -6,7 +6,6 @@
 package standalone
 
 import (
-	"bytes"
 	"math"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -20,6 +19,17 @@ var (
 	// time a check is needed.
 	zeroHash = chainhash.Hash{}
 )
+
+// isNullOutpoint determines whether or not a previous transaction output point
+// is set.
+func isNullOutpoint(tx *wire.MsgTx) bool {
+	nullInOP := tx.TxIn[0].PreviousOutPoint
+	if nullInOP.Index == math.MaxUint32 && nullInOP.Hash.IsEqual(&zeroHash) &&
+		nullInOP.Tree == wire.TxTreeRegular {
+		return true
+	}
+	return false
+}
 
 // IsCoinBaseTx determines whether or not a transaction is a coinbase.  A
 // coinbase is a special transaction created by miners that has no inputs.
@@ -92,11 +102,5 @@ func IsTreasuryBase(tx *wire.MsgTx) bool {
 		return false
 	}
 
-	prevOut := &tx.TxIn[0].PreviousOutPoint
-	if prevOut.Index != math.MaxUint32 ||
-		!bytes.Equal(prevOut.Hash[:], zeroHash[:]) {
-		return false
-	}
-
-	return true
+	return isNullOutpoint(tx)
 }
