@@ -1954,7 +1954,7 @@ func (q *chainQueryerAdapter) BestHeight() int64 {
 }
 
 func (q *chainQueryerAdapter) IsTreasuryEnabledByHash(hash *chainhash.Hash) (bool, error) {
-	return q.IsTreasuryAgendaActiveByHash(hash)
+	return q.IsTreasuryAgendaActive(hash)
 }
 
 // PrevScripts returns a source of previous transaction scripts and their
@@ -1966,7 +1966,7 @@ func (q *chainQueryerAdapter) IsTreasuryEnabledByHash(hash *chainhash.Hash) (boo
 // This is part of the indexers.ChainQueryer interface.
 func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block) (indexers.PrevScripter, error) {
 	prevHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := q.IsTreasuryAgendaActiveByHash(prevHash)
+	isTreasuryEnabled, err := q.IsTreasuryAgendaActive(prevHash)
 	if err != nil {
 		return nil, err
 	}

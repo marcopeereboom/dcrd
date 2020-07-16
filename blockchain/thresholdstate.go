@@ -731,8 +731,9 @@ func (b *BlockChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (
 	return isActive, err
 }
 
-// isTreasuryAgendaActive returns whether or not the treasury opcodes are
-// enabled from the point of view of the passed block node.
+// isTreasuryAgendaActive returns whether or not the treasury agenda, as defined
+// in DCP0006, has passed and is now active from the point of view of the passed
+// block node.
 //
 // It is important to note that, as the variable name indicates, this function
 // expects the block node prior to the block for which the deployment state is
@@ -758,36 +759,32 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 	return state.State == ThresholdActive, nil
 }
 
-// isTreasuryAgendaActiveByHash looks up a node by hash and the returns the
-// value of isTreasuryAgendaActive. Not that the dunction returns treasury not
-// enabled if the has is not found.
+// isTreasuryAgendaActiveByHash returns whether or not the treasury agenda vote,
+// as defined in DCP0006, has passed and is now active for the block AFTER the
+// given block.
 //
-// This function MUST be called with the chain state lock held (for reads).
+// This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (bool, error) {
+	// NOTE: The requirement for the node being fully validated here is strictly
+	// stronger than what is actually required.  In reality, all that is needed
+	// is for the block data for the node and all of its ancestors to be
+	// available, but there is not currently any tracking to be able to
+	// efficiently determine that state.
 	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil {
-		return false, nil // Not found means not active.
+	if prevNode == nil || !b.index.NodeStatus(prevNode).HasValidated() {
+		return false, HashError(prevHash.String())
 	}
 	return b.isTreasuryAgendaActive(prevNode)
 }
 
-// IsTreasuryAgendaActiveByHash looks up a node by hash and the returns the
-// value of IsTreasuryAgendaActive.
+// IsTreasuryAgendaActive returns whether or not the treasury agenda vote, as
+// defined in DCP0006, has passed and is now active for the block AFTER the
+// given block.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) IsTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (bool, error) {
+func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, error) {
 	b.chainLock.Lock()
-	defer b.chainLock.Unlock()
-	return b.isTreasuryAgendaActiveByHash(prevHash)
-}
-
-// IsTreasuryAgendaActive returns whether or not whether or not the TADD/TSUB
-// opcodes are active.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) IsTreasuryAgendaActive() (bool, error) {
-	b.chainLock.Lock()
-	isActive, err := b.isTreasuryAgendaActive(b.bestChain.Tip())
+	isActive, err := b.isTreasuryAgendaActiveByHash(prevHash)
 	b.chainLock.Unlock()
 	return isActive, err
 }

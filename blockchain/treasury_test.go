@@ -526,7 +526,8 @@ func TestTSpendVoteCount(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}
@@ -983,7 +984,8 @@ func TestTSpendExpenditures(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}
@@ -1123,7 +1125,8 @@ func TestTSpendExpenditures2(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}
@@ -1274,7 +1277,8 @@ func TestTSpendDupVote(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}
@@ -1425,7 +1429,8 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}
@@ -1549,7 +1554,8 @@ func TestTSpendWindow(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}
@@ -1704,7 +1710,8 @@ func TestTSpendExists(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}
@@ -1980,7 +1987,8 @@ func TestTreasuryBalance(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}
@@ -2266,7 +2274,8 @@ func TestTAddCorners(t *testing.T) {
 	g.AdvanceFromSVHToActiveAgenda(tVoteID)
 
 	// Ensure treasury agenda is active.
-	gotActive, err := g.chain.IsTreasuryAgendaActive()
+	tipHash := &g.chain.BestSnapshot().Hash
+	gotActive, err := g.chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		t.Fatalf("IsTreasuryAgendaActive: %v", err)
 	}

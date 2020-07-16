@@ -809,7 +809,7 @@ func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 
 		// Ensure the agenda reports the expected activation status for
 		// the NEXT block
-		gotActive, err = bc.IsTreasuryAgendaActive()
+		gotActive, err = bc.IsTreasuryAgendaActive(&node.hash)
 		if err != nil {
 			t.Errorf("%s: unexpected err: %v", test.name, err)
 			continue
