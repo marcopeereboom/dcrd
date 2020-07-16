@@ -358,7 +358,7 @@ func (c *testRPCChain) TicketPoolValue() (dcrutil.Amount, error) {
 
 // TicketsWithAddress returns a mocked slice of ticket hashes that are currently
 // live corresponding to the given address.
-func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.Hash, error) {
+func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
 	return c.ticketsWithAddress, nil
 }
 
@@ -371,7 +371,7 @@ func (c *testRPCChain) TreasuryBalance(*string) (string, int64, int64, []int64, 
 	return "", 0, 0, []int64{}, fmt.Errorf("not implemented")
 }
 
-func (c *testRPCChain) IsTreasuryAgendaActiveByHash(*chainhash.Hash) (bool, error) {
+func (c *testRPCChain) IsTreasuryAgendaActive(*chainhash.Hash) (bool, error) {
 	return false, nil
 }
 
