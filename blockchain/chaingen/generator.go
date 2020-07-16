@@ -625,7 +625,7 @@ func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmount
 		ValueIn:         int64(fee) + totalPayout,
 		BlockHeight:     wire.NullBlockHeight,
 		BlockIndex:      wire.NullBlockIndex,
-		SignatureScript: []byte{},
+		SignatureScript: nil,
 	})
 
 	// Calculate TSpend signature without SigHashType.
