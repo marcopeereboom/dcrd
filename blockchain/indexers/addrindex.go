@@ -750,14 +750,13 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 				}
 
 				idx.indexPkScript(data, version, pkScript,
-					txIdx, false, false) // No treasury
+					txIdx, false, isTreasuryEnabled)
 			}
 		}
 
 		for _, txOut := range tx.MsgTx().TxOut {
-			// XXX OP_TADD here?
 			idx.indexPkScript(data, txOut.Version, txOut.PkScript,
-				txIdx, false, false) // No treasury
+				txIdx, false, isTreasuryEnabled)
 		}
 	}
 
@@ -766,13 +765,24 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 		thisTxOffset := txIdx + len(regularTxns)
 
 		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		var (
+			isTSpend, isTreasuryBase bool
+		)
+		if isTreasuryEnabled {
+			// Short circuit expensive Is* calls.
+			isTreasuryBase = !isSSGen && stake.IsTreasuryBase(msgTx)
+			isTSpend = !isTreasuryBase && stake.IsTSpend(msgTx)
+		}
 		for i, txIn := range msgTx.TxIn {
 			// Skip stakebases.
 			if isSSGen && i == 0 {
 				continue
 			}
 
-			// XXX we probably need to skip treasury base
+			// Skip treasury transactions that do not have inputs.
+			if isTreasuryBase || isTSpend {
+				continue
+			}
 
 			// The input should always be available since the index contract
 			// requires it, however, be safe and simply ignore any missing
