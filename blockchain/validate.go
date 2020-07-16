@@ -1439,9 +1439,7 @@ func checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight int64, block *dcrutil
 	}
 
 	// The nulldata in the treasurybase must be a single OP_RETURN followed
-	// by a data push up to maxUniqueCoinbaseNullDataSize bytes and the
-	// first 4 bytes of that data must be the encoded height of the block
-	// so that every treasurybase created has a unique transaction hash.
+	// by a data push of 4 bytes which encodes the height of the block.
 	//
 	// NOTE: This is intentionally not using GetScriptClass and the related
 	// functions because those are specifically for standardness checks
@@ -1460,14 +1458,15 @@ func checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight int64, block *dcrutil
 		tokenizer := txscript.MakeScriptTokenizer(scriptVersion,
 			pkScript[1:])
 		if tokenizer.Next() && tokenizer.Done() &&
-			tokenizer.Opcode() ==
+			tokenizer.Opcode() !=
 				txscript.OP_PUSHDATA4 {
 			nullData = tokenizer.Data()
 		}
 	}
 	if len(nullData) != 4 {
 		str := fmt.Sprintf("block %s treasurybase output 0 pushes %d "+
-			"bytes which is too short to encode height",
+			"bytes instead of the required 4 bytes that encode the"+
+			"height",
 			block.Hash(), len(nullData))
 		return ruleError(ErrFirstTxNotOpReturn, str)
 	}
