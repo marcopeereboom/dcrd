@@ -456,10 +456,10 @@ func newWorkState() *workState {
 func isTreasuryAgendaActive(s *rpcServer) (bool, error) {
 	chain := s.cfg.Chain
 	hash := chain.BestSnapshot().Hash
-	isTreasuryEnabled, err := chain.IsTreasuryAgendaActiveByHash(&hash)
+	isTreasuryEnabled, err := chain.IsTreasuryAgendaActive(&hash)
 	if err != nil {
-		return false, rpcInternalError(err.Error(), "Could not "+
-			"obtain treasury agenda status")
+		context := "Could not obtain treasury agenda status"
+		return false, rpcInternalError(err.Error(), context)
 	}
 	return isTreasuryEnabled, nil
 }
@@ -4654,7 +4654,12 @@ func handleTicketsForAddress(_ context.Context, s *rpcServer, cmd interface{}) (
 		return nil, rpcInvalidError("Invalid address: %v", err)
 	}
 
-	tickets, err := s.cfg.Chain.TicketsWithAddress(addr)
+	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	if err != nil {
+		return nil, err
+	}
+
+	tickets, err := s.cfg.Chain.TicketsWithAddress(addr, isTreasuryEnabled)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "could not obtain tickets")
 	}
@@ -4851,7 +4856,7 @@ func verifyChain(_ context.Context, s *rpcServer, level, depth int64) error {
 		// Level 1 does basic chain sanity checks.
 		if level > 0 {
 			pHash := &block.MsgBlock().Header.PrevBlock
-			isTreasuryEnabled, err := s.cfg.Chain.IsTreasuryAgendaActiveByHash(pHash)
+			isTreasuryEnabled, err := s.cfg.Chain.IsTreasuryAgendaActive(pHash)
 			if err != nil {
 				rpcsLog.Errorf("Verify is unable to ascertain"+
 					" if treasury agenda is active: %v",

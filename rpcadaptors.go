@@ -433,16 +433,6 @@ func (c *rpcChain) FetchUtxoEntry(txHash *chainhash.Hash) (rpcserver.UtxoEntry, 
 	return &rpcUtxoEntry{UtxoEntry: utxo}, nil
 }
 
-// TicketsWithAddress wraps the blockchain.TicketsWithAddress call with the
-// treasury agenda flag added to it
-func (c *rpcChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.Hash, error) {
-	isTreasuryEnabled, err := c.BlockChain.IsTreasuryAgendaActive()
-	if err != nil {
-		return nil, err
-	}
-	return c.BlockChain.TicketsWithAddress(address, isTreasuryEnabled)
-}
-
 // rpcClock provides a clock for use with the RPC server and
 // implements the rpcserver.Clock interface.
 type rpcClock struct{}

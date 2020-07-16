@@ -1940,7 +1940,8 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		block := blockSlice[0]
 		parentBlock := blockSlice[1]
 
-		isTreasuryEnabled, err := b.cfg.Chain.IsTreasuryAgendaActiveByHash(block.Hash())
+		blockHash := block.Hash()
+		isTreasuryEnabled, err := b.cfg.Chain.IsTreasuryAgendaActive(blockHash)
 		if err != nil {
 			bmgrLog.Warnf("Block connected notification treasury error: %v",
 				err)

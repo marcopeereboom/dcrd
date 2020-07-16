@@ -1044,7 +1044,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	nextBlockHeight := best.Height + 1
 	stakeValidationHeight := g.chainParams.StakeValidationHeight
 
-	isTreasuryEnabled, err := g.chain.IsTreasuryAgendaActive()
+	isTreasuryEnabled, err := g.chain.IsTreasuryAgendaActive(&prevHash)
 	if err != nil {
 		return nil, err
 	}

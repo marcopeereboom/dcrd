@@ -2210,15 +2210,15 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()
 	s.donePeers <- sp
 
-	isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive()
-	if err != nil {
-		txmpLog.Error("Could not obtain treasury agenda status: %v",
-			err)
-	}
-
 	// Only tell block manager we are gone if we ever told it we existed.
 	if sp.VersionKnown() {
 		s.blockManager.DonePeer(sp.Peer)
+
+		tipHash := &s.chain.BestSnapshot().Hash
+		isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(tipHash)
+		if err != nil {
+			txmpLog.Errorf("Could not obtain treasury agenda status: %v", err)
+		}
 
 		// Evict any remaining orphans that were sent by the peer.
 		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()),
@@ -2526,7 +2526,7 @@ out:
 					break
 				}
 
-				isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive()
+				isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(&best.Hash)
 				if err != nil {
 					srvrLog.Errorf("Could not obtain treasury agenda status: %v",
 						err)
@@ -2851,7 +2851,8 @@ func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFla
 
 	// Enable validation of treasury-related opcodes when the associated
 	// agenda is active.
-	isActive, err = chain.IsTreasuryAgendaActive()
+	tipHash := &chain.BestSnapshot().Hash
+	isActive, err = chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		return 0, err
 	}
@@ -3107,7 +3108,8 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			}
 		},
 		IsTreasuryAgendaActive: func() (bool, error) {
-			return s.chain.IsTreasuryAgendaActive()
+			tipHash := &s.chain.BestSnapshot().Hash
+			return s.chain.IsTreasuryAgendaActive(tipHash)
 		},
 		FetchTSpend: func(hash chainhash.Hash) ([]chainhash.Hash, error) {
 			return s.chain.DbFetchTSpend(hash)
