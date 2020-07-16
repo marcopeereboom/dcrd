@@ -1953,7 +1953,7 @@ func (q *chainQueryerAdapter) BestHeight() int64 {
 	return q.BestSnapshot().Height
 }
 
-func (q *chainQueryerAdapter) IsTreasuryEnabledByHash(hash *chainhash.Hash) (bool, error) {
+func (q *chainQueryerAdapter) IsTreasuryEnabled(hash *chainhash.Hash) (bool, error) {
 	return q.IsTreasuryAgendaActive(hash)
 }
 

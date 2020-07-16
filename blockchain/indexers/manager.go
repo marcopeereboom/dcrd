@@ -476,7 +476,7 @@ func (m *Manager) Init(ctx context.Context, chain ChainQueryer) error {
 
 				// Find out if treasury was enabled at the
 				//parent.
-				isTreasuryEnabled, err := chain.IsTreasuryEnabledByHash(parent.Hash())
+				isTreasuryEnabled, err := chain.IsTreasuryEnabled(parent.Hash())
 				if err != nil {
 					return err
 				}
@@ -623,7 +623,7 @@ func (m *Manager) Init(ctx context.Context, chain ChainQueryer) error {
 
 				// Find out if treasury was enabled at the
 				//parent.
-				isTreasuryEnabled, err := chain.IsTreasuryEnabledByHash(parent.Hash())
+				isTreasuryEnabled, err := chain.IsTreasuryEnabled(parent.Hash())
 				if err != nil {
 					return err
 				}

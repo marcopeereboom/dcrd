@@ -98,7 +98,7 @@ type ChainQueryer interface {
 	// Return if the reasury agenda is active at this hash. Care must be
 	// taken by the caller to ensure that this call is made with either the
 	// current or previous block hash.
-	IsTreasuryEnabledByHash(*chainhash.Hash) (bool, error)
+	IsTreasuryEnabled(*chainhash.Hash) (bool, error)
 }
 
 // IndexManager provides a generic interface that is called when blocks are
