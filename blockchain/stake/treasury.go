@@ -5,7 +5,6 @@
 package stake
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 
@@ -270,8 +269,7 @@ func checkTreasuryBase(mtx *wire.MsgTx) error {
 	// The previous output of a coin base must have a max value index and a
 	// zero hash.
 	prevOut := &mtx.TxIn[0].PreviousOutPoint
-	if prevOut.Index != math.MaxUint32 ||
-		!bytes.Equal(prevOut.Hash[:], zeroHash[:]) {
+	if prevOut.Index != math.MaxUint32 || prevOut.Hash != *zeroHash {
 		return stakeRuleError(ErrTreasuryBaseInvalid,
 			"invalid treasurybase constants")
 	}

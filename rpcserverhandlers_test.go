@@ -40,6 +40,12 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+const (
+	// noTreasury signifies the treasury agenda should be treated as though it
+	// is inactive.  It is used to increase the readability of the tests.
+	noTreasury = false
+)
+
 // testDataPath is the path where all rpcserver test fixtures reside.
 var testDataPath = filepath.Join("internal", "rpcserver", "testdata")
 
@@ -2571,7 +2577,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range txns {
 		rawTxn, err := createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations, false /* No treasury */)
+			int64(blkHeader.Height), confirmations, noTreasury)
 		if err != nil {
 			t.Fatalf("error creating tx raw result: %+v", err)
 		}
@@ -2582,7 +2588,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range stxns {
 		rawSTxn, err := createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations, false /* No treasury */)
+			int64(blkHeader.Height), confirmations, noTreasury)
 		if err != nil {
 			t.Fatalf("error creating stx raw result: %+v", err)
 		}

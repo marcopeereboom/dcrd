@@ -443,6 +443,7 @@ func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, err
 			if len(tx.TxOut) == 2 && tx.TxOut[1].Value != 0 {
 				data.AddStakePkScript(tx.TxOut[1].PkScript)
 			}
+
 		case stake.TxTypeTSpend:
 			// Skip OP_RETURN and then strip all OP_TGEN from the remaining
 			// outputs.

@@ -1970,8 +1970,8 @@ func (q *chainQueryerAdapter) IsTreasuryEnabledByHash(hash *chainhash.Hash) (boo
 //
 // This is part of the indexers.ChainQueryer interface.
 func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block) (indexers.PrevScripter, error) {
-	pHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := q.IsTreasuryAgendaActiveByHash(pHash)
+	prevHash := &block.MsgBlock().Header.PrevBlock
+	isTreasuryEnabled, err := q.IsTreasuryAgendaActiveByHash(prevHash)
 	if err != nil {
 		return nil, err
 	}
@@ -1982,8 +1982,8 @@ func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block
 		return nil, err
 	}
 
-	prevScripts := stxosToScriptSource(block, stxos,
-		currentCompressionVersion, isTreasuryEnabled)
+	prevScripts := stxosToScriptSource(block, stxos, currentCompressionVersion,
+		isTreasuryEnabled)
 	return prevScripts, nil
 }
 
