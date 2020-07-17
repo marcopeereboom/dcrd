@@ -122,9 +122,9 @@ func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcru
 	return nil
 }
 
-// checkTreasuryBase checks to see if a given block's coinbase correctly pays
-// the treasury. This is the new function that uses the treasury base for the
-// payout.
+// checkTreasuryBase checks to see if a given block's treasurybase correctly
+// pays the treasury. This is the new function that uses the treasury base for
+// the payout.
 func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
 	// Treasury subsidy only applies from block 2 onwards.
 	if height <= 1 {
@@ -136,9 +136,10 @@ func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, he
 		return nil
 	}
 
-	if len(tx.MsgTx().TxOut) == 0 {
-		return ruleError(ErrNoTxOutputs,
-			"invalid coinbase (no outputs)")
+	if len(tx.MsgTx().TxOut) != 2 {
+		return ruleError(ErrNoTxOutputs, fmt.Sprintf("invalid "+
+			"treasurybase number of outputs: %v",
+			len(tx.MsgTx().TxOut)))
 	}
 
 	treasuryOutput := tx.MsgTx().TxOut[0]
