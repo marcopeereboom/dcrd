@@ -3468,7 +3468,9 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 			"of expected %v", view.BestHash(), parentHash))
 	}
 
-	// Check that the coinbase pays the treasury, if applicable.
+	// Check that either the coinbase or the treasurybase pays the treasury the
+	// correct amount depending on the result of the treasury agenda vote that
+	// modifies the semantics of the payout.
 	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
 	if err != nil {
 		return err
@@ -3483,17 +3485,19 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		if err != nil {
 			return err
 		}
-
-		// Verify TSpends. This is done relatively late because the
-		// database needs to be coherent.
-		err = b.tspendChecks(node.parent, block)
+	} else {
+		err = coinbasePaysTreasuryAddress(b.subsidyCache,
+			block.Transactions()[0], node.height, node.voters,
+			b.chainParams)
 		if err != nil {
 			return err
 		}
-	} else {
-		err = coinbasePaysToTreasuryAddress(b.subsidyCache,
-			block.Transactions()[0], node.height, node.voters,
-			b.chainParams)
+	}
+
+	// Verify treasury spends.  This is done relatively late because the
+	// database needs to be coherent.
+	if isTreasuryEnabled {
+		err = b.tspendChecks(node.parent, block)
 		if err != nil {
 			return err
 		}

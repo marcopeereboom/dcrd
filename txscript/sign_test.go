@@ -25,7 +25,13 @@ import (
 // can more easily be changed if desired.
 var testingParams = chaincfg.RegNetParams()
 
-const testValueIn = 12345
+const (
+	testValueIn = 12345
+
+	// noTreasury signifies the treasury agenda should be treated as though it
+	// is inactive.  It is used to increase the readability of the tests.
+	noTreasury = false
+)
 
 type addressToKey struct {
 	key        []byte
@@ -106,7 +112,7 @@ func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
 	hashType SigHashType, kdb KeyDB, sdb ScriptDB) error {
 
 	sigScript, err := SignTxOutput(testingParams, tx, idx, pkScript,
-		hashType, kdb, sdb, nil, false) // No treasury
+		hashType, kdb, sdb, nil, noTreasury)
 	if err != nil {
 		return fmt.Errorf("failed to sign output %s: %v", msg, err)
 	}
@@ -121,7 +127,7 @@ func signBadAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
 	tRand := mrand.New(mrand.NewSource(int64(randScriptHash[0])))
 
 	sigScript, err := SignTxOutput(testingParams, tx,
-		idx, pkScript, hashType, kdb, sdb, nil, false) // No treasury
+		idx, pkScript, hashType, kdb, sdb, nil, noTreasury)
 	if err != nil {
 		return fmt.Errorf("failed to sign output %s: %v", msg, err)
 	}
@@ -314,8 +320,7 @@ func TestSignTxOutput(t *testing.T) {
 					testingParams, tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil), nil,
-					false) // No treasury
+					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -328,8 +333,7 @@ func TestSignTxOutput(t *testing.T) {
 					testingParams, tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil), sigScript,
-					false) // No treasury
+					}), mkGetScript(nil), sigScript, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -446,8 +450,7 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil), nil,
-					false) // No treasury
+					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -460,8 +463,7 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil), sigScript,
-					false) // No treasury
+					}), mkGetScript(nil), sigScript, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -779,8 +781,7 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
 						address.String(): {keyDB, suite, false},
-					}), mkGetScript(nil), nil,
-					false) // No treasury
+					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -792,8 +793,7 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
 						address.String(): {keyDB, suite, false},
-					}), mkGetScript(nil), sigScript,
-					false) // No treasury
+					}), mkGetScript(nil), sigScript, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -937,8 +937,7 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil), nil,
-					false) // No treasury
+					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -951,8 +950,7 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil), sigScript,
-					false) // No treasury
+					}), mkGetScript(nil), sigScript, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1106,8 +1104,7 @@ func TestSignTxOutput(t *testing.T) {
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.Address(): pkScript,
-					}), nil, false) // No treasury
+						scriptAddr.Address(): pkScript}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -1122,7 +1119,7 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil, false) // No treasury
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1274,7 +1271,7 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil, false) // No treasury
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -1289,7 +1286,7 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil, false) // No treasury
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1470,7 +1467,7 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil, false) // No treasury
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -1485,7 +1482,7 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil, false) // No treasury
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1665,7 +1662,7 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil, false) // No treasury
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -1680,7 +1677,7 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil, false) // No treasury
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1851,7 +1848,7 @@ func TestSignTxOutput(t *testing.T) {
 					address1.Address(): {keyDB1, suite1, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				}), nil, false) // No treasury
+				}), nil, noTreasury)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg,
 					err)
@@ -1872,7 +1869,7 @@ func TestSignTxOutput(t *testing.T) {
 					address2.Address(): {keyDB2, suite2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				}), sigScript, false) // No treasury
+				}), sigScript, noTreasury)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg, err)
 				break
@@ -1956,7 +1953,7 @@ func TestSignTxOutput(t *testing.T) {
 					address1.Address(): {keyDB1, suite1, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				}), nil, false) // No treasury
+				}), nil, noTreasury)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg,
 					err)
@@ -1978,7 +1975,7 @@ func TestSignTxOutput(t *testing.T) {
 					address2.Address(): {keyDB2, suite2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				}), sigScript, false) // No treasury
+				}), sigScript, noTreasury)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg, err)
 				break
