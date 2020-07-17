@@ -215,12 +215,12 @@ func SimNetParams() *Params {
 		// $ treasurykey.go -simnet
 		// Private key: 62deae1ab2b1ebd96a28c80e870aee325bed359e83d8db2464ef999e616a9eef
 		// Public  key: 02a36b785d584555696b69d1b2bbeff4010332b301e3edd316d79438554cacb3e7
-		// WIF        : PsUQsQdzwJcN5TN5pdRtxhnRzn1cYNn6MsB95VSvpoxYS8XFaBEPT
+		// WIF        : PsUUktzTqNKDRudiz3F4Chh5CKqqmp5W3ckRDhwECbwrSuWZ9m5fk
 		//
 		// $ treasurykey.go -simnet
 		// Private key: cc0d8258d68acf047732088e9b70e2c97c53f711518042d267fc6975f39b791b
 		// Public  key: 02b2c110e7b560aa9e1545dd18dd9f7e74a3ba036297a696050c0256f1f69479d7
-		// WIF        : PsURfjPtPsARmyVuio93GsCVmKWEvPsZtDmeLvx18NeVhXyAj3Cx1
+		// WIF        : PsUVZDkMHvsH8RmYtCxCWs78xsLU9qAyZyLvV9SJWAdoiJxSFhvFx
 		PiKeys: [][]byte{
 			hexDecode("02a36b785d584555696b69d1b2bbeff4010332b301e3edd316d79438554cacb3e7"),
 			hexDecode("02b2c110e7b560aa9e1545dd18dd9f7e74a3ba036297a696050c0256f1f69479d7"),
