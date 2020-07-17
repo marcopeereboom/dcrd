@@ -36,6 +36,7 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrTooManyTransactions, "ErrTooManyTransactions"},
 		{ErrNoTxInputs, "ErrNoTxInputs"},
 		{ErrNoTxOutputs, "ErrNoTxOutputs"},
+		{ErrInvalidTxOutputs, "ErrInvalidTxOutputs"},
 		{ErrTxTooBig, "ErrTxTooBig"},
 		{ErrBadTxOutValue, "ErrBadTxOutValue"},
 		{ErrDuplicateTxInputs, "ErrDuplicateTxInputs"},

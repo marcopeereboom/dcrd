@@ -166,6 +166,10 @@ const (
 	// valid transaction must have at least one output.
 	ErrNoTxOutputs
 
+	// ErrInvalidTxOutputs indicates a transaction does not have the exact
+	// number of outputs.
+	ErrInvalidTxOutputs
+
 	// ErrTxTooBig indicates a transaction exceeds the maximum allowed size
 	// when serialized.
 	ErrTxTooBig
@@ -586,6 +590,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrTooManyTransactions:       "ErrTooManyTransactions",
 	ErrNoTxInputs:                "ErrNoTxInputs",
 	ErrNoTxOutputs:               "ErrNoTxOutputs",
+	ErrInvalidTxOutputs:          "ErrInvalidTxOutputs",
 	ErrTxTooBig:                  "ErrTxTooBig",
 	ErrBadTxOutValue:             "ErrBadTxOutValue",
 	ErrDuplicateTxInputs:         "ErrDuplicateTxInputs",

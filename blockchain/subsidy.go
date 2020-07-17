@@ -137,7 +137,7 @@ func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, he
 	}
 
 	if len(tx.MsgTx().TxOut) != 2 {
-		return ruleError(ErrNoTxOutputs, fmt.Sprintf("invalid "+
+		return ruleError(ErrInvalidTxOutputs, fmt.Sprintf("invalid "+
 			"treasurybase number of outputs: %v",
 			len(tx.MsgTx().TxOut)))
 	}
