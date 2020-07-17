@@ -313,7 +313,7 @@ func MainNetParams() *Params {
 					}},
 				},
 				StartTime:  1596240000, // Aug 1st, 2020
-				ExpireTime: 1627776000, // Aud 1st, 2021
+				ExpireTime: 1627776000, // Aug 1st, 2021
 			}},
 		},
 

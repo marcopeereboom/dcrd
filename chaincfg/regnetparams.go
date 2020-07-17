@@ -270,7 +270,7 @@ func RegNetParams() *Params {
 			9: {{
 				Vote: Vote{
 					Id:          VoteIDTreasury,
-					Description: "Enable TADD/TSPEND/TGEN treasury opcodes",
+					Description: "Enable decentralized Treasury opcodes as defined in DCP0006",
 					Mask:        0x0006, // Bits 1 and 2
 					Choices: []Choice{{
 						Id:          "abstain",
