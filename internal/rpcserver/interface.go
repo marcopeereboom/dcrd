@@ -411,8 +411,7 @@ type Chain interface {
 	// parent of the current tip.
 	TipGeneration() ([]chainhash.Hash, error)
 
-	// TreasuryBalance returns the treasury balance at the provided hash'
-	// block.
+	// TreasuryBalance returns the treasury balance at the provided block.
 	TreasuryBalance(hash *string) (string, int64, int64, []int64, error)
 
 	// IsTreasuryAgendaActive returns whether or not the treasury agenda vote, as
