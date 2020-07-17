@@ -100,36 +100,6 @@ func SignatureScript(tx *wire.MsgTx, idx int, subscript []byte, hashType SigHash
 	return NewScriptBuilder().AddData(sig).AddData(pkData).Script()
 }
 
-func SignatureScript2(tx *wire.MsgTx, idx int, subscript []byte, hashType SigHashType,
-	privKey []byte, sigType dcrec.SignatureType, compress bool) ([]byte, []byte, error) {
-
-	sig, err := RawTxInSignature(tx, idx, subscript, hashType, privKey, sigType)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var pkData []byte
-	switch sigType {
-	case dcrec.STEcdsaSecp256k1:
-		priv := secp256k1.PrivKeyFromBytes(privKey)
-		if compress {
-			pkData = priv.PubKey().SerializeCompressed()
-		} else {
-			pkData = priv.PubKey().SerializeUncompressed()
-		}
-	case dcrec.STEd25519:
-		_, pub := edwards.PrivKeyFromBytes(privKey)
-		pkData = pub.Serialize()
-	case dcrec.STSchnorrSecp256k1:
-		priv := secp256k1.PrivKeyFromBytes(privKey)
-		pkData = priv.PubKey().SerializeCompressed()
-	default:
-		return nil, nil, fmt.Errorf("unsupported signature type '%v'", sigType)
-	}
-
-	return sig, pkData, nil
-}
-
 // p2pkSignatureScript constructs a pay-to-pubkey signature script.
 func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
 	hashType SigHashType, privKey []byte, sigType dcrec.SignatureType) ([]byte, error) {
