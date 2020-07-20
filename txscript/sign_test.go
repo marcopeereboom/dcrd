@@ -28,8 +28,9 @@ var testingParams = chaincfg.RegNetParams()
 const (
 	testValueIn = 12345
 
-	// noTreasury signifies the treasury agenda should be treated as though it
-	// is inactive.  It is used to increase the readability of the tests.
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
 	noTreasury = false
 )
 

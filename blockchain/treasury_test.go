@@ -363,7 +363,7 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 	return func(b *wire.MsgBlock) {
 		// Find SSGEN and append Yes vote.
 		for k, v := range b.STransactions {
-			if !stake.IsSSGen(v, true) { // Yes treasury
+			if !stake.IsSSGen(v, yesTreasury) {
 				continue
 			}
 			if len(v.TxOut) != 3 {
@@ -403,7 +403,7 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 			}
 
 			// Assert this remains a valid SSGEN.
-			err = stake.CheckSSGen(b.STransactions[k], true) // Yes treasury
+			err = stake.CheckSSGen(b.STransactions[k], yesTreasury)
 			if err != nil {
 				t.Fatalf("expected SSGen: %v", err)
 			}
@@ -2078,7 +2078,7 @@ func TestTreasuryBalance(t *testing.T) {
 	addTSpendVotes := func(b *wire.MsgBlock) {
 		// Find SSGEN and append Yes vote.
 		for k, v := range b.STransactions {
-			if !stake.IsSSGen(v, true) { // Yes treasury
+			if !stake.IsSSGen(v, yesTreasury) {
 				continue
 			}
 			if len(v.TxOut) != 3 {
@@ -2110,7 +2110,7 @@ func TestTreasuryBalance(t *testing.T) {
 			}
 
 			// Assert this remains a valid SSGEN.
-			err = stake.CheckSSGen(b.STransactions[k], true) // Yes treasury
+			err = stake.CheckSSGen(b.STransactions[k], yesTreasury)
 			if err != nil {
 				t.Fatalf("expected SSGen: %v", err)
 			}

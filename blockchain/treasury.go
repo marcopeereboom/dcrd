@@ -21,6 +21,11 @@ import (
 )
 
 const (
+	// yesTreasury signifies the treasury agenda should be treated as
+	// though it is active.  It is used to increase the readability of the
+	// code.
+	yesTreasury = true
+
 	// TreasuryMaxEntriesPerBlock is the maximum number of OP_TADD/OP_SPEND
 	// transactions in a given block.
 	TreasuryMaxEntriesPerBlock = 256
@@ -674,7 +679,7 @@ func (b *BlockChain) TSpendCountVotes(block *dcrutil.Block, prevNode *blockNode,
 		}
 		for _, v := range xblock.STransactions() {
 			votes, err := stake.CheckSSGenVotes(v.MsgTx(),
-				true) // Yes treasury
+				yesTreasury)
 			if err != nil {
 				// Not an SSGEN
 				continue
