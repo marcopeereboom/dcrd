@@ -514,7 +514,8 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 				break
 			}
 
-			// Append vote: OP_RET OP_DATA <TV> <tspend hash> <vote bits>
+			// Append vote:
+			// OP_RETURN OP_DATA <TV> <tspend hash> <vote bits>
 			vote := appendHashes(tspendHashes, votes)
 			s, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).
 				AddData(vote).Script()

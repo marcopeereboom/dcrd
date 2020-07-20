@@ -134,8 +134,8 @@ func (e errDbTreasury) Error() string {
 	return e.err.Error()
 }
 
-// dbFetchTreasuryBalance uses an existing database transaction to fetch the treasury
-// state.
+// dbFetchTreasuryBalance uses an existing database transaction to fetch the
+// treasury state.
 func dbFetchTreasuryBalance(dbTx database.Tx, hash chainhash.Hash) (*TreasuryState, error) {
 	meta := dbTx.Metadata()
 	bucket := meta.Bucket(dbnamespace.TreasuryBucketName)
@@ -202,7 +202,9 @@ func deserializeTSpend(data []byte) ([]chainhash.Hash, error) {
 	return hashes, nil
 }
 
-// dbPutTSpend inserts a treasury tspend record into the database. Note that this call is the low level write to the database. Use dbUpdateTSpend instead.
+// dbPutTSpend inserts a treasury tspend record into the database. Note that
+// this call is the low level write to the database. Use dbUpdateTSpend
+// instead.
 func dbPutTSpend(dbTx database.Tx, tx chainhash.Hash, blocks []chainhash.Hash) error {
 	// Serialize the current treasury state.
 	serializedData, err := serializeTSpend(blocks)
@@ -432,7 +434,7 @@ func (b *BlockChain) TreasuryBalance(hash *string) (string, int64, int64, []int6
 }
 
 // verifyTSpendSignature verifies that the provided signature and public key
-// were the ones that signed the provided message transactin.
+// were the ones that signed the provided message transaction.
 func verifyTSpendSignature(msgTx *wire.MsgTx, signature, pubKey []byte) error {
 	// Calculate signature hash.
 	sigHash, err := txscript.CalcSignatureHash(nil,
@@ -498,7 +500,7 @@ func (b *BlockChain) checkTSpendExpenditure(block *dcrutil.Block, prevNode *bloc
 	if err != nil {
 		return err
 	}
-	// wantSpend is a negative number therefor we use +.
+	// wantSpend is a negative number therefore we use +.
 	if treasuryBalance-wantSpend < 0 {
 		return fmt.Errorf("treasury balance may not become negative: "+
 			"balance %v spend %v", treasuryBalance, wantSpend)
@@ -577,8 +579,6 @@ func (b *BlockChain) checkTSpendExists(block *dcrutil.Block, prevNode *blockNode
 	// Do fork detection on all blocks.
 	for _, v := range blocks {
 		// Lookup blockNode.
-		// XXX is it ok to use the index here instead of fetching the
-		// block?
 		node := b.index.LookupNode(&v)
 		if node == nil {
 			// This should not happen.
