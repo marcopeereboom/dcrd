@@ -1953,6 +1953,8 @@ func (q *chainQueryerAdapter) BestHeight() int64 {
 	return q.BestSnapshot().Height
 }
 
+// IsTreasuryEnabled returns true if the treasury agenda is enabled as of the
+// provided block.
 func (q *chainQueryerAdapter) IsTreasuryEnabled(hash *chainhash.Hash) (bool, error) {
 	return q.IsTreasuryAgendaActive(hash)
 }

@@ -95,7 +95,7 @@ type ChainQueryer interface {
 	// associated versions spent by the given block.
 	PrevScripts(database.Tx, *dcrutil.Block) (PrevScripter, error)
 
-	// IsTreasuryEnabled returns trur if the reasury agenda is active at
+	// IsTreasuryEnabled returns true if the treasury agenda is active at
 	// the provided block. Care must be taken by the caller to ensure that
 	// this call is made with either the current or previous block hash.
 	IsTreasuryEnabled(*chainhash.Hash) (bool, error)
