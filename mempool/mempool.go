@@ -150,8 +150,7 @@ type Config struct {
 	// not.
 	IsTreasuryAgendaActive func() (bool, error)
 
-	// ExistsTSpend returns if a tspend hash has already been included in a
-	// previous block.
+	// FetchTSpend returns the blocks a TSpend was included in.
 	FetchTSpend func(tspend chainhash.Hash) ([]chainhash.Hash, error)
 }
 
@@ -1425,7 +1424,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// to this transaction.  This function also attempts to fetch the
 	// transaction itself to be used for detecting a duplicate transaction
 	// without needing to do a separate lookup.
-	utxoView, err := mp.fetchInputUtxos(tx, isTicket)
+	utxoView, err := mp.fetchInputUtxos(tx, isTreasuryEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {
