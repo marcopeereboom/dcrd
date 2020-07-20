@@ -600,7 +600,7 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, opReturnPkScrip
 		// Stakebase transactions have no inputs, so previous outpoint
 		// is zero hash and max index.
 		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
-			wire.MaxPrevOutIndex, wire.TxTreeRegular), // XXX should this not be wire.TxTreeStake?
+			wire.MaxPrevOutIndex, wire.TxTreeRegular),
 		Sequence:        wire.MaxTxInSequenceNum,
 		BlockHeight:     wire.NullBlockHeight,
 		BlockIndex:      wire.NullBlockIndex,
