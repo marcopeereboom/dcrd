@@ -555,8 +555,8 @@ const (
 	// treasury spend as input was non-null.
 	ErrBadTSpendOutpoint
 
-	// ErrBadTSpendFraudProof indicates that the fraud proof for a tspend
-	// input was non-null.
+	// ErrBadTSpendFraudProof indicates that the fraud proof for a treasury
+	// spend transaction input was non-null.
 	ErrBadTSpendFraudProof
 
 	// ErrBadTSpendScriptLen indicates the length of the signature script
