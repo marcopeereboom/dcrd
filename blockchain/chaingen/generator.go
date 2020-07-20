@@ -576,8 +576,8 @@ type AddressAmountTuple struct {
 //
 // The transaction consists of the following outputs:
 // - First input is <signature> <pi pubkey> OP_TSPEND
-// - First output is an OP_RETURN <32 byte randome data>
-// - Second and other outputs are OP_TGEN P2PH/P2SH
+// - First output is an OP_RETURN <32 byte random data>
+// - Second and other outputs are OP_TGEN P2PKH/P2SH
 // accounting.
 func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmountTuple, fee dcrutil.Amount, expiry uint32) *wire.MsgTx {
 	// Calculate total payout.
