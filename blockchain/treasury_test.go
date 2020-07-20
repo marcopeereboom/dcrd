@@ -492,7 +492,7 @@ func appendHashes(tspendHashes []*chainhash.Hash, votes []stake.TreasuryVoteT) [
 	return blob
 }
 
-// addTSpendVotes reurns a munge function that votes according to voteBits.
+// addTSpendVotes return a munge function that votes according to voteBits.
 func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.TreasuryVoteT, nrVotes uint16, skipAssert bool) func(*wire.MsgBlock) {
 	if len(tspendHashes) != len(votes) {
 		panic(fmt.Sprintf("assert addTSpendVotes %v != %v",
@@ -528,7 +528,7 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 			// Only TxVersionTreasury supports optional votes.
 			b.STransactions[k].Version = wire.TxVersionTreasury
 
-			// See if we shouild skip asserts. This is used for
+			// See if we should skip asserts. This is used for
 			// munging votes and bits.
 			if skipAssert {
 				continue
@@ -552,7 +552,7 @@ func addTSpendVotes(t *testing.T, tspendHashes []*chainhash.Hash, votes []stake.
 const devsub = 5000000000
 
 // standardTreasurybaseOpReturn returns an OP_RETURN datapush for a
-// treasurybase.  This code was copied from minig.go.
+// treasurybase.  This code was copied from mining.go.
 func standardTreasurybaseOpReturn(height uint32) []byte {
 	enData := make([]byte, 4)
 	binary.LittleEndian.PutUint32(enData[0:4], height)
@@ -611,9 +611,9 @@ func replaceCoinbase(b *wire.MsgBlock) {
 		Value:    0,
 		PkScript: standardTreasurybaseOpReturn(b.Header.Height),
 	})
-	retTx := dcrutil.NewTx(treasurybaseTx) // XXX why do I have to do this?
-	retTx.SetTree(wire.TxTreeStake)        // XXX why do I have to do this?
-	b.STransactions[0] = retTx.MsgTx()     // XXX why do I have to do this?
+	retTx := dcrutil.NewTx(treasurybaseTx)
+	retTx.SetTree(wire.TxTreeStake)
+	b.STransactions[0] = retTx.MsgTx()
 
 	// Sanity check treasury base.
 	if !standalone.IsTreasuryBase(retTx.MsgTx()) {
@@ -1334,7 +1334,7 @@ func TestTSpendExpenditures2(t *testing.T) {
 	t.Logf("nbh %v expiry %v start %v end %v",
 		nextBlockHeight, expiry, start, end)
 
-	// This calculation is inprecise due to the blockreward going down.
+	// This calculation is imprecise due to the block reward going down.
 	x := tvi * mul * params.TreasuryVoteIntervalPolicy * devsub
 	tspendAmount := x + x/2 + devsub*2 // 150% including maturity
 	tspendFee := uint64(0)
@@ -1398,8 +1398,8 @@ func TestTSpendDupVote(t *testing.T) {
 	defer teardownFunc()
 
 	// replaceTreasuryVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with the
-	// fix sequence locks deployment version.
+	// provided block by replacing the block, stake, and vote versions with
+	// the fix sequence locks deployment version.
 	replaceTreasuryVersions := func(b *wire.MsgBlock) {
 		chaingen.ReplaceBlockVersion(int32(tVersion))(b)
 		chaingen.ReplaceStakeVersion(tVersion)(b)
