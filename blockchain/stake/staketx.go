@@ -1044,6 +1044,9 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	return votes, nil
 }
 
+// CheckSSGen wraps CheckSSGenVotes (which is the old CheckSSGen plus it
+// returns TSpend votes if there are any) to maintain consistency and backwards
+// compatibility.
 func CheckSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) error {
 	_, err := CheckSSGenVotes(tx, isTreasuryEnabled)
 	return err
